@@ -86,3 +86,6 @@
 }
 
 .staff-stats b { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
+
+.staff-app .staff-primary, .staff-app .staff-quiet { font-size: 16px; }
+.staff-empty, .staff-muted { color: #e2d6cc; }
