@@ -164,7 +164,7 @@ import { apiFetch } from "./api.js";
         '<span class="product-category" title="' + escapeHtml(category?.name || "Menu") + '">' + escapeHtml(category?.name || "Menu") + '</span>' + dots +
       '</div>' +
       '<div class="product-card-copy"><a class="product-open product-copy-link" href="' + href + '"><h4>' + escapeHtml(product.name) + '</h4></a>' +
-        '<p class="product-description' + (full ? ' is-expanded' : '') + '">' + description + '</p>' +
+        '<a class="product-description-link" href="' + href + '"><p class="product-description' + (full ? ' is-expanded' : '') + '">' + description + '</p></a>' +
         (!full && product.description && product.description.length > 120 ? '<button type="button" class="product-read-more" data-read-more>Read more</button>' : '') +
         '<div class="product-card-bottom"><strong>' + escapeHtml(product.price == null ? "Request a quote" : money(product.price)) + '</strong>' +
         (full ? '<button class="product-detail-add" type="button" data-add-product="' + escapeHtml(product.id) + '">Add to cart</button>' : '') + '</div>' +
