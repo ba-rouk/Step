@@ -13,7 +13,7 @@ Deno.serve(async req=>{
   const {order_id}=await req.json();
   const {data:order,error}=await db.from("store_orders").select("*").eq("id",order_id).maybeSingle();
   if(error||!order)return Response.json({error:"Order not found"},{status:404,headers:cors});
-  const {data:staff}=await db.from("staff_profiles").select("user_id,phone,email").eq("role","cashier").eq("is_active",true);
+  const {data:staff}=await db.from("staff_profiles").select("user_id,phone,email").in("role",["manager","accountant","cashier"]).eq("is_active",true);
   const isStaff=await db.from("staff_profiles").select("user_id").eq("user_id",user.id).eq("is_active",true).maybeSingle();
   if(order.customer_id!==user.id&&!isStaff.data)return Response.json({error:"Not allowed to notify for this order"},{status:403,headers:cors});
   const recipients=(staff||[]).map(x=>x.user_id);
