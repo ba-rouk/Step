@@ -375,7 +375,8 @@ import { apiFetch } from "./api.js";
     }
     const more = event.target.closest("[data-read-more]");
     if (more) {
-      const description = more.previousElementSibling;
+      const description = more.previousElementSibling.querySelector(".product-description");
+      if (!description) return;
       description.classList.toggle("is-expanded");
       more.textContent = description.classList.contains("is-expanded") ? "Read less" : "Read more";
       return;
