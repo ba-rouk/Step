@@ -141,14 +141,17 @@ import { apiFetch } from "./api.js";
   }
   function productCard(product, index, detail = false) {
     const category = categories.find(item => item.id === product.category_id);
-    const images = (Array.isArray(product.images) && product.images.length ? product.images.map(image => image.url) : (Array.isArray(product.image_urls) ? product.image_urls : [product.image_url])).map(safeImageUrl).filter(Boolean);
-    const uniqueImages = [...new Set(images)];
+    const imageRecords = (Array.isArray(product.images) && product.images.length ? product.images : (Array.isArray(product.image_urls) ? product.image_urls : [product.image_url]).filter(Boolean).map(url => ({url})));
+    const uniqueImages = imageRecords.filter(image => safeImageUrl(image.url)).filter((image,index,array) => array.findIndex(item => item.url === image.url) === index);
     const liked = savedFavourites().includes(product.id);
     const slug = slugFor(product);
     const href = "/product/" + encodeURIComponent(slug);
-    const slides = uniqueImages.length ? uniqueImages.map((src, i) =>
-      '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(product.name) + ' — photo ' + (i+1) + '" width="800" height="600" ' + (index === 0 && i === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"') + ' decoding="async">'
-    ).join("") : '<div class="product-image-placeholder" role="img" aria-label="' + escapeHtml(product.name) + ' image unavailable">STEP TOWN</div>';
+    const slides = uniqueImages.length ? uniqueImages.map((image, i) => {
+      const src = safeImageUrl(image.url);
+      const variants = image.variants && typeof image.variants === "object" ? image.variants : {};
+      const srcset = Object.entries(variants).filter(([width,url]) => /^\\d+$/.test(width) && safeImageUrl(url)).map(([width,url]) => safeImageUrl(url) + " " + width + "w").join(", ");
+      return '<img src="' + escapeHtml(src) + '"' + (srcset ? ' srcset="' + escapeHtml(srcset) + '" sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw"' : '') + ' alt="' + escapeHtml(image.alt_text || product.name + " — photo " + (i+1)) + '" width="800" height="600" ' + (index === 0 && i === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"') + ' decoding="async">';
+    }).join("") : '<div class="product-image-placeholder" role="img" aria-label="' + escapeHtml(product.name) + ' image unavailable">STEP TOWN</div>';
     const dots = uniqueImages.length > 1 ? '<div class="product-dots" role="group" aria-label="Choose product photo">' + uniqueImages.map((_,i) => '<button type="button" data-dot="' + i + '" aria-label="Show photo ' + (i+1) + '" aria-pressed="' + (i===0) + '" class="' + (i===0 ? 'is-active' : '') + '"></button>').join("") + '</div>' : "";
     const description = escapeHtml(product.description || "Prepared with care by Step Town.");
     const full = detail;
@@ -317,7 +320,7 @@ import { apiFetch } from "./api.js";
     products = productResult.data || [];
     const ids = products.map(product => product.id);
     if (ids.length) {
-      const { data: galleryRows, error: galleryError } = await supabase.from("product_images").select("id,product_id,url,position,alt_text").in("product_id", ids).order("position");
+      const { data: galleryRows, error: galleryError } = await supabase.from("product_images").select("id,product_id,url,position,alt_text,variants").in("product_id", ids).order("position");
       if (!galleryError && galleryRows?.length) {
         const byProduct = new Map();
         for (const image of galleryRows) { if (!byProduct.has(image.product_id)) byProduct.set(image.product_id, []); byProduct.get(image.product_id).push(image); }
