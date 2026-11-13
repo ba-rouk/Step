@@ -600,7 +600,7 @@ async function orderDetailPage(id) {
   }));
   $("#print-receipt").addEventListener("click", () => window.print());
 }
-async function uploadImage(file, folder) {
+async function uploadImage(file, folder, onProgress = () => {}) {
   if (!file || !["image/jpeg","image/png","image/webp"].includes(file.type)) throw new Error("Choose a JPG, PNG or WEBP image.");
   if (file.size > 5 * 1024 * 1024) throw new Error(file.name + " exceeds 5 MB.");
   const bitmap = await createImageBitmap(file);
@@ -613,8 +613,27 @@ async function uploadImage(file, folder) {
   bitmap.close?.();
   const blob = await new Promise((resolve,reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("Image compression failed.")), "image/webp", .86));
   const objectPath = folder + "/" + Date.now() + "-" + crypto.randomUUID() + ".webp";
-  const { error } = await supabase.storage.from("step-town-media").upload(objectPath, blob, { contentType:"image/webp", upsert:false });
-  if (error) throw error;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Your staff session expired. Sign in again before uploading.");
+  const base = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\\/+$/, "");
+  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const encodedPath = objectPath.split("/").map(encodeURIComponent).join("/");
+  await new Promise((resolve,reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", base + "/storage/v1/object/step-town-media/" + encodedPath);
+    request.setRequestHeader("apikey", key);
+    request.setRequestHeader("Authorization", "Bearer " + session.access_token);
+    request.setRequestHeader("Content-Type", "image/webp");
+    request.setRequestHeader("x-upsert", "false");
+    request.upload.onprogress = event => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) { onProgress(100); resolve(); }
+      else { let message = "Image upload failed."; try { message = JSON.parse(request.responseText).message || message; } catch {} reject(new Error(message)); }
+    };
+    request.onerror = () => reject(new Error("Network error while uploading image."));
+    request.onabort = () => reject(new Error("Image upload was cancelled."));
+    request.send(blob);
+  });
   return { url:supabase.storage.from("step-town-media").getPublicUrl(objectPath).data.publicUrl, public_id:objectPath };
 }
 async function productsPage() {
@@ -725,7 +744,10 @@ async function productsPage() {
         const uploaded=new Map();
         for(let i=0;i<pendingImages.length;i++){
           $("#product-message").textContent="Compressing and uploading image "+(i+1)+" of "+pendingImages.length+"…";
-          uploaded.set(pendingImages[i],await uploadImage(pendingImages[i].file,"products"));
+          uploaded.set(pendingImages[i],await uploadImage(pendingImages[i].file,"products",percent=>{
+            pendingImages[i].progress=percent;
+            renderImageList();
+          }));
           pendingImages[i].progress=100;
           renderImageList();
         }
