@@ -13,6 +13,8 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg">
   <title>Step Town — Catering, Barbecue & Wedding Cakes</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg">
   <link rel="icon" type="image/jpeg" href="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg">
   <link rel="apple-touch-icon" href="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,6 +36,8 @@
     "description": "Event catering, barbecue and made-to-order wedding and celebration cakes."
   }
   </script>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg">
 </head>
 <body>
 <header class="site-header" id="top">
@@ -43,8 +47,9 @@
         <span class="brand-copy"><strong>STEP TOWN</strong><small>FOOD · CELEBRATIONS · CAKES</small></span>
       </a>
       <button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="primary-nav">
-        <span></span><span></span>
+        <span></span><span></span><span></span>
       </button>
+      <a class="route-home-button" id="route-home-button" href="/" aria-label="Back to Step Town home" hidden>← <span>Home</span></a>
       <nav class="primary-nav" id="primary-nav" aria-label="Main navigation">
         <a href="#story">Our approach</a>
         <a href="#menu">Order online</a>
@@ -293,6 +298,24 @@
   </main>
 
 
+  <div id="route-root" class="route-root" hidden></div>
+
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Mobile quick navigation" hidden>
+    <a href="/" data-mobile-route="home" aria-current="page"><span aria-hidden="true">⌂</span><small>Home</small></a>
+    <a href="/categories" data-mobile-route="categories"><span aria-hidden="true">▦</span><small>Categories</small></a>
+    <a href="/gallery" data-mobile-route="gallery"><span aria-hidden="true">▧</span><small>Gallery</small></a>
+    <a href="/cart" data-mobile-route="cart"><span aria-hidden="true">🛒</span><small>Cart <b id="mobile-cart-count">0</b></small></a>
+    <a href="/account" data-mobile-route="account"><span aria-hidden="true">◉</span><small>My profile</small></a>
+  </nav>
+
+  <div id="route-root" class="route-root" hidden></div>
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="Mobile quick navigation" hidden>
+    <a href="/" data-mobile-route="home" aria-current="page"><span aria-hidden="true">⌂</span><small>Home</small></a>
+    <a href="/categories" data-mobile-route="categories"><span aria-hidden="true">▦</span><small>Categories</small></a>
+    <a href="/gallery" data-mobile-route="gallery"><span aria-hidden="true">▧</span><small>Gallery</small></a>
+    <a href="/cart" data-mobile-route="cart"><span aria-hidden="true">🛒</span><small>Cart <b id="mobile-cart-count">0</b></small></a>
+    <a href="/account" data-mobile-route="account"><span aria-hidden="true">◉</span><small>My profile</small></a>
+  </nav>
   <div class="cart-backdrop" id="cart-backdrop" hidden></div>
   <aside class="cart-drawer" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" aria-hidden="true" hidden>
     <header class="cart-header">
