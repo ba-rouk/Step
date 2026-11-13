@@ -66,8 +66,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .hero-stamp { position: absolute; z-index: 2; right: max(36px, calc((100% - var(--shell)) / 2)); bottom: 56px; width: 112px; height: 112px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,.65); border-radius: 50%; color: #fffaf1; transform: rotate(9deg); }
 .hero-stamp span { font-size: 7px; letter-spacing: .2em; }
 .hero-stamp b { font-family: var(--display); font-size: 24px; line-height: 1.25; font-weight: 500; }
-.intro-grid .eyebrow { margin: 0; }
-.intro-statement em { color: var(--rust-dark); }
 .section-space { padding-top: 115px; padding-bottom: 120px; }
 .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 45px; margin-bottom: 52px; }
 .section-heading .eyebrow { margin-bottom: 18px; }
@@ -216,7 +214,6 @@ h2 em { color: var(--rust-dark); }
   .hero-stamp { right: 22px; bottom: 75px; width: 82px; height: 82px; }
   .hero-stamp b { font-size: 18px; }
   .hero-stamp span { font-size: 6px; }
-  .intro-grid .eyebrow { grid-column: 1 / -1; }
   .section-space { padding-top: 76px; padding-bottom: 78px; }
   .section-heading, .gallery-heading { display: block; margin-bottom: 34px; }
   h2 { font-size: 48px; }
