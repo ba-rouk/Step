@@ -126,14 +126,18 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     catalogStatus.hidden = true;
     productGrid.innerHTML = filtered.map((product) => {
       const category = categories.find((item) => item.id === product.category_id);
-      const image = safeImageUrl(product.image_url) || safeImageUrl(category && category.cover_image_url);
+      const images = (Array.isArray(product.image_urls) ? product.image_urls : []).map(safeImageUrl).filter(Boolean);
+      const primaryImage = safeImageUrl(product.image_url) || safeImageUrl(category && category.cover_image_url);
+      if (!images.length && primaryImage) images.push(primaryImage);
       const description = product.description ? '<p class="product-description">' + escapeHtml(product.description) + '</p>' : '<p class="product-description">Prepared with care by Step Town.</p>';
       const price = product.price == null ? "Request a quote" : money(product.price);
+      const imageStrip = images.length ? '<div class="product-image-strip">' + images.map((src,index) => '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(product.name) + ' photo ' + (index+1) + '" loading="lazy">').join("") + '</div>' : '<span class="product-image-placeholder">STEP TOWN</span>';
       return '<article class="product-card">' +
-        '<div class="product-image">' + (image ? '<img src="' + escapeHtml(image) + '" alt="' + escapeHtml(product.name) + '" loading="lazy">' : '<span class="product-image-placeholder">STEP TOWN</span>') +
+        '<div class="product-image">' + imageStrip +
+        '<button class="product-favourite" type="button" data-favourite="' + escapeHtml(product.id) + '" aria-label="Save ' + escapeHtml(product.name) + ' to favourites">♡</button>' +
         '<span class="product-category">' + escapeHtml(category ? category.name : "Menu") + '</span></div>' +
         '<div class="product-card-copy"><h4>' + escapeHtml(product.name) + '</h4>' + description +
-        '<div class="product-card-bottom"><strong>' + escapeHtml(price) + '</strong><button class="add-to-bag" type="button" data-add-product="' + escapeHtml(product.id) + '">Add to bag <span aria-hidden="true">+</span></button></div></div></article>';
+        '<div class="product-card-bottom"><strong>' + escapeHtml(price) + '</strong><button class="add-to-bag" type="button" data-add-product="' + escapeHtml(product.id) + '">＋ Add to bag</button></div></div></article>';
     }).join("");
   }
 
@@ -212,7 +216,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     catalogStatus.textContent = "Loading the Step Town menu…";
     const [categoryResult, productResult] = await Promise.all([
       supabase.from("store_categories").select("id,name,slug,description,cover_image_url,sort_order").eq("is_active", true).order("sort_order"),
-      supabase.from("store_products").select("id,category_id,name,description,price,image_url,sort_order").eq("is_available", true).order("sort_order")
+      supabase.from("store_products").select("id,category_id,name,description,price,image_url,image_urls,sort_order").eq("is_available", true).order("sort_order")
     ]);
 
     if (categoryResult.error || productResult.error) {
@@ -236,6 +240,18 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   });
 
   productGrid.addEventListener("click", (event) => {
+    const favourite = event.target.closest("[data-favourite]");
+    if (favourite) {
+      const key = "step-town-favourites-v1";
+      let saved = [];
+      try { saved = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
+      const id = favourite.dataset.favourite;
+      saved = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id];
+      localStorage.setItem(key, JSON.stringify(saved));
+      favourite.classList.toggle("is-saved", saved.includes(id));
+      favourite.textContent = saved.includes(id) ? "♥" : "♡";
+      return;
+    }
     const button = event.target.closest("[data-add-product]");
     if (button) addProduct(button.dataset.addProduct);
   });
