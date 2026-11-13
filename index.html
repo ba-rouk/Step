@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#211d1a">
+  <meta name="theme-color" content="#211d1a">\n  <link rel="manifest" href="/manifest.json">
   <meta name="description" content="Step Town brings together event catering, barbecue and made-to-order celebration cakes in Rwanda. Tell us about your occasion and request a personal quote.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Step Town — Gather beautifully">
@@ -341,5 +341,5 @@
   </footer>
 
   <script type="module" src="/src/main.js"></script>
-</body>
+  <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(err => console.warn("Step Town service worker unavailable", err)));</script>\n</body>
 </html>
