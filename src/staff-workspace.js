@@ -671,10 +671,14 @@ async function productsPage() {
   }
   shell("Products",
     '<section class="staff-panel"><div class="staff-panel-head"><div><p class="staff-eyebrow">PUBLIC MENU</p><h2>Menu catalogue</h2></div><a class="staff-primary" href="/staff/products/new">Add product</a></div>' +
-      '<label class="staff-search-label">Search products<input id="product-search" type="search" placeholder="Product or category"></label><div id="products-table"></div></section>');
+      '<div class="staff-filters"><label>Search products<input id="product-search" type="search" placeholder="Product name"></label><label>Category<select id="product-category-filter"><option value="all">All categories</option>' + categories.map(category => '<option value="' + category.id + '">' + esc(category.name) + '</option>').join("") + '</select></label></div><div id="products-table"></div></section>');
   const render = () => {
     const term = ($("#product-search").value || "").toLowerCase();
-    const visible = products.filter(item => (item.name + " " + (item.store_categories?.name || "")).toLowerCase().includes(term));
+    const categoryId = $("#product-category-filter").value;
+    const visible = products.filter(item =>
+      (categoryId === "all" || item.category_id === categoryId) &&
+      (item.name + " " + (item.store_categories?.name || "")).toLowerCase().includes(term)
+    );
     $("#products-table").innerHTML = visible.length ?
       '<div class="staff-table-wrap"><table><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Menu status</th><th>Actions</th></tr></thead><tbody>' +
       visible.map(item =>
@@ -706,6 +710,7 @@ async function productsPage() {
     }));
   };
   $("#product-search").addEventListener("input", render);
+  $("#product-category-filter").addEventListener("change", render);
   render();
 }
 async function galleryPage() {
@@ -895,7 +900,7 @@ async function reportsPage() {
       const methods = payments.reduce((acc, p) => { acc[p.method] = (acc[p.method] || 0) + Number(p.amount || 0); return acc; }, {});
       const sellers = {};
       const categories = {};
-      orders.forEach(order => (Array.isArray(order.items) ? order.items : []).forEach(item => {
+      completed.forEach(order => (Array.isArray(order.items) ? order.items : []).forEach(item => {
         const name = String(item.name || "Item");
         const quantity = Number(item.quantity || 0);
         sellers[name] = (sellers[name] || 0) + quantity;
