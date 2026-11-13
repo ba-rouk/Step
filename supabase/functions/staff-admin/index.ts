@@ -129,6 +129,70 @@ Deno.serve(async (req: Request) => {
     .select("id,user_id,role,is_active").eq("user_id", targetUserId).maybeSingle();
   if (!target || target.role === "manager") return reply({ error: "The target staff account cannot be managed here." }, 404, origin);
 
+
+  if (action === "update-profile") {
+    const fullName = clean(body.full_name, 120);
+    const phone = clean(body.phone, 40) || null;
+    const role = clean(body.role, 20);
+    if (fullName.length < 2 || !["accountant", "cashier"].includes(role)) {
+      return reply({ error: "Enter a valid name and select Accountant or Cashier." }, 400, origin);
+    }
+
+    let reportsTo = actor.id;
+    if (role === "cashier") {
+      const parentId = clean(body.reports_to, 80);
+      const { data: parent, error } = await admin.from("staff_profiles")
+        .select("id,role,is_active,reports_to")
+        .eq("id", parentId).maybeSingle();
+      if (error || !parent || parent.role !== "accountant" || !parent.is_active || parent.reports_to !== actor.id) {
+        return reply({ error: "Select an active Accountant who reports to this Manager." }, 400, origin);
+      }
+      reportsTo = parent.id;
+    }
+
+    if (target.role === "accountant" && role === "cashier") {
+      const { data: reports } = await admin.from("staff_profiles")
+        .select("id").eq("reports_to", target.id).limit(1);
+      if (reports?.length) {
+        return reply({ error: "This Accountant has Cashiers reporting to them. Reassign those Cashiers before changing this role." }, 409, origin);
+      }
+    }
+
+    const { error: profileError } = await admin.from("staff_profiles").update({
+      full_name: fullName,
+      phone,
+      role,
+      reports_to: reportsTo,
+      updated_at: new Date().toISOString()
+    }).eq("id", target.id);
+    if (profileError) return reply({ error: "Could not update the staff profile: " + profileError.message }, 400, origin);
+
+    const { data: authTarget } = await admin.auth.admin.getUserById(target.user_id);
+    const nextMetadata = {
+      ...(authTarget?.user?.app_metadata || {}),
+      staff: true,
+      staff_role: role
+    };
+    const { error: authUpdateError } = await admin.auth.admin.updateUserById(target.user_id, {
+      app_metadata: nextMetadata,
+      user_metadata: {
+        ...(authTarget?.user?.user_metadata || {}),
+        full_name: fullName
+      }
+    });
+    if (authUpdateError) return reply({ error: "Profile updated, but sign-in metadata could not be refreshed: " + authUpdateError.message }, 500, origin);
+
+    await admin.from("audit_log").insert({
+      actor_id: user.id,
+      actor_role: "manager",
+      action: "staff_profile_updated",
+      entity_type: "staff_profile",
+      entity_id: target.id,
+      details: { role, reports_to: reportsTo, full_name: fullName },
+    });
+    return reply({ ok: true }, 200, origin);
+  }
+
   if (action === "reset") {
     const password = String(body.password || "");
     if (password.length < 12) return reply({ error: "Temporary passwords must be at least 12 characters." }, 400, origin);
