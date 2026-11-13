@@ -17,9 +17,26 @@ if (!path.startsWith("/staff")) {
   let profile = null;
   let activeOrder = null;
 
-  function shell(title, body) {
-    app.innerHTML = '<header class="staff-top"><a class="staff-brand" href="/"><span class="staff-mark">ST</span><span><b>STEP TOWN</b><small>STAFF WORKSPACE</small></span></a><div class="staff-user"><span>'+esc(profile?.full_name || "Staff")+' · '+esc(roleTitle(profile?.role))+'</span><button id="staff-logout" class="staff-quiet">Sign out</button></div></header><main class="staff-main"><div class="staff-title-row"><div><p class="staff-eyebrow">STEP TOWN · RUNDA, RWANDA</p><h1>'+esc(title)+'</h1></div><a class="staff-home" href="/">↗ Public website</a></div><nav class="staff-nav">'+navLinks()+'</nav>'+body+'</main>';
+  function decodeVapidKey(value){const padding="=".repeat((4-value.length%4)%4);const base64=(value+padding).replace(/-/g,"+").replace(/_/g,"/");const raw=atob(base64);return Uint8Array.from(raw,c=>c.charCodeAt(0));}\n  function shell(title, body) {
+    app.innerHTML = '<header class="staff-top"><a class="staff-brand" href="/"><span class="staff-mark">ST</span><span><b>STEP TOWN</b><small>STAFF WORKSPACE</small></span></a><div class="staff-user"><span>'+esc(profile?.full_name || "Staff")+' · '+esc(roleTitle(profile?.role))+'</span><button id="staff-enable-push" class="staff-quiet" type="button">Enable alerts</button><button id="staff-logout" class="staff-quiet">Sign out</button></div></header><main class="staff-main"><div class="staff-title-row"><div><p class="staff-eyebrow">STEP TOWN · RUNDA, RWANDA</p><h1>'+esc(title)+'</h1></div><a class="staff-home" href="/">↗ Public website</a></div><nav class="staff-nav">'+navLinks()+'</nav>'+body+'</main>';
     document.querySelector("#staff-logout")?.addEventListener("click", async()=>{await supabase.auth.signOut(); location.assign("/staff/login");});
+    document.querySelector("#staff-enable-push")?.addEventListener("click", async (event)=>{
+      const button=event.currentTarget;
+      const publicKey=import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      if(!("serviceWorker" in navigator)||!("PushManager" in window)){alert("Push notifications are not supported by this browser. On iPhone, install Step Town to your Home Screen first.");return;}
+      if(!publicKey){alert("VITE_VAPID_PUBLIC_KEY is not configured on the site yet.");return;}
+      const permission=await Notification.requestPermission();
+      if(permission!=="granted"){alert("Notification permission was not granted.");return;}
+      button.disabled=true;button.textContent="Enabling…";
+      try{
+        const registration=await navigator.serviceWorker.register("/sw.js");
+        const subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:decodeVapidKey(publicKey)});
+        const json=subscription.toJSON();
+        const {error}=await supabase.from("push_subscriptions").upsert({user_id:profile.user_id,endpoint:json.endpoint,p256dh:json.keys.p256dh,auth_key:json.keys.auth,user_agent:navigator.userAgent,updated_at:new Date().toISOString()},{onConflict:"endpoint"});
+        if(error)throw error;
+        button.textContent="Alerts enabled";
+      }catch(error){console.error(error);alert("Could not enable notifications: "+error.message);button.disabled=false;button.textContent="Enable alerts";}
+    });
     app.querySelectorAll("[data-staff-nav]").forEach(a=>a.classList.toggle("active", a.getAttribute("href")===location.pathname));
   }
   function navLinks(){
