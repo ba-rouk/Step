@@ -621,10 +621,16 @@ async function productsPage() {
     isNew || isEdit ? Promise.resolve([]) : queryRows(supabase.from("store_products").select("*,store_categories(name)").order("sort_order").order("created_at", { ascending: false }))
   ]);
   let product = null;
+  let currentImages = [];
   if (isEdit) {
     const { data, error } = await supabase.from("store_products").select("*").eq("id", productId).maybeSingle();
     if (error || !data) { shell("Product not found", panelError(error || { message: "Product not found." })); return; }
     product = data;
+    currentImages = await queryRows(supabase.from("product_images").select("id,url,public_id,position,alt_text").eq("product_id", productId).order("position"));
+    if (!currentImages.length) {
+      const legacy = product.image_urls?.length ? product.image_urls : (product.image_url ? [product.image_url] : []);
+      currentImages = legacy.filter(Boolean).slice(0,10).map((url,index) => ({ id:null,url,public_id:null,position:index,alt_text:product.name + " photo " + (index+1) }));
+    }
   }
   if (isNew || isEdit) {
     const title = isNew ? "Add product" : "Edit product";
@@ -635,14 +641,60 @@ async function productsPage() {
         '<label>Price (RWF)<input name="price" type="number" min="0" step="1" value="' + (product?.price ?? "") + '" placeholder="Leave blank for quote"></label>' +
         '<label>Stock quantity<input name="stock_quantity" type="number" min="0" step="1" value="' + (product?.stock_quantity ?? "") + '" placeholder="Blank means not tracked"></label>' +
         '<label class="wide">Description<textarea name="description" rows="3">' + esc(product?.description || "") + "</textarea></label>" +
-        '<label class="wide">Product photos<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple></label>' +
-        (product?.image_urls?.length || product?.image_url ? '<div class="staff-existing-images wide">' + (product.image_urls?.length ? product.image_urls : [product.image_url]).filter(Boolean).map(url => '<img src="' + esc(url) + '" alt="">').join("") + "</div>" : "") +
+        '<div class="wide product-image-uploader"><label>Product photos · JPG, PNG or WEBP · 5 MB max each<input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div id="product-image-list" class="staff-product-image-list"></div><p class="staff-muted">Up to 10 images. Drag to reorder, or use the controls. The first image is the cover.</p></div>' +
         '<label class="staff-check"><input type="checkbox" name="is_available" ' + (product?.is_available === false ? "" : "checked") + '> Available</label>' +
         '<label class="staff-check"><input type="checkbox" name="has_stock" ' + (product?.has_stock === false ? "" : "checked") + '> In stock</label>' +
         '<label class="staff-check"><input type="checkbox" name="is_visible" ' + (product?.is_visible === false ? "" : "checked") + '> Visible on public menu</label>' +
         '<div class="staff-form-actions wide"><a class="staff-quiet" href="/staff/products">Cancel</a><button class="staff-primary" type="submit">' + (isNew ? "Publish product" : "Save changes") + "</button></div>" +
         '<p id="product-message" class="staff-muted wide" role="status"></p>' +
       "</form></section>");
+    currentImages = currentImages.map(image => ({ ...image }));
+    const imageList = $("#product-image-list");
+    const renderImageList = () => {
+      imageList.innerHTML = currentImages.map((image,index) =>
+        '<article class="staff-product-image" draggable="true" data-image-index="' + index + '"><img src="' + esc(image.url) + '" alt="' + esc(image.alt_text || "Product photo") + '"><div><b>' + (index === 0 ? "Cover image" : "Image " + (index+1)) + '</b><small>' + esc(image.alt_text || "") + '</small><div class="staff-row-actions"><button type="button" data-image-cover="' + index + '"' + (index===0 ? " disabled" : "") + '>Set cover</button><button type="button" data-image-left="' + index + '"' + (index===0 ? " disabled" : "") + '>Move left</button><button type="button" data-image-right="' + index + '"' + (index===currentImages.length-1 ? " disabled" : "") + '>Move right</button><button type="button" data-image-remove="' + index + '">Remove</button></div></div></article>'
+      ).join("");
+    };
+    renderImageList();
+    imageList.addEventListener("click", async event => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      const index = Number(button.dataset.imageCover ?? button.dataset.imageLeft ?? button.dataset.imageRight ?? button.dataset.imageRemove);
+      if (button.hasAttribute("data-image-remove")) {
+        const image = currentImages[index];
+        if (image?.id) {
+          const { error } = await supabase.from("product_images").delete().eq("id", image.id);
+          if (error) { notify(error.message,"error"); return; }
+          if (image.public_id) await supabase.storage.from("step-town-media").remove([image.public_id]);
+        }
+        if (image?.file) URL.revokeObjectURL(image.url);
+        currentImages.splice(index,1);
+      } else if (button.hasAttribute("data-image-left")) [currentImages[index-1],currentImages[index]]=[currentImages[index],currentImages[index-1]];
+      else if (button.hasAttribute("data-image-right")) [currentImages[index+1],currentImages[index]]=[currentImages[index],currentImages[index+1]];
+      else if (button.hasAttribute("data-image-cover")) currentImages.unshift(currentImages.splice(index,1)[0]);
+      renderImageList();
+    });
+    imageList.addEventListener("dragstart", event => {
+      const card = event.target.closest("[data-image-index]");
+      if (card) event.dataTransfer.setData("text/plain",card.dataset.imageIndex);
+    });
+    imageList.addEventListener("dragover", event => { if (event.target.closest("[data-image-index]")) event.preventDefault(); });
+    imageList.addEventListener("drop", event => {
+      const card = event.target.closest("[data-image-index]");
+      if (!card) return;
+      event.preventDefault();
+      const from=Number(event.dataTransfer.getData("text/plain")),to=Number(card.dataset.imageIndex);
+      if (Number.isInteger(from) && from!==to) { currentImages.splice(to,0,currentImages.splice(from,1)[0]); renderImageList(); }
+    });
+    $('input[name="images"]', $("#product-form")).addEventListener("change", event => {
+      const files=Array.from(event.target.files||[]);
+      const invalid=files.find(file=>!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>5*1024*1024);
+      if(invalid){$("#product-message").textContent=invalid.size>5*1024*1024?invalid.name+" exceeds 5 MB.":"Use JPG, PNG or WEBP images.";event.target.value="";return;}
+      if(currentImages.length+files.length>10){$("#product-message").textContent="A product can have at most 10 images.";event.target.value="";return;}
+      files.forEach(file=>currentImages.push({id:null,url:URL.createObjectURL(file),public_id:null,alt_text:file.name,file}));
+      event.target.value="";
+      renderImageList();
+    });
     $("#product-form").addEventListener("submit", async event => {
       event.preventDefault();
       const form = event.currentTarget;
@@ -659,14 +711,19 @@ async function productsPage() {
       const submit = $("button[type=submit]", form);
       submit.disabled = true;
       try {
-        const files = Array.from($('input[name="images"]', form).files || []);
-        const uploaded = [];
-        for (let i = 0; i < files.length; i++) {
-          $("#product-message").textContent = "Uploading photo " + (i + 1) + " of " + files.length + "…";
-          uploaded.push(await uploadImage(files[i], "products"));
+        const payloadName=String(fields.get("name")||"").trim();
+        if (currentImages.length > 10) throw new Error("A product can have at most 10 images.");
+        const pendingImages=currentImages.filter(image=>image.file);
+        const uploaded=new Map();
+        for(let i=0;i<pendingImages.length;i++){
+          $("#product-message").textContent="Compressing and uploading image "+(i+1)+" of "+pendingImages.length+"…";
+          uploaded.set(pendingImages[i],await uploadImage(pendingImages[i].file,"products"));
         }
-        const previousImages = product?.image_urls?.length ? product.image_urls : (product?.image_url ? [product.image_url] : []);
-        const imageUrls = uploaded.length ? [...previousImages, ...uploaded] : previousImages;
+        const orderedImages=currentImages.map(image=>{
+          const saved=uploaded.get(image);
+          return saved?{...saved,alt_text:payloadName+" photo"}:image;
+        });
+        const imageUrls=orderedImages.map(image=>image.url);
         const payload = {
           name: String(fields.get("name") || "").trim(),
           category_id: fields.get("category_id"),
@@ -681,11 +738,31 @@ async function productsPage() {
           updated_by: profile.user_id,
           updated_at: new Date().toISOString()
         };
-        const result = isEdit
-          ? await supabase.from("store_products").update(payload).eq("id", productId)
-          : await supabase.from("store_products").insert({ ...payload, sort_order: 0 });
-        if (result.error) throw result.error;
-        await writeAudit(isEdit ? "product_updated" : "product_created", "store_product", productId, { name: payload.name });
+        let savedId=productId;
+        if(isEdit){
+          const result=await supabase.from("store_products").update(payload).eq("id",productId);
+          if(result.error)throw result.error;
+        }else{
+          const result=await supabase.from("store_products").insert({...payload,sort_order:0}).select("id").single();
+          if(result.error)throw result.error;
+          savedId=result.data.id;
+        }
+        const oldRows=await queryRows(supabase.from("product_images").select("id,url,public_id").eq("product_id",savedId));
+        const keepIds=new Set(orderedImages.map(image=>image.id).filter(Boolean));
+        const removed=oldRows.filter(image=>!keepIds.has(image.id));
+        if(oldRows.length){
+          const {error}=await supabase.from("product_images").delete().eq("product_id",savedId);
+          if(error)throw error;
+        }
+        const paths=removed.map(image=>image.public_id).filter(Boolean);
+        if(paths.length)await supabase.storage.from("step-town-media").remove(paths);
+        for(let index=0;index<orderedImages.length;index++){
+          const image=orderedImages[index];
+          const {error}=await supabase.from("product_images").insert({product_id:savedId,url:image.url,public_id:image.public_id||null,position:index,alt_text:image.alt_text||payload.name+" photo "+(index+1)});
+          if(error)throw error;
+        }
+        await writeAudit("product_gallery_changed","store_product",savedId,{image_count:orderedImages.length,removed_count:removed.length});
+        await writeAudit(isEdit?"product_updated":"product_created","store_product",savedId,{name:payload.name});
         location.assign("/staff/products");
       } catch (error) {
         $("#product-message").textContent = error.message || "Product could not be saved.";
