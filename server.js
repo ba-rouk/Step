@@ -175,7 +175,7 @@ async function authRoutes(req,res,url) {
   if(route==="/api/auth/login"){
     if(!rateLimit(req,"login",10))return sendJson(res,429,{error:"Too many sign-in attempts. Try again in 15 minutes."});
     const b=await body(req),identifier=String(b.phone||b.email||"").trim(),password=String(b.password||"");
-    const emailLogin=identifier.includes("@")&&identifier.length<=254&&/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(identifier);
+    const emailLogin=identifier.includes("@")&&identifier.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
     const phone=phoneNumber(identifier);
     if((!emailLogin&&!phone)||!password||password.length>128)return sendJson(res,400,{error:"Enter a valid phone number or email address and password."});
     try{
