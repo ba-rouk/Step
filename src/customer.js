@@ -32,7 +32,7 @@ if (isAuthRoute) {
     : "";
 
   const passwordField = (label, autocomplete = "current-password", minLength = 8) =>
-    '<label class="customer-field"><span>' + label + '</span><span class="customer-password-wrap"><input name="password" type="password" minlength="' + minLength + '" maxlength="128" required autocomplete="' + autocomplete + '" placeholder="At least 10 characters"><button class="customer-password-toggle" type="button" data-toggle-password aria-label="Show password" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.4 6.5-9.5 6.5S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg></button></span></label>';
+    '<label class="customer-field"><span>' + label + '</span><span class="customer-password-wrap"><input name="password" type="password" minlength="' + minLength + '" maxlength="128" required autocomplete="' + autocomplete + '" placeholder="At least ' + minLength + ' characters"><button class="customer-password-toggle" type="button" data-toggle-password aria-label="Show password" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.4 6.5-9.5 6.5S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg></button></span></label>';
 
   function wirePasswordToggles(root) {
     root.querySelectorAll("[data-toggle-password]").forEach((button) => {
