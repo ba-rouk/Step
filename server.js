@@ -236,11 +236,13 @@ async function api(req,res,url) {
     try{
       const products=await sb("/rest/v1/store_products?select=id,category_id,name,description,price,image_url,image_urls,sort_order,is_available,is_visible&is_available=eq.true&is_visible=eq.true&order=sort_order.asc");
       const ids=(products||[]).map(product=>product.id);
-      let images=[];
-      if(ids.length)images=await sb("/rest/v1/product_images?select=id,product_id,url,public_id,position,alt_text&product_id=in.("+ids.join(",")+")&order=position.asc");
-      const grouped=new Map();
+      const categoryIds=[...new Set((products||[]).map(product=>product.category_id))];
+      let images=[],categories=[];
+      if(ids.length)images=await sb("/rest/v1/product_images?select=id,product_id,url,public_id,position,alt_text,variants&product_id=in.("+ids.join(",")+")&order=position.asc");
+      if(categoryIds.length)categories=await sb("/rest/v1/store_categories?select=id,name&id=in.("+categoryIds.join(",")+")");
+      const grouped=new Map(),categoryNames=new Map((categories||[]).map(category=>[category.id,category.name]));
       for(const image of images||[]){if(!grouped.has(image.product_id))grouped.set(image.product_id,[]);grouped.get(image.product_id).push(image);}
-      return sendJson(res,200,{products:(products||[]).map(product=>({...product,images:grouped.get(product.id)||[]}))},{ "Cache-Control":"public, max-age=60, stale-while-revalidate=300" });
+      return sendJson(res,200,{products:(products||[]).map(product=>({...product,category_name:categoryNames.get(product.category_id)||"Menu",images:grouped.get(product.id)||[]}))},{ "Cache-Control":"public, max-age=60, stale-while-revalidate=300" });
     }catch(e){console.error("Public catalogue:",e.message);return sendJson(res,e.status||502,{error:"The menu could not be loaded."});}
   }
   if(req.method==="GET"&&route==="/api/session"){
