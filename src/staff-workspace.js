@@ -601,15 +601,21 @@ async function orderDetailPage(id) {
   $("#print-receipt").addEventListener("click", () => window.print());
 }
 async function uploadImage(file, folder) {
-  if (!file || !/^image\/(jpeg|png|webp|avif)$/.test(file.type)) throw new Error("Choose a JPG, PNG, WebP or AVIF image.");
-  if (file.size > 10 * 1024 * 1024) throw new Error("Each image must be 10 MB or smaller.");
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-90);
-  const objectPath = folder + "/" + Date.now() + "-" + crypto.randomUUID() + "-" + safeName;
-  const { error } = await supabase.storage.from("step-town-media").upload(objectPath, file, {
-    contentType: file.type, upsert: false
-  });
+  if (!file || !["image/jpeg","image/png","image/webp"].includes(file.type)) throw new Error("Choose a JPG, PNG or WEBP image.");
+  if (file.size > 5 * 1024 * 1024) throw new Error(file.name + " exceeds 5 MB.");
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / bitmap.width);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d", { alpha: false });
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  const blob = await new Promise((resolve,reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("Image compression failed.")), "image/webp", .86));
+  const objectPath = folder + "/" + Date.now() + "-" + crypto.randomUUID() + ".webp";
+  const { error } = await supabase.storage.from("step-town-media").upload(objectPath, blob, { contentType:"image/webp", upsert:false });
   if (error) throw error;
-  return supabase.storage.from("step-town-media").getPublicUrl(objectPath).data.publicUrl;
+  return { url:supabase.storage.from("step-town-media").getPublicUrl(objectPath).data.publicUrl, public_id:objectPath };
 }
 async function productsPage() {
   const segments = PATH.split("/").filter(Boolean);
