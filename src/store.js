@@ -1,7 +1,7 @@
 import { supabase, supabaseConfigured } from "./supabase.js";
 import { apiFetch } from "./api.js";
 import { renderProductCard } from "./product-card.js";
-import { bindProductGallery, showProductToast } from "./product-gallery.js";
+import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -140,6 +140,36 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   }
   function savedFavourites() {
     try { const ids = JSON.parse(localStorage.getItem("step-town-favourites-v1") || "[]"); return Array.isArray(ids) ? ids : []; } catch { return []; }
+  }
+  function renderProducts() {
+    const productRoute = pathname.startsWith("/product/");
+    const productSlug = productRoute ? pathname.split("/").filter(Boolean).at(-1) : "";
+    let filtered = visibleProducts();
+    if (productRoute) filtered = products.filter(product => slugFor(product) === productSlug || product.id === productSlug);
+    const selected = categories.find(category => category.id === selectedCategory);
+    if (productHeading) productHeading.textContent = productRoute ? (filtered[0]?.name || "Product not found") : (selected ? selected.name : "Explore the menu");
+    if (catalogCount) catalogCount.textContent = productRoute ? "" : filtered.length + (filtered.length === 1 ? " item" : " items");
+    if (!filtered.length) {
+      productGrid.innerHTML = "";
+      catalogStatus.textContent = productRoute ? "This product could not be found." : (products.length ? "No menu items match your search or category." : "Our menu is being prepared. Contact Step Town for today’s catering options.");
+      catalogStatus.hidden = false;
+      return;
+    }
+    catalogStatus.hidden = true;
+    productGrid.classList.toggle("product-detail-grid", productRoute);
+    productGrid.innerHTML = filtered.map((product,index) => renderProductCard(product, {
+      categoryName: categoryName(product.category_id),
+      liked: savedFavourites().includes(product.id),
+      detail: productRoute,
+      eager: index === 0
+    })).join("");
+    if (productRoute) {
+      const product = filtered[0];
+      const title = product.name + " | Step Town";
+      document.title = title;
+      const description = document.querySelector('meta[name="description"]');
+      if (description) description.content = product.description || title;
+    }
   }
   async function syncFavouriteAccount(ids) {
     try {
@@ -282,6 +312,27 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   // Category cards and filter chips navigate to real /categories/:slug routes.
 
   bindProductGallery(productGrid);
+  productGrid.addEventListener("click", (event) => {
+    const favourite = event.target.closest("[data-favourite]");
+    if (favourite) {
+      const key = "step-town-favourites-v1";
+      let saved = [];
+      try { saved = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
+      const id = favourite.dataset.favourite;
+      saved = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id];
+      localStorage.setItem(key, JSON.stringify(saved));
+      favourite.classList.toggle("is-saved", saved.includes(id));
+      favourite.setAttribute("aria-pressed", String(saved.includes(id)));
+      favourite.setAttribute("aria-label", (saved.includes(id) ? "Remove from" : "Add to") + " favourites");
+      void syncFavouriteAccount(saved);
+      return;
+    }
+    const button = event.target.closest("[data-add-product]");
+    if (button) {
+      addProduct(button.dataset.addProduct);
+      flashCartButton(button);
+    }
+  });
   if (searchInput) searchInput.addEventListener("input", renderProducts);
   // The Cart tab opens the public /cart page; login is required only when submitting an order.
     if (cartClose) cartClose.addEventListener("click", closeCart);
