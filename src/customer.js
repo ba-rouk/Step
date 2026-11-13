@@ -144,14 +144,21 @@ if (isAuthRoute) {
     });
   }
 
-  function renderProfile(payload) {
+  function renderProfile(payload, favouriteProducts = []) {
     const profile = payload.profile || {};
     const user = payload.user || {};
     const name = profile.full_name || user.user_metadata?.full_name || user.user_metadata?.name || "Step Town customer";
     const phone = profile.phone || user.phone || "Not provided";
+    const favouritesMarkup = favouriteProducts.length ? favouriteProducts.map(product => {
+      const image = product.images?.[0]?.url || product.image_url || "";
+      const price = product.price == null ? "Request a quote" : new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(product.price));
+      const slug = String(product.name || product.id).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+      return '<article class="product-card customer-favourite-card"><a class="product-image-link" href="/product/' + encodeURIComponent(slug) + '">' + (image ? '<img src="' + escapeHtml(image) + '" alt="' + escapeHtml(product.name) + '" loading="lazy" width="800" height="600">' : '<span class="product-image-placeholder">STEP TOWN</span>') + '</a><div class="product-card-copy"><a href="/product/' + encodeURIComponent(slug) + '"><h4>' + escapeHtml(product.name) + '</h4></a><strong>' + escapeHtml(price) + '</strong></div></article>';
+    }).join("") : '<p class="customer-empty-favourites">You have not saved any menu items yet. Tap the heart on a product to add it here.</p>';
     shell(
       '<h1>Your profile.</h1><p class="customer-intro">Your Step Town account and order details.</p>' +
       '<div class="customer-profile-details"><div><small>FULL NAME</small><strong>' + escapeHtml(name) + '</strong></div><div><small>PHONE NUMBER</small><strong>' + escapeHtml(phone) + '</strong></div></div>' +
+      '<section class="customer-favourites"><h2>Your favourites</h2><div class="product-grid customer-favourites-grid">' + favouritesMarkup + '</div></section>' +
       '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/orders">View order history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
       '<p class="customer-error" id="customer-profile-error" role="alert"></p>',
       "MY STEP TOWN PROFILE"
@@ -204,7 +211,21 @@ if (isAuthRoute) {
           return;
         }
         if (!response.ok) throw new Error(payload.error || "Your profile could not be loaded.");
-        renderProfile(payload);
+        const [savedResponse, productResponse] = await Promise.all([
+          apiFetch("/api/profile/favourites"),
+          fetch("/api/catalog", { credentials:"same-origin" })
+        ]);
+        const savedPayload = savedResponse.ok ? await savedResponse.json() : { product_ids:[] };
+        const productPayload = productResponse.ok ? await productResponse.json() : { products:[] };
+        let localIds = [];
+        try { localIds = JSON.parse(localStorage.getItem("step-town-favourites-v1") || "[]"); } catch {}
+        const mergedIds = [...new Set([...(savedPayload.product_ids || []), ...(Array.isArray(localIds) ? localIds : [])])];
+        if (mergedIds.length) {
+          await apiFetch("/api/profile/favourites", { method:"PUT", body:{ product_ids:mergedIds } });
+          localStorage.setItem("step-town-favourites-v1", JSON.stringify(mergedIds));
+        }
+        const favouriteProducts = (productPayload.products || []).filter(product => mergedIds.includes(product.id));
+        renderProfile(payload, favouriteProducts);
       }
     } catch (cause) {
       shell('<h1>Account unavailable.</h1><p class="customer-intro">' + escapeHtml(cause.message || "Please refresh and try again.") + '</p><a class="customer-submit" href="/login?next=' + encodeURIComponent(route) + '">Sign in again</a>', "SECURE ACCOUNT");
