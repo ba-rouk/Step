@@ -313,6 +313,7 @@ function pageTitle(pathname){
   if(pathname.startsWith("/staff"))return "Staff workspace";
   return titles[pathname]||"Food · Celebrations · Cakes";
 }
+// Keep staff URLs on their own HTML entry instead of falling through to the storefront.
 async function staticPage(res,pathname){
   const decoded=decodeURIComponent(pathname);
   const staffRoute=decoded==="/staff"||decoded.startsWith("/staff/");
