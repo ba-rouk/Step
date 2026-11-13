@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#211d1a">\n  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#211d1a">
+  <link rel="manifest" href="/manifest.json">
   <meta name="description" content="Step Town brings together event catering, barbecue and made-to-order celebration cakes in Rwanda. Tell us about your occasion and request a personal quote.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Step Town — Gather beautifully">
@@ -38,12 +39,12 @@
 <body>
 <header class="site-header" id="top">
     <div class="header-inner">
-      <a class="brand" href="#top" aria-label="Step Town home">
+      <a class="brand" href="/" aria-label="Step Town home">
         <img class="brand-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Step Town logo">
         <span class="brand-copy"><strong>STEP TOWN</strong><small>FOOD · CELEBRATIONS · CAKES</small></span>
       </a>
       <button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="primary-nav">
-        <span></span><span></span>
+        <span></span><span></span><span></span>
       </button>
       <nav class="primary-nav" id="primary-nav" aria-label="Main navigation">
         <a href="#story">Our approach</a>
@@ -83,11 +84,11 @@
 
     <section class="storefront section-space" id="menu">
       <div class="storefront-hero">
-      <!-- Pexels video: "Time-Lapse Video of Food and Drinks on a Restaurant Table" by George Morina (video 5821416). -->
-      <video class="storefront-hero-video" autoplay muted loop playsinline preload="metadata" poster="/assets/hero-poster.jpg" aria-hidden="true">
+      <!-- Pexels free stock video by fauxels: cafe table with coffee, sandwiches and cakes, video 3044161. -->
+      <video class="storefront-hero-video" autoplay muted loop playsinline preload="metadata" poster="https://images.pexels.com/videos/3044161/free-video-3044161.jpg?auto=compress&cs=tinysrgb&dpr=1&w=1260" aria-hidden="true">
         <source data-src="/assets/hero.webm" type="video/webm">
         <source data-src="/assets/hero.mp4" type="video/mp4">
-        <source data-src="https://videos.pexels.com/video-files/5821416/5821416-hd_1280_720_30fps.mp4" type="video/mp4">
+        <source data-src="https://videos.pexels.com/video-files/3044161/3044161-hd_1280_720_24fps.mp4" type="video/mp4">
       </video>
       <div class="storefront-hero-overlay" aria-hidden="true"></div>
       <div class="page-shell storefront-hero-content">
@@ -352,26 +353,28 @@
 
   <script type="module" src="/src/main.js"></script>
   <nav class="mobile-dock" aria-label="Quick navigation">
-    <a href="#top" class="dock-active" aria-current="page">
+    <a href="/" data-dock-route="home">
       <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7"></path><path d="M5 9v11h14V9"></path><path d="M9 20v-6h6v6"></path></svg>
       <small>Home</small>
     </a>
-    <a href="#menu">
+    <a href="/categories" data-dock-route="categories">
       <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
       <small>Categories</small>
     </a>
-    <a href="#gallery">
+    <a href="/gallery" data-dock-route="gallery">
       <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m21 15-5-5L5 20"></path></svg>
       <small>Gallery</small>
     </a>
-    <button type="button" id="mobile-cart-open" aria-label="Open cart">
+    <a href="/cart" class="mobile-dock-cart" data-dock-route="cart" aria-label="Open cart">
       <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.1 11.1a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H6"></path><circle cx="10" cy="20" r="1.3"></circle><circle cx="18" cy="20" r="1.3"></circle></svg>
       <small>Cart</small>
       <span class="dock-count" id="mobile-cart-count" hidden>0</span>
-    </button>
-    <a href="/account">
+    </a>
+    <a href="/profile" data-dock-route="profile">
       <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.6"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
       <small>Profile</small>
     </a>
-  </nav>\n  <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(err => console.warn("Step Town service worker unavailable", err)));</script>\n</body>
+  </nav>
+  <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(err => console.warn("Step Town service worker unavailable", err)));</script>
+</body>
 </html>
