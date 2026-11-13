@@ -191,6 +191,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   function openCart() {
     cartDrawer.hidden = false;
     cartDrawer.setAttribute("aria-hidden", "false");
+    cartDrawer.setAttribute("aria-modal", cartRoute ? "false" : "true");
     cartBackdrop.hidden = cartRoute;
     if (!cartRoute) document.body.classList.add("cart-open");
     if (cartClose) cartClose.focus();
