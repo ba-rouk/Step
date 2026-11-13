@@ -8,10 +8,10 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="Step Town — Gather beautifully">
   <meta property="og:description" content="Event catering, barbecue and wedding cakes made for the moments worth gathering for.">
-  <meta property="og:image" content="https://images.unsplash.com/photo-1567932783552-e305bbf70b63?auto=format&fit=crop&w=1200&q=85">
+  <meta property="og:image" content="/step-town-logo.png">
   <meta name="twitter:card" content="summary_large_image">
   <title>Step Town — Catering, Barbecue & Wedding Cakes</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="128x128" href="/step-town-logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
@@ -33,16 +33,10 @@
   </script>
 </head>
 <body>
-  <div class="announcement">
-    <span class="announcement-dot" aria-hidden="true"></span>
-    <span>Made for good food, good people and unforgettable moments</span>
-    <a href="https://wa.me/250780382589?text=Hello%20Step%20Town%2C%20I%27d%20like%20to%20make%20an%20enquiry." target="_blank" rel="noopener">Let's plan something <span aria-hidden="true">↗</span></a>
-  </div>
-
-  <header class="site-header" id="top">
+<header class="site-header" id="top">
     <div class="header-inner">
       <a class="brand" href="#top" aria-label="Step Town home">
-        <span class="brand-mark" aria-hidden="true">S<span>T</span></span>
+        <img class="brand-logo" src="/step-town-logo.png" alt="Step Town logo">
         <span class="brand-copy"><strong>STEP TOWN</strong><small>FOOD · CELEBRATIONS · CAKES</small></span>
       </a>
       <button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="primary-nav">
@@ -50,10 +44,12 @@
       </button>
       <nav class="primary-nav" id="primary-nav" aria-label="Main navigation">
         <a href="#story">Our approach</a>
+        <a href="#menu">Order online</a>
         <a href="#services">What we do</a>
         <a href="#gallery">The good stuff</a>
         <a href="#location">Find us</a>
         <a class="nav-cta" href="#enquiry">Plan your event <span aria-hidden="true">↗</span></a>
+        <button class="cart-trigger" id="cart-open" type="button" aria-label="Open shopping bag">Bag <span id="cart-count">0</span></button>
       </nav>
     </div>
   </header>
@@ -66,7 +62,7 @@
         <h1>From the first<br>flame to the <em>last slice.</em></h1>
         <p class="hero-intro">Food has a way of bringing people closer. We bring together catering, barbecue and beautiful cakes for the moments you want to remember.</p>
         <div class="hero-actions">
-          <a class="button button-light" href="#enquiry">Tell us what you're celebrating <span aria-hidden="true">↗</span></a>
+          <a class="button button-light" href="#menu">Browse the menu <span aria-hidden="true">↗</span></a>
           <a class="text-link light-link" href="#services">Explore our services <span aria-hidden="true">↓</span></a>
         </div>
         <div class="hero-note"><span class="note-rule"></span><span>GOOD FOOD. THOUGHTFUL DETAILS. YOUR KIND OF CELEBRATION.</span></div>
@@ -79,6 +75,36 @@
         <p class="eyebrow">A TABLE FOR EVERY OCCASION</p>
         <p class="intro-statement">One destination for <em>memorable food</em> — from generous event tables and smoky barbecue to cakes made for the big day.</p>
         <a class="round-link" href="#services" aria-label="Explore what we do"><span>↓</span></a>
+      </div>
+    </section>
+
+
+    <section class="storefront section-space" id="menu">
+      <div class="page-shell">
+        <div class="section-heading store-heading">
+          <div>
+            <p class="eyebrow"><span class="eyebrow-line"></span> THE STEP TOWN MENU</p>
+            <h2>Good food, ready<br><em>for your table.</em></h2>
+          </div>
+          <p class="section-aside">Choose from catering, barbecue and celebration cakes. Add your favourites to your bag and send an order request — we’ll confirm availability and final details with you.</p>
+        </div>
+        <div class="store-intro-row">
+          <p>EXPLORE BY CATEGORY</p>
+          <label class="menu-search" for="menu-search"><span aria-hidden="true">⌕</span><input id="menu-search" type="search" placeholder="Search the menu..." autocomplete="off"></label>
+        </div>
+        <div class="category-showcase" id="category-showcase" aria-label="Menu categories">
+          <p class="catalog-loading">Loading menu categories…</p>
+        </div>
+        <div class="product-heading">
+          <div><p class="eyebrow"><span class="eyebrow-line"></span> MADE FOR SHARING</p><h3 id="product-heading">Explore the menu</h3></div>
+          <p id="catalog-count" class="catalog-count" aria-live="polite"></p>
+        </div>
+        <p class="catalog-status" id="catalog-status" role="status" aria-live="polite">Loading the Step Town menu…</p>
+        <div class="product-grid" id="product-grid"></div>
+        <div class="store-help">
+          <div><strong>Planning food for a whole event?</strong><p>Tell us your date, location and guest count for a tailored catering or cake quote.</p></div>
+          <a class="button button-dark" href="#enquiry">Request an event quote <span aria-hidden="true">↗</span></a>
+        </div>
       </div>
     </section>
 
@@ -262,6 +288,41 @@
       </div>
     </section>
   </main>
+
+
+  <div class="cart-backdrop" id="cart-backdrop" hidden></div>
+  <aside class="cart-drawer" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" aria-hidden="true" hidden>
+    <header class="cart-header">
+      <div><p class="eyebrow">YOUR STEP TOWN ORDER</p><h2 id="cart-title">Your bag</h2><p class="cart-header-note">We’ll confirm availability and final pricing with you.</p></div>
+      <button class="cart-close" id="cart-close" type="button" aria-label="Close shopping bag">×</button>
+    </header>
+    <div class="cart-items" id="cart-items"><p class="cart-empty">Your bag is empty. Explore the menu and add something you love.</p></div>
+    <div class="cart-summary">
+      <div><span>Estimated total</span><strong id="cart-total">RWF —</strong></div>
+      <p id="cart-pricing-note">Final pricing is confirmed by Step Town before your order is accepted.</p>
+    </div>
+    <form class="checkout-form" id="checkout-form">
+      <p class="eyebrow"><span class="eyebrow-line"></span> ORDER DETAILS</p>
+      <div class="checkout-fields">
+        <label>Full name <span>*</span><input name="customer_name" type="text" minlength="2" maxlength="120" autocomplete="name" required placeholder="Your name"></label>
+        <label>Phone / WhatsApp <span>*</span><input name="customer_phone" type="tel" minlength="7" maxlength="40" autocomplete="tel" required placeholder="+250 …"></label>
+        <label>Email <small>OPTIONAL</small><input name="customer_email" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com"></label>
+        <label>How would you like your order? <span>*</span>
+          <select name="fulfillment" id="checkout-fulfillment" required>
+            <option value="pickup">I’ll collect it</option>
+            <option value="delivery">Delivery</option>
+            <option value="event">Event catering / on-site service</option>
+          </select>
+        </label>
+        <label>Preferred date <input name="requested_date" type="date" id="checkout-date"></label>
+        <label id="checkout-location-label">Delivery / event location <small>REQUIRED FOR DELIVERY OR EVENTS</small><input name="delivery_location" id="checkout-location" type="text" maxlength="180" placeholder="Area, venue or address"></label>
+        <label class="checkout-notes-label">Notes or special requests<textarea name="notes" rows="3" maxlength="3000" placeholder="Guest count, cake design, dietary needs or other details…"></textarea></label>
+      </div>
+      <p class="checkout-status" id="checkout-status" role="status" aria-live="polite"></p>
+      <button class="button button-dark checkout-submit" type="submit" id="checkout-submit">Send order request <span aria-hidden="true">↗</span></button>
+      <p class="checkout-footnote">Submitting saves your request securely. It does not charge you or confirm a booking. Step Town will contact you to confirm.</p>
+    </form>
+  </aside>
 
   <footer class="site-footer">
     <div class="page-shell footer-main">
