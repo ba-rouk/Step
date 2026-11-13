@@ -38,7 +38,7 @@ if (!path.startsWith("/staff")) {
   }
   async function requireProfile(){
     const {data:{session}}=await supabase.auth.getSession();
-    if(!session){loginView();return false;}
+    if(!session){location.replace("/staff/login?next="+encodeURIComponent(location.pathname));return false;}
     const {data,error}=await supabase.from("staff_profiles").select("id,user_id,full_name,email,phone,role,reports_to,is_active,must_change_password").eq("user_id",session.user.id).maybeSingle();
     if(error || !data || !data.is_active || !["manager","accountant","cashier"].includes(data.role)){
       await supabase.auth.signOut(); loginView("This account does not have active Step Town staff access. Contact your Manager."); return false;
@@ -122,7 +122,7 @@ if (!path.startsWith("/staff")) {
   }
   async function start(){
     if(!supabaseConfigured){loginView("Staff authentication is not configured. Contact the site administrator.");return;}
-    if(path==="/staff/login"){const {data:{session}}=await supabase.auth.getSession();if(session)location.assign("/staff/dashboard");else loginView();return;}
+    if(path==="/staff/login"){const {data:{session}}=await supabase.auth.getSession();if(session)location.assign(safeNext);else loginView();return;}
     if(!(await requireProfile()))return;
     if(path==="/staff"||path==="/staff/dashboard")return dashboard();
     if(path==="/staff/orders")return orderList();
