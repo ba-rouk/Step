@@ -176,3 +176,21 @@ body.route-customer-page body.route-customer-page body.route-customer-page body.
   .customer-auth-card h1 { font-size: clamp(1.9rem,8vw,2.4rem); line-height: 1.12; }
   .customer-intro { font-size: 16px; }
 }
+
+/* Product tiles on the customer favourites page reuse the catalogue card system. */
+.customer-favourites-grid { margin:22px 0 28px; }
+.customer-favourites-grid .product-card { min-width:0; }
+@media(max-width:640px) {
+  body.route-customer-page #customer-account .customer-favourites-grid {
+    width:calc(100% + 32px);
+    margin-left:-16px;
+    margin-right:-16px;
+  }
+}
+@media(max-width:430px) {
+  body.route-customer-page #customer-account .customer-favourites-grid {
+    width:calc(100% + 26px);
+    margin-left:-13px;
+    margin-right:-13px;
+  }
+}
