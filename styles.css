@@ -1768,8 +1768,8 @@ body.route-customer-page .customer-divider {
 body.route-customer-page .customer-google {
   width: calc(100% - 24px);
   min-height: 48px;
-  margin: 0 12px;
-  display: inline-flex;
+  margin: 0 auto;
+  display: flex;
   justify-content: center;
   gap: 11px;
   font-family: var(--font-sans);
@@ -1782,10 +1782,13 @@ body.route-customer-page .customer-google {
   height: 23px;
   flex: 0 0 23px;
 }
-body.route-customer-page .customer-note {
+body.route-customer-page .customer-note,
+body.route-customer-page .customer-intro,
+body.route-customer-page .customer-auth-card h1,
+body.route-customer-page .customer-kicker {
   text-align: center;
-  line-height: 1.55;
 }
+body.route-customer-page .customer-note { line-height: 1.55; }
 body.route-customer-page .customer-error {
   text-align: left;
 }
