@@ -909,7 +909,7 @@ h1,h2,h3,h4,strong{color:inherit} p{color:inherit}
   overflow: hidden;
   padding: 105px 0 0;
   background-color: #211815;
-  background-image: url("/assets/hero-poster.jpg");
+  background-image: url("https://images.pexels.com/videos/5821416/free-video-5821416.jpg"), url("/assets/hero-poster.jpg");
   background-position: center;
   background-size: cover;
 }
