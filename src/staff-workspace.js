@@ -615,7 +615,7 @@ async function uploadImage(file, folder, onProgress = () => {}) {
   const objectPath = folder + "/" + Date.now() + "-" + crypto.randomUUID() + ".webp";
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Your staff session expired. Sign in again before uploading.");
-  const base = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\\/+$/, "");
+  const base = String(import.meta.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const encodedPath = objectPath.split("/").map(encodeURIComponent).join("/");
   await new Promise((resolve,reject) => {
