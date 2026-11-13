@@ -924,3 +924,14 @@ h1,h2,h3,h4,strong{color:inherit} p{color:inherit}
   pointer-events:none;
 }
 .enquiry-form,.checkout-fields { color-scheme: dark; }
+\n
+/* Google Images discovery assets — temporary illustrative photography, not claimed as Step Town portfolio */
+.image-slot{position:relative;overflow:hidden;background:#30231d}
+.image-slot .image-slot-content{position:absolute;inset:auto 0 0;padding:18px;background:linear-gradient(0deg,rgba(24,17,14,.82),transparent);z-index:2;color:white}
+.image-slot .image-slot-content small{font-size:9px;letter-spacing:.14em}
+.image-slot .image-slot-content strong{display:block;font:600 24px "Playfair Display",Georgia,serif;margin:5px 0}
+.image-slot .image-slot-content em{font-size:11px;font-style:normal;color:#f0d5bd}
+.image-slot--catering{background-image:linear-gradient(0deg,rgba(0,0,0,.2),rgba(0,0,0,.03)),url("https://i.postimg.cc/vTCDBFjX/Whats-App-Image-2026-03-18-at-11-45-32-AM-1.jpg");background-size:cover;background-position:center}
+.image-slot--barbecue{background-image:linear-gradient(0deg,rgba(0,0,0,.22),rgba(0,0,0,.02)),url("https://www.zamarisuites.com/img/banner/ejy.jpg");background-size:cover;background-position:center}
+.image-slot--cake{background-image:linear-gradient(0deg,rgba(0,0,0,.2),rgba(0,0,0,.02)),url("https://jdnyolfagefxsphynzem.supabase.co/storage/v1/object/public/eatery-images/eateries/335a9d6d-8dad-4609-b794-6b58f90f6d53/main.jpg");background-size:cover;background-position:center}
+@media(max-width:720px){.image-slot .image-slot-content{padding:12px}.image-slot .image-slot-content strong{font-size:20px}}
