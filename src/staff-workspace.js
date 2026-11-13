@@ -2,6 +2,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
 import "../staff.css";
 
 const PATH = location.pathname.replace(/\/+$/, "") || "/staff";
+const PUBLIC_HOME_URL = "https://steptown.onrender.com/";
 const ROLE_LABEL = { manager: "Manager", accountant: "Accountant", cashier: "Cashier" };
 const ROLE_ACCESS = {
   overview: ["manager", "accountant", "cashier"],
@@ -109,7 +110,7 @@ function shell(title, body, subtitle = "") {
   const role = esc(ROLE_LABEL[profile?.role] || "Staff");
   app.innerHTML =
     '<header class="staff-top">' +
-      '<a class="staff-brand" href="/" aria-label="Step Town home">' +
+      '<a class="staff-brand" href="https://steptown.onrender.com/" aria-label="Step Town home">' +
         '<img class="staff-logo" src="/step-town-logo.png" alt="Step Town">' +
         '<span><b>STEP TOWN</b><small>STAFF WORKSPACE</small></span>' +
       "</a>" +
@@ -271,7 +272,7 @@ async function getProfile() {
 function loginView(message = "") {
   app.innerHTML =
     '<div class="staff-login-wrap">' +
-      '<a class="staff-brand staff-login-brand" href="/" aria-label="Step Town home"><img class="staff-logo" src="/step-town-logo.png" alt="Step Town"><span><b>STEP TOWN</b><small>STAFF ACCESS</small></span></a>' +
+      '<a class="staff-brand staff-login-brand" href="https://steptown.onrender.com/" aria-label="Step Town home"><img class="staff-logo" src="/step-town-logo.png" alt="Step Town"><span><b>STEP TOWN</b><small>STAFF ACCESS</small></span></a>' +
       '<section class="staff-login-card">' +
         '<p class="staff-eyebrow">PRIVATE TEAM PORTAL</p><h1>Welcome back.</h1>' +
         '<p class="staff-muted">Sign in with the account created by your Manager.</p>' +
@@ -1116,21 +1117,93 @@ async function auditPage() {
   ]));
   render();
 }
-async function changePasswordPage() {
-  shell("Change password",
-    '<section class="staff-panel staff-password"><p class="staff-eyebrow">FIRST SIGN-IN SECURITY</p><h2>Set a new password</h2><p class="staff-muted">Use at least 12 characters. Your temporary password will no longer work after this change.</p>' +
-      '<form id="change-password-form"><label>New password<input name="password" type="password" required minlength="12" autocomplete="new-password"></label><label>Confirm password<input name="confirm" type="password" required minlength="12" autocomplete="new-password"></label><button class="staff-primary" type="submit">Update password</button><p id="password-message" role="alert"></p></form></section>');
-  $("#change-password-form").addEventListener("submit", async event => {
+function changePasswordPage() {
+  app.innerHTML =
+    '<div class="staff-login-wrap">' +
+      '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Return to Step Town home">' +
+        '<img class="staff-logo" src="/step-town-logo.png" alt="Step Town">' +
+        '<span><b>STEP TOWN</b><small>STAFF ACCESS</small></span>' +
+      '</a>' +
+      '<section class="staff-login-card staff-password">' +
+        '<p class="staff-eyebrow">FIRST SIGN-IN SECURITY</p>' +
+        '<h1>Secure your account.</h1>' +
+        '<p class="staff-muted">Before opening the staff workspace, replace your temporary password with a private password of at least 12 characters. The workspace menu is hidden until this step is complete.</p>' +
+        '<form id="change-password-form">' +
+          '<label>New password<input name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>' +
+          '<label>Confirm new password<input name="confirm" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>' +
+          '<p id="password-message" class="staff-error" role="alert" aria-live="polite"></p>' +
+          '<button class="staff-primary" type="submit">Update password and continue</button>' +
+        '</form>' +
+        '<button id="staff-password-signout" class="staff-quiet" type="button" style="margin-top:14px">Sign out</button>' +
+      '</section>' +
+      '<a class="staff-cancel" href="' + PUBLIC_HOME_URL + '" aria-label="Return to Step Town website">×</a>' +
+    '</div>';
+
+  $("#staff-password-signout")?.addEventListener("click", async () => {
+    const button = $("#staff-password-signout");
+    button.disabled = true;
+    try { await supabase.auth.signOut({ scope: "global" }); }
+    finally { location.replace("/staff/login"); }
+  });
+
+  $("#change-password-form")?.addEventListener("submit", async event => {
     event.preventDefault();
-    const fields = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const fields = new FormData(form);
     const password = String(fields.get("password") || "");
-    if (password !== fields.get("confirm")) { $("#password-message").textContent = "Passwords do not match."; return; }
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) { $("#password-message").textContent = error.message; return; }
-    const { data, error: functionError } = await supabase.functions.invoke("staff-admin", { body: { action: "complete-password-change" } });
-    if (functionError || !data?.ok) { $("#password-message").textContent = functionError?.message || data?.error || "The security flag could not be updated."; return; }
-    await writeAudit("staff_password_changed", "staff_profile", profile.id, {});
-    location.replace("/staff/overview");
+    const confirmation = String(fields.get("confirm") || "");
+    const message = $("#password-message");
+    const button = $('button[type="submit"]', form);
+
+    if (password.length < 12) {
+      message.textContent = "Use a password with at least 12 characters.";
+      return;
+    }
+    if (password !== confirmation) {
+      message.textContent = "The two passwords do not match.";
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Updating password…";
+    message.textContent = "";
+
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData?.session) {
+        throw new Error("Your staff session has expired. Sign in again and retry.");
+      }
+
+      const { error: passwordError } = await supabase.auth.updateUser({ password });
+      if (passwordError) throw passwordError;
+
+      const { data: result, error: functionError } = await supabase.functions.invoke("staff-admin", {
+        body: { action: "complete-password-change" }
+      });
+      if (functionError) {
+        throw new Error("Your password was updated, but the workspace could not finish the security check. Press Update again to retry. " + functionError.message);
+      }
+      if (!result?.ok) {
+        throw new Error("Your password was updated, but the workspace could not finish the security check. " + (result?.error || "Please retry."));
+      }
+
+      const { data: refreshed, error: refreshError } = await supabase.from("staff_profiles")
+        .select("must_change_password")
+        .eq("user_id", profile.user_id)
+        .maybeSingle();
+      if (refreshError) throw refreshError;
+      if (!refreshed || refreshed.must_change_password) {
+        throw new Error("Your password was updated, but the first-login security flag is still active. Press Update again to retry the final check.");
+      }
+
+      profile = { ...profile, must_change_password: false };
+      await writeAudit("staff_password_changed", "staff_profile", profile.id, {});
+      location.replace("/staff/overview");
+    } catch (error) {
+      message.textContent = error.message || "The password could not be updated. Please try again.";
+      button.disabled = false;
+      button.textContent = "Update password and continue";
+    }
   });
 }
 async function start() {

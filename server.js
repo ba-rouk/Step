@@ -317,7 +317,7 @@ function pageTitle(pathname){
 async function staticPage(res,pathname){
   const decoded=decodeURIComponent(pathname);
   const staffRoute=decoded==="/staff"||decoded.startsWith("/staff/");
-  let file=staffRoute?path.join(DIST,"staff.html"):path.resolve(DIST,"."+decoded);
+  let file=staffRoute?path.join(DIST,"staff.html"):(decoded==="/" ? path.join(DIST,"index.html") : path.resolve(DIST,"."+decoded));
   if(!staffRoute&&file!==DIST&&!file.startsWith(DIST+path.sep))return sendJson(res,400,{error:"Invalid path."});
   try{const stat=await fs.stat(file);if(stat.isDirectory())file=path.join(file,"index.html");}
   catch{file=path.join(DIST,staffRoute?"staff.html":"index.html");}
