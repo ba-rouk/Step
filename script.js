@@ -1,3 +1,5 @@
+import { supabase, supabaseConfigured } from "./src/supabase.js";
+
 (() => {
   const menuToggle = document.querySelector(".menu-toggle");
   const primaryNav = document.querySelector(".primary-nav");
@@ -18,15 +20,10 @@
       primaryNav.classList.toggle("is-open", !isOpen);
       document.body.classList.toggle("menu-open", !isOpen);
     });
-
-    primaryNav.querySelectorAll("a").forEach((link) => {
-      link.addEventListener("click", closeMenu);
-    });
-
+    primaryNav.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeMenu));
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") closeMenu();
     });
-
     window.addEventListener("resize", () => {
       if (window.innerWidth > 720) closeMenu();
     });
@@ -35,20 +32,25 @@
   const dateInput = document.querySelector("#date");
   if (dateInput) {
     const today = new Date();
-    const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
-      .toISOString()
-      .slice(0, 10);
-    dateInput.min = localToday;
+    dateInput.min = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
+      .toISOString().slice(0, 10);
   }
 
   const form = document.querySelector("#enquiry-form");
   const error = document.querySelector("#form-error");
+  const submitButton = form?.querySelector('button[type="submit"]');
+  const privacyNote = form?.querySelector(".form-privacy");
+
   if (form) {
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (error) error.textContent = "";
-
       if (!form.reportValidity()) return;
+
+      if (!supabaseConfigured || !supabase) {
+        if (error) error.textContent = "Enquiry saving is not configured yet. Please contact Step Town directly on WhatsApp or phone.";
+        return;
+      }
 
       const data = new FormData(form);
       const clean = (value) => String(value || "").trim();
@@ -65,8 +67,37 @@
         return;
       }
 
+      const enquiry = {
+        name,
+        phone,
+        service,
+        event_date: date || null,
+        guest_count: guests ? Number(guests) : null,
+        event_location: location || null,
+        details: details || null
+      };
+
+      const originalButtonText = submitButton?.innerHTML;
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Saving your enquiry…";
+      }
+
+      const { error: insertError } = await supabase.from("enquiries").insert(enquiry);
+
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalButtonText || "Send enquiry";
+      }
+
+      if (insertError) {
+        console.error("Step Town enquiry submission failed:", insertError);
+        if (error) error.textContent = "We couldn't save your enquiry just now. Please try again or contact us directly on WhatsApp.";
+        return;
+      }
+
       const lines = [
-        "Hello Step Town, I'd like to make an event enquiry.",
+        "Hello Step Town, I have just submitted an enquiry on your website.",
         "",
         "Name: " + name,
         "My phone: " + phone,
@@ -79,13 +110,29 @@
         "Please let me know the next steps. Thank you."
       ].filter(Boolean);
 
-      const message = encodeURIComponent(lines.join("\n"));
-      const whatsappUrl = "https://wa.me/250780382589?text=" + message;
-      const opened = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-
-      if (!opened) {
-        window.location.href = whatsappUrl;
+      const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(lines.join("\n"));
+      form.reset();
+      if (error) {
+        error.textContent = "Thank you — your enquiry has been saved successfully.";
+        error.style.color = "#55704b";
       }
+      if (privacyNote) {
+        privacyNote.textContent = "Your enquiry has been saved securely. You can also send the details to Step Town on WhatsApp.";
+      }
+
+      const whatsappLink = document.createElement("a");
+      whatsappLink.className = "text-link dark-link";
+      whatsappLink.href = whatsappUrl;
+      whatsappLink.target = "_blank";
+      whatsappLink.rel = "noopener noreferrer";
+      whatsappLink.textContent = "Continue to WhatsApp ↗";
+      whatsappLink.style.display = "inline-block";
+      whatsappLink.style.marginTop = "12px";
+      form.querySelector(".form-whatsapp-link")?.remove();
+      const linkWrap = document.createElement("p");
+      linkWrap.className = "form-whatsapp-link";
+      linkWrap.append(whatsappLink);
+      form.append(linkWrap);
     });
   }
 
