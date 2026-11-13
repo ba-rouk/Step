@@ -1,7 +1,7 @@
 let csrfToken = null;
 let csrfRequest = null;
 
-async function getCsrfToken() {
+export async function getCsrfToken() {
   if (csrfToken) return csrfToken;
   if (!csrfRequest) {
     csrfRequest = fetch("/api/csrf", {

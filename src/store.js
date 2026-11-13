@@ -1,5 +1,7 @@
 import { supabase, supabaseConfigured } from "./supabase.js";
 import { apiFetch } from "./api.js";
+import { bindProductCardEvents, renderProductCard, renderProductDetail } from "./product-components.js";
+import { attachProductCarousels } from "./product-carousel.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -32,11 +34,14 @@ import { apiFetch } from "./api.js";
   let products = [];
   const pathname = decodeURIComponent(window.location.pathname.replace(/\/+$/, "") || "/");
   const categoryRoute = pathname === "/categories" || pathname.startsWith("/categories/");
+  const productRoute = pathname.startsWith("/product/");
+  const productSlug = productRoute ? pathname.split("/").filter(Boolean).at(-1) : "";
   const galleryRoute = pathname === "/gallery";
   const cartRoute = pathname === "/cart";
   const categorySlug = categoryRoute && pathname.startsWith("/categories/") ? pathname.split("/").filter(Boolean).at(-1) : "";
   let selectedCategory = "all";
   if (categoryRoute) document.body.classList.add("route-categories");
+  if (productRoute) document.body.classList.add("route-product-page");
   if (galleryRoute) document.body.classList.add("route-gallery");
   if (cartRoute) document.body.classList.add("route-cart");
   const routeSearchMount = document.querySelector(".route-search-mount");
@@ -133,93 +138,41 @@ import { apiFetch } from "./api.js";
     });
   }
 
-  function slugFor(product) {
-    return String(product.slug || product.name || product.id).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || product.id;
-  }
-  function savedFavourites() {
-    try { const ids = JSON.parse(localStorage.getItem("step-town-favourites-v1") || "[]"); return Array.isArray(ids) ? ids : []; } catch { return []; }
-  }
-  function productCard(product, index, detail = false) {
-    const category = categories.find(item => item.id === product.category_id);
-    const images = (Array.isArray(product.images) && product.images.length ? product.images.map(image => image.url) : (Array.isArray(product.image_urls) ? product.image_urls : [product.image_url])).map(safeImageUrl).filter(Boolean);
-    const uniqueImages = [...new Set(images)];
-    const liked = savedFavourites().includes(product.id);
-    const slug = slugFor(product);
-    const href = "/product/" + encodeURIComponent(slug);
-    const slides = uniqueImages.length ? uniqueImages.map((src, i) =>
-      '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(product.name) + ' — photo ' + (i+1) + '" width="800" height="600" ' + (index === 0 && i === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"') + ' decoding="async">'
-    ).join("") : '<div class="product-image-placeholder" role="img" aria-label="' + escapeHtml(product.name) + ' image unavailable">STEP TOWN</div>';
-    const dots = uniqueImages.length > 1 ? '<div class="product-dots" role="group" aria-label="Choose product photo">' + uniqueImages.map((_,i) => '<button type="button" data-dot="' + i + '" aria-label="Show photo ' + (i+1) + '" aria-pressed="' + (i===0) + '" class="' + (i===0 ? 'is-active' : '') + '"></button>').join("") + '</div>' : "";
-    const description = escapeHtml(product.description || "Prepared with care by Step Town.");
-    const full = detail;
-    return '<article class="product-card' + (full ? ' product-card-detail' : '') + '" data-product-card="' + escapeHtml(product.id) + '">' +
-      '<div class="product-image">' +
-        '<a class="product-open product-image-link" href="' + href + '" aria-label="View ' + escapeHtml(product.name) + '">' +
-          '<div class="product-image-strip" tabindex="0" role="region" aria-label="' + escapeHtml(product.name) + ' photos">' + slides + '</div></a>' +
-        '<button class="product-image-action product-cart-action" type="button" data-add-product="' + escapeHtml(product.id) + '" aria-label="Add to cart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/></svg><span class="product-cart-plus">+</span></button>' +
-        '<button class="product-image-action product-favourite' + (liked ? ' is-saved' : '') + '" type="button" data-favourite="' + escapeHtml(product.id) + '" aria-label="' + (liked ? 'Remove ' : 'Save ') + escapeHtml(product.name) + ' ' + (liked ? 'from' : 'to') + ' favourites" aria-pressed="' + liked + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.8c0 5.2-8.8 10.2-8.8 10.2S3.2 14 3.2 8.8A4.7 4.7 0 0 1 12 6.1a4.7 4.7 0 0 1 8.8 2.7Z"/></svg></button>' +
-        '<span class="product-category" title="' + escapeHtml(category?.name || "Menu") + '">' + escapeHtml(category?.name || "Menu") + '</span>' + dots +
-      '</div>' +
-      '<div class="product-card-copy"><a class="product-open product-copy-link" href="' + href + '"><h4>' + escapeHtml(product.name) + '</h4></a>' +
-        '<p class="product-description' + (full ? ' is-expanded' : '') + '">' + description + '</p>' +
-        (!full && product.description && product.description.length > 120 ? '<button type="button" class="product-read-more" data-read-more>Read more</button>' : '') +
-        '<div class="product-card-bottom"><strong>' + escapeHtml(product.price == null ? "Request a quote" : money(product.price)) + '</strong>' +
-        (full ? '<button class="product-detail-add" type="button" data-add-product="' + escapeHtml(product.id) + '">Add to cart</button>' : '') + '</div>' +
-        (full ? '<a class="product-back-link" href="/categories">Back to menu</a>' : '') +
-      '</div></article>';
-  }
   function renderProducts() {
-    const productRoute = pathname.startsWith("/product/");
-    const productSlug = productRoute ? pathname.split("/").filter(Boolean).at(-1) : "";
-    let filtered = visibleProducts();
-    if (productRoute) filtered = products.filter(product => slugFor(product) === productSlug || product.id === productSlug);
-    const selected = categories.find(category => category.id === selectedCategory);
-    if (productHeading) productHeading.textContent = productRoute ? (filtered[0]?.name || "Product not found") : (selected ? selected.name : "Explore the menu");
-    if (catalogCount) catalogCount.textContent = productRoute ? "" : filtered.length + (filtered.length === 1 ? " item" : " items");
+    const filtered = visibleProducts();
+    const selected = categories.find((category) => category.id === selectedCategory);
+    if (productHeading) productHeading.textContent = selected ? selected.name : "Explore the menu";
+    if (catalogCount) catalogCount.textContent = filtered.length + (filtered.length === 1 ? " item" : " items");
+
     if (!filtered.length) {
       productGrid.innerHTML = "";
-      catalogStatus.textContent = productRoute ? "This product could not be found." : (products.length ? "No menu items match your search or category." : "Our menu is being prepared. Contact Step Town for today’s catering options.");
+      if (products.length === 0) {
+        catalogStatus.innerHTML = 'Our menu is being prepared. Contact Step Town for today’s catering options, barbecue selection and cake designs. <a href="https://wa.me/250780382589" target="_blank" rel="noopener">Ask us on WhatsApp </a>';
+      } else {
+        catalogStatus.textContent = searchInput && searchInput.value.trim()
+          ? "No menu items match that search. Try another word or choose a different category."
+          : "There are no items in this category at the moment. Contact us for a tailored quote.";
+      }
       catalogStatus.hidden = false;
       return;
     }
+
     catalogStatus.hidden = true;
-    productGrid.classList.toggle("product-detail-grid", productRoute);
-    productGrid.innerHTML = filtered.map((product,index) => productCard(product,index,productRoute)).join("");
-    if (productRoute) {
-      const product = filtered[0];
-      const title = product.name + " | Step Town";
-      document.title = title;
-      const description = document.querySelector('meta[name="description"]');
-      if (description) description.content = product.description || title;
-    }
-  }
-  function updateCarousel(card) {
-    const strip = card.querySelector(".product-image-strip");
-    if (!strip) return;
-    const images = [...strip.querySelectorAll("img")];
-    if (!images.length) return;
-    let nearest = 0, min = Infinity;
-    images.forEach((img,index) => { const distance = Math.abs(img.getBoundingClientRect().left - strip.getBoundingClientRect().left); if (distance < min) { min=distance; nearest=index; } });
-    card.querySelectorAll("[data-dot]").forEach((dot,index) => {
-      dot.classList.toggle("is-active",index===nearest);
-      dot.setAttribute("aria-pressed",String(index===nearest));
+    productGrid.innerHTML = filtered.map((product, index) => renderProductCard({
+      ...product,
+      category_name: categoryName(product.category_id)
+    }, index, {
+      cartCount: productId => cart.find(item => item.product_id === productId)?.quantity || 0
+    })).join("");
+    bindProductCardEvents(productGrid, {
+      onAddToCart: (productId, button) => addProduct(productId, button),
+      onFavouriteChange: ids => {
+        apiFetch("/api/profile/favourites", { method: "POST", body: { ids } }).catch(() => {});
+      }
     });
+    attachProductCarousels(productGrid);
   }
-  function showCartToast(message) {
-    let toast = document.querySelector(".store-toast");
-    if (!toast) { toast=document.createElement("div"); toast.className="store-toast"; toast.setAttribute("role","status"); document.body.append(toast); }
-    toast.textContent=message; toast.classList.add("is-visible");
-    window.clearTimeout(showCartToast.timer);
-    showCartToast.timer=window.setTimeout(()=>toast.classList.remove("is-visible"),1500);
-  }
-  async function syncFavouriteAccount(ids) {
-    try {
-      const sessionResponse = await fetch("/api/session", { credentials: "same-origin" });
-      const session = await sessionResponse.json();
-      if (!session.authenticated) return;
-      await apiFetch("/api/profile/favourites", { method: "PUT", body: { product_ids: ids } });
-    } catch (error) { console.warn("Favourite sync deferred:", error.message); }
-  }
+
   function renderCart() {
     const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
     if (cartCount) {
@@ -273,26 +226,63 @@ import { apiFetch } from "./api.js";
     if (lastCartTrigger?.isConnected) lastCartTrigger.focus();
   }
 
-  function addProduct(productId) {
+  let productToastTimer;
+  function showProductToast(message) {
+    let toast = document.querySelector("#product-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "product-toast";
+      toast.className = "product-toast";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
+      document.body.append(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("is-visible");
+    clearTimeout(productToastTimer);
+    productToastTimer = setTimeout(() => toast.classList.remove("is-visible"), 1700);
+  }
+
+  function addProduct(productId, button) {
     const product = products.find((item) => item.id === productId);
     if (!product) return;
     const existing = cart.find((item) => item.product_id === productId);
     if (existing) {
       existing.quantity = Math.min(20, existing.quantity + 1);
     } else {
+      const firstImage = product.cover?.url || product.images?.[0]?.url || product.image_url;
       cart.push({
         product_id: product.id,
         name: product.name,
         category_name: categoryName(product.category_id),
         price: product.price == null ? null : Number(product.price),
-        image_url: safeImageUrl(product.image_url) || safeImageUrl((categories.find((item) => item.id === product.category_id) || {}).cover_image_url),
+        image_url: safeImageUrl(firstImage) || safeImageUrl((categories.find((item) => item.id === product.category_id) || {}).cover_image_url),
         quantity: 1
       });
     }
     saveCart();
     renderCart();
-    showCartToast("Added to your cart");
+    const quantity = cart.find(item => item.product_id === productId)?.quantity || 1;
+    if (button?.isConnected) {
+      const original = button.innerHTML;
+      const cartSvg = button.querySelector("svg")?.outerHTML || "";
+      button.classList.add("is-added");
+      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg>';
+      setTimeout(() => {
+        if (!button.isConnected) return;
+        button.classList.remove("is-added");
+        if (button.classList.contains("product-add-cart")) {
+          const badge = '<span class="product-add-count" aria-label="' + quantity + ' in cart">' + quantity + '</span>';
+          button.innerHTML = cartSvg + badge;
+        } else {
+          button.innerHTML = original;
+        }
+      }, 1000);
+    }
+    showProductToast(product.name + " added to your cart");
+    window.dispatchEvent(new CustomEvent("step-town:cart-change", { detail: { count: cart.reduce((sum, item) => sum + item.quantity, 0) } }));
   }
+  window.stepTownAddToCart = addProduct;
 
   async function loadCatalog() {
     if (!supabaseConfigured || !supabase) {
@@ -302,28 +292,20 @@ import { apiFetch } from "./api.js";
 
     catalogStatus.hidden = false;
     catalogStatus.textContent = "Loading the Step Town menu…";
-    const [categoryResult, productResult] = await Promise.all([
+    const [categoryResult, productResponse] = await Promise.all([
       supabase.from("store_categories").select("id,name,slug,description,cover_image_url,sort_order").eq("is_active", true).order("sort_order"),
-      supabase.from("store_products").select("id,category_id,name,description,price,image_url,image_urls,sort_order,is_visible").eq("is_available", true).eq("is_visible", true).order("sort_order")
+      apiFetch("/api/products")
     ]);
+    const productPayload = await productResponse.json().catch(() => ({}));
 
-    if (categoryResult.error || productResult.error) {
-      console.error("Step Town catalogue could not load:", categoryResult.error || productResult.error);
+    if (categoryResult.error || !productResponse.ok) {
+      console.error("Step Town catalogue could not load:", categoryResult.error || productPayload.error);
       catalogStatus.innerHTML = 'We could not load the menu right now. Please <a href="https://wa.me/250780382589" target="_blank" rel="noopener">contact Step Town on WhatsApp </a>.';
       return;
     }
 
     categories = categoryResult.data || [];
-    products = productResult.data || [];
-    const ids = products.map(product => product.id);
-    if (ids.length) {
-      const { data: galleryRows, error: galleryError } = await supabase.from("product_images").select("id,product_id,url,position,alt_text").in("product_id", ids).order("position");
-      if (!galleryError && galleryRows?.length) {
-        const byProduct = new Map();
-        for (const image of galleryRows) { if (!byProduct.has(image.product_id)) byProduct.set(image.product_id, []); byProduct.get(image.product_id).push(image); }
-        products = products.map(product => ({ ...product, images: byProduct.get(product.id) || [] }));
-      }
-    }
+    products = Array.isArray(productPayload.products) ? productPayload.products : [];
     if (categorySlug) {
       const requestedCategory = categories.find((item) =>
         item.slug === categorySlug ||
@@ -345,63 +327,36 @@ import { apiFetch } from "./api.js";
         routeHeading.append(back);
       }
     }
+
+    if (productRoute) {
+      const product = products.find(item => item.slug === productSlug || item.id === productSlug);
+      if (!product) {
+        catalogStatus.textContent = "That product could not be found. Browse the menu to see the current Step Town selection.";
+        catalogStatus.hidden = false;
+        productGrid.innerHTML = '<a class="product-detail-back" href="/categories">Back to the menu</a>';
+        return;
+      }
+      document.title = "Step Town | " + product.name;
+      catalogStatus.hidden = true;
+      productGrid.innerHTML = renderProductDetail({ ...product, category_name: categoryName(product.category_id) });
+      bindProductCardEvents(productGrid, {
+        onAddToCart: (productId, button) => addProduct(productId, button),
+        onFavouriteChange: ids => apiFetch("/api/profile/favourites", { method: "POST", body: { ids } }).catch(() => {})
+      });
+      attachProductCarousels(productGrid);
+      renderCart();
+      return;
+    }
+
     renderCategories();
     renderCategoryFilters();
     renderProducts();
+    renderCart();
   }
 
   // Category cards and filter chips navigate to real /categories/:slug routes.
 
-  productGrid.addEventListener("scroll", event => {
-    const strip = event.target.closest(".product-image-strip");
-    if (strip) updateCarousel(strip.closest(".product-card"));
-  }, true);
-  productGrid.addEventListener("keydown", event => {
-    const strip = event.target.closest(".product-image-strip");
-    if (!strip || !["ArrowLeft","ArrowRight"].includes(event.key)) return;
-    event.preventDefault();
-    strip.scrollBy({ left: (event.key === "ArrowRight" ? 1 : -1) * strip.clientWidth, behavior: "smooth" });
-  });
-  productGrid.addEventListener("click", (event) => {
-    const dot = event.target.closest("[data-dot]");
-    if (dot) {
-      const strip = dot.closest(".product-image").querySelector(".product-image-strip");
-      const image = strip?.querySelectorAll("img")[Number(dot.dataset.dot)];
-      image?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest", inline: "center" });
-      return;
-    }
-    const more = event.target.closest("[data-read-more]");
-    if (more) {
-      const description = more.previousElementSibling;
-      description.classList.toggle("is-expanded");
-      more.textContent = description.classList.contains("is-expanded") ? "Read less" : "Read more";
-      return;
-    }
-    const favourite = event.target.closest("[data-favourite]");
-    if (favourite) {
-      const key = "step-town-favourites-v1";
-      let saved = [];
-      try { saved = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
-      const id = favourite.dataset.favourite;
-      saved = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id];
-      localStorage.setItem(key, JSON.stringify(saved));
-      favourite.classList.toggle("is-saved", saved.includes(id));
-      favourite.classList.toggle("is-saved", saved.includes(id));
-      favourite.setAttribute("aria-pressed", String(saved.includes(id)));
-      favourite.setAttribute("aria-label", (saved.includes(id) ? "Remove " : "Save ") + "product " + (saved.includes(id) ? "from" : "to") + " favourites");
-      void syncFavouriteAccount(saved);
-      return;
-    }
-    const button = event.target.closest("[data-add-product]");
-    if (button) {
-      addProduct(button.dataset.addProduct);
-      button.classList.add("is-added");
-      const svg = button.querySelector("svg");
-      if (svg) svg.innerHTML = '<path d="m5 12 4 4L19 6"/>';
-      window.setTimeout(() => { if (button.isConnected) { button.classList.remove("is-added"); if (svg) svg.innerHTML = '<path d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/>'; } },1000);
-    }
-  });
-
+  // Product cards share their event handlers across the catalogue, search and detail page.\n
   if (searchInput) searchInput.addEventListener("input", renderProducts);
   // The Cart tab opens the public /cart page; login is required only when submitting an order.
     if (cartClose) cartClose.addEventListener("click", closeCart);

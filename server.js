@@ -1,4 +1,5 @@
 import http from "node:http";
+
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -223,6 +224,323 @@ async function oauthCallback(req,res,url) {
     res.writeHead(303,{Location:"/login?error="+encodeURIComponent(e.message||"oauth")}).end();
   }
 }
+
+function bearerToken(req) {
+  const header = String(req.headers.authorization || "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+async function requireProductStaff(req) {
+  const access = bearerToken(req);
+  if (!access) throw Object.assign(new Error("Sign in with an active Step Town staff account."), { status: 401 });
+  const user = await sb("/auth/v1/user", { access });
+  if (!user?.id) throw Object.assign(new Error("Your staff session has expired. Sign in again."), { status: 401 });
+  const profiles = await sb("/rest/v1/staff_profiles?select=user_id,role,is_active&user_id=eq." + encodeURIComponent(user.id) + "&limit=1", { access });
+  const staff = profiles?.[0];
+  if (!staff?.is_active || !["manager", "accountant"].includes(staff.role)) {
+    throw Object.assign(new Error("Only an active Accountant or Manager can manage product images."), { status: 403 });
+  }
+  return { access, user, role: staff.role };
+}
+async function readMultipart(req, maxBytes = 21 * 1024 * 1024) {
+  const chunks = [];
+  let size = 0;
+  for await (const part of req) {
+    size += part.length;
+    if (size > maxBytes) throw Object.assign(new Error("The upload request is too large. Each image must be 5 MB or smaller."), { status: 413 });
+    chunks.push(part);
+  }
+  const raw = Buffer.concat(chunks);
+  const contentType = String(req.headers["content-type"] || "");
+  if (!contentType.toLowerCase().startsWith("multipart/form-data;")) {
+    throw Object.assign(new Error("Expected a multipart image upload."), { status: 400 });
+  }
+  const request = new Request("http://step-town-upload.invalid/", {
+    method: "POST",
+    headers: { "content-type": contentType },
+    body: raw
+  });
+  return request.formData();
+}
+function validProductUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+function fileSignatureMatches(bytes, type) {
+  if (type === "image/jpeg") return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (type === "image/png") return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  if (type === "image/webp") return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  return false;
+}
+function productStorageUrl(objectPath) {
+  return SUPABASE_URL + "/storage/v1/object/public/step-town-media/" + objectPath.split("/").map(encodeURIComponent).join("/");
+}
+async function storageRemove(access, objectPath) {
+  const response = await fetch(SUPABASE_URL + "/storage/v1/object/step-town-media", {
+    method: "DELETE",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: "Bearer " + access,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ prefixes: [objectPath] })
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    if (response.status !== 404) throw Object.assign(new Error("The stored image could not be removed: " + (errorText || response.statusText)), { status: response.status });
+  }
+}
+async function syncProductLegacyImages(productId, access) {
+  const images = await sb("/rest/v1/product_images?select=url&product_id=eq." + encodeURIComponent(productId) + "&order=position.asc", { access });
+  const urls = (images || []).map(row => row.url).filter(Boolean);
+  await sb("/rest/v1/store_products?id=eq." + encodeURIComponent(productId), {
+    method: "PATCH",
+    access,
+    headers: { Prefer: "return=minimal" },
+    body: { image_urls: urls, image_url: urls[0] || null, updated_at: new Date().toISOString() }
+  });
+}
+async function writeProductImageAudit(staff, action, productId, details = {}) {
+  await sb("/rest/v1/audit_log", {
+    method: "POST",
+    access: staff.access,
+    headers: { Prefer: "return=minimal" },
+    body: {
+      actor_id: staff.user.id,
+      actor_role: staff.role,
+      action,
+      entity_type: "store_product_image",
+      entity_id: String(productId),
+      details
+    }
+  });
+}
+async function publicProducts(filters = {}) {
+  const columns = "id,slug,category_id,name,description,price,image_url,image_urls,sort_order,is_available,is_visible,has_stock,created_at";
+  let query = "?select=" + encodeURIComponent(columns) + "&is_available=eq.true&is_visible=eq.true&has_stock=eq.true&order=sort_order.asc,created_at.desc";
+  if (filters.slug) query += "&slug=eq." + encodeURIComponent(filters.slug);
+  if (Array.isArray(filters.ids)) {
+    if (!filters.ids.length) return [];
+    query += "&id=in.(" + filters.ids.map(encodeURIComponent).join(",") + ")";
+  }
+  const rows = await sb("/rest/v1/store_products" + query);
+  if (!rows?.length) return [];
+  const ids = rows.map(row => row.id);
+  const [imageRows, categoryRows] = await Promise.all([
+    sb("/rest/v1/product_images?select=id,product_id,url,public_id,variants,position,alt_text,created_at&product_id=in.(" + ids.map(encodeURIComponent).join(",") + ")&order=position.asc"),
+    sb("/rest/v1/store_categories?select=id,name,slug")
+  ]);
+  const byProduct = new Map();
+  for (const image of imageRows || []) {
+    const list = byProduct.get(image.product_id) || [];
+    list.push(image);
+    byProduct.set(image.product_id, list);
+  }
+  const categories = new Map((categoryRows || []).map(category => [category.id, category]));
+  return rows.map(row => {
+    let images = byProduct.get(row.id) || [];
+    if (!images.length) {
+      const legacy = [];
+      for (const url of [...(Array.isArray(row.image_urls) ? row.image_urls : []), row.image_url]) {
+        if (typeof url === "string" && url && !legacy.some(item => item.url === url)) {
+          legacy.push({
+            id: null, product_id: row.id, url, public_id: null,
+            position: legacy.length, alt_text: row.name + " product photo " + (legacy.length + 1)
+          });
+        }
+      }
+      images = legacy;
+    }
+    images = images.map(image => ({
+      ...image,
+      variants: Object.fromEntries(Object.entries(image.variants || {}).map(([width, objectPath]) => [width, productStorageUrl(objectPath)]))
+    }));
+    const category = categories.get(row.category_id) || null;
+    return {
+      ...row,
+      slug: row.slug || row.id,
+      category_name: category?.name || "Menu",
+      category: category ? { id: category.id, name: category.name, slug: category.slug } : null,
+      images,
+      cover: images[0] || null
+    };
+  });
+}
+async function profileFavourites(req, res, method) {
+  const current = await currentUser(req, res);
+  if (!current) return sendJson(res, 401, { error: "Sign in to sync and view your favourites." });
+  const userId = current.user.id;
+  if (method === "GET") {
+    const rows = await sb("/rest/v1/customer_favourites?select=product_id,created_at&user_id=eq." + encodeURIComponent(userId) + "&order=created_at.desc", { access: current.session.access_token });
+    const ids = (rows || []).map(row => row.product_id);
+    const products = await publicProducts({ ids });
+    return sendJson(res, 200, { ids, products });
+  }
+  const b = await body(req, 24 * 1024);
+  const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).filter(validProductUuid))].slice(0, 200);
+  if (Array.isArray(b.ids) && b.ids.length > 200) return sendJson(res, 400, { error: "You can save up to 200 favourites." });
+  const access = current.session.access_token;
+  if (b.merge !== true) {
+    const existing = await sb("/rest/v1/customer_favourites?select=product_id&user_id=eq." + encodeURIComponent(userId), { access });
+    const keep = new Set(ids);
+    for (const row of existing || []) {
+      if (!keep.has(row.product_id)) {
+        await sb("/rest/v1/customer_favourites?user_id=eq." + encodeURIComponent(userId) + "&product_id=eq." + encodeURIComponent(row.product_id), {
+          method: "DELETE", access, headers: { Prefer: "return=minimal" }
+        });
+      }
+    }
+  }
+  if (ids.length) {
+    await sb("/rest/v1/customer_favourites?on_conflict=user_id,product_id", {
+      method: "POST", access,
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: ids.map(productId => ({ user_id: userId, product_id: productId }))
+    });
+  }
+  const mergedRows = await sb("/rest/v1/customer_favourites?select=product_id&user_id=eq." + encodeURIComponent(userId), { access });
+  return sendJson(res, 200, { ok: true, ids: (mergedRows || []).map(row => row.product_id) });
+}
+async function staffProductImagesApi(req, res, url) {
+  const route = url.pathname;
+  const uploadMatch = route.match(/^\/api\/staff\/products\/([0-9a-f-]{36})\/images$/i);
+  const deleteMatch = route.match(/^\/api\/staff\/products\/([0-9a-f-]{36})\/images\/([0-9a-f-]{36})$/i);
+  const reorderMatch = route.match(/^\/api\/staff\/products\/([0-9a-f-]{36})\/images\/order$/i);
+  if (!uploadMatch && !deleteMatch && !reorderMatch) return false;
+  try {
+    const staff = await requireProductStaff(req);
+    if (uploadMatch && req.method === "POST") {
+      const productId = uploadMatch[1];
+      if (!validProductUuid(productId)) return sendJson(res, 400, { error: "Invalid product ID." });
+      const form = await readMultipart(req);
+      const file = form.get("file");
+      const altText = String(form.get("alt_text") || "").trim().slice(0, 240);
+      if (!file || typeof file.arrayBuffer !== "function") return sendJson(res, 400, { error: "Choose an image to upload." });
+      if (!["image/webp"].includes(file.type)) return sendJson(res, 415, { error: "The primary image must be a compressed WEBP file." });
+      if (!file.size || file.size > 5 * 1024 * 1024) return sendJson(res, 413, { error: "Each compressed image must be 5 MB or smaller." });
+      const existing = await sb("/rest/v1/product_images?select=id&product_id=eq." + encodeURIComponent(productId), { access: staff.access });
+      if ((existing || []).length >= 10) return sendJson(res, 400, { error: "A product can have no more than 10 images." });
+      const variants = {};
+      const uploads = [];
+      const basePath = "products/" + productId + "/" + randomBytes(12).toString("hex");
+      const primaryBytes = Buffer.from(await file.arrayBuffer());
+      if (!fileSignatureMatches(primaryBytes, file.type)) return sendJson(res, 415, { error: "The uploaded file contents do not match an accepted image format." });
+      uploads.push({ path: basePath + ".webp", bytes: primaryBytes, type: "image/webp", primary: true });
+
+      for (const width of [480, 800, 1200]) {
+        const variantFile = form.get("variant_" + width);
+        if (!variantFile || typeof variantFile.arrayBuffer !== "function") continue;
+        if (variantFile.type !== "image/webp" || !variantFile.size || variantFile.size > 5 * 1024 * 1024) {
+          return sendJson(res, 415, { error: "Responsive image variants must be WEBP files no larger than 5 MB." });
+        }
+        const bytes = Buffer.from(await variantFile.arrayBuffer());
+        if (!fileSignatureMatches(bytes, "image/webp")) return sendJson(res, 415, { error: "A responsive image variant is not a valid WEBP file." });
+        uploads.push({ path: basePath + "-" + width + ".webp", bytes, type: "image/webp", width });
+      }
+      if (!uploads.some(item => item.width === 480) || !uploads.some(item => item.width === 800)) {
+        return sendJson(res, 400, { error: "The 480px and 800px responsive image variants are required." });
+      }
+
+      const uploadedPaths = [];
+      try {
+        for (const object of uploads) {
+          const upload = await fetch(SUPABASE_URL + "/storage/v1/object/step-town-media/" + object.path.split("/").map(encodeURIComponent).join("/"), {
+            method: "POST",
+            headers: {
+              apikey: SUPABASE_KEY,
+              Authorization: "Bearer " + staff.access,
+              "Content-Type": object.type,
+              "Cache-Control": "31536000",
+              "x-upsert": "false"
+            },
+            body: object.bytes
+          });
+          if (!upload.ok) {
+            const errorText = await upload.text();
+            throw Object.assign(new Error(errorText || "Supabase Storage rejected an image."), { status: upload.status });
+          }
+          uploadedPaths.push(object.path);
+          if (object.width) variants[String(object.width)] = object.path;
+        }
+      } catch (error) {
+        for (const path of uploadedPaths) {
+          try { await storageRemove(staff.access, path); }
+          catch (cleanupError) { console.error("Image variant cleanup failed:", cleanupError.message); }
+        }
+        throw error;
+      }
+
+      const objectPath = basePath + ".webp";
+      const urlValue = productStorageUrl(objectPath);
+      let inserted;
+      try {
+        inserted = await sb("/rest/v1/product_images?select=id,product_id,url,public_id,variants,position,alt_text,created_at", {
+          method: "POST",
+          access: staff.access,
+          headers: { Prefer: "return=representation" },
+          body: {
+            product_id: productId,
+            url: urlValue,
+            public_id: objectPath,
+            variants,
+            position: (existing || []).length,
+            alt_text: altText || "Step Town product photo"
+          }
+        });
+      } catch (error) {
+        for (const path of uploadedPaths) {
+          try { await storageRemove(staff.access, path); }
+          catch (cleanupError) { console.error("Image cleanup failed:", cleanupError.message); }
+        }
+        throw error;
+      }
+      await syncProductLegacyImages(productId, staff.access);
+      await writeProductImageAudit(staff, "product_image_added", productId, { image_id: inserted?.[0]?.id, position: (existing || []).length });
+      return sendJson(res, 201, { image: inserted?.[0] || null });
+    }
+
+    if (reorderMatch && req.method === "PATCH") {
+      const productId = reorderMatch[1];
+      const b = await body(req, 12 * 1024);
+      const imageIds = Array.isArray(b.imageIds) ? b.imageIds : [];
+      if (imageIds.length > 10 || imageIds.some(id => !validProductUuid(id))) return sendJson(res, 400, { error: "The image order is invalid." });
+      await sb("/rest/v1/rpc/staff_reorder_product_images", {
+        method: "POST", access: staff.access,
+        body: { p_product_id: productId, p_image_ids: imageIds }
+      });
+      await syncProductLegacyImages(productId, staff.access);
+      await writeProductImageAudit(staff, "product_images_reordered", productId, { image_ids: imageIds });
+      return sendJson(res, 200, { ok: true });
+    }
+
+    if (deleteMatch && req.method === "DELETE") {
+      const productId = deleteMatch[1], imageId = deleteMatch[2];
+      const rows = await sb("/rest/v1/product_images?select=id,public_id&product_id=eq." + encodeURIComponent(productId) + "&id=eq." + encodeURIComponent(imageId) + "&limit=1", { access: staff.access });
+      const image = rows?.[0];
+      if (!image) return sendJson(res, 404, { error: "That product image was not found." });
+      const objectsToRemove = [...new Set([image.public_id, ...Object.values(image.variants || {})].filter(Boolean))];
+      for (const objectPath of objectsToRemove) await storageRemove(staff.access, objectPath);
+      await sb("/rest/v1/product_images?product_id=eq." + encodeURIComponent(productId) + "&id=eq." + encodeURIComponent(imageId), {
+        method: "DELETE", access: staff.access, headers: { Prefer: "return=minimal" }
+      });
+      const remaining = await sb("/rest/v1/product_images?select=id&product_id=eq." + encodeURIComponent(productId) + "&order=position.asc", { access: staff.access });
+      if ((remaining || []).length) {
+        await sb("/rest/v1/rpc/staff_reorder_product_images", {
+          method: "POST", access: staff.access,
+          body: { p_product_id: productId, p_image_ids: remaining.map(row => row.id) }
+        });
+      }
+      await syncProductLegacyImages(productId, staff.access);
+      await writeProductImageAudit(staff, "product_image_removed", productId, { image_id: imageId });
+      return sendJson(res, 200, { ok: true });
+    }
+
+    return sendJson(res, 405, { error: "Method not allowed for product images." });
+  } catch (error) {
+    console.error("Product image API:", error);
+    return sendJson(res, error.status || 500, { error: error.message || "The product image request failed." });
+  }
+}
+
 async function api(req,res,url) {
   const route=url.pathname;
   if(req.method==="GET"&&route==="/api/csrf"){
@@ -232,6 +550,39 @@ async function api(req,res,url) {
   }
   if(["POST","PUT","PATCH","DELETE"].includes(req.method)&&route.startsWith("/api/")&&!csrfValid(req))
     return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
+  if(req.method==="GET"&&route==="/api/products"){
+    try {
+      const products = await publicProducts({
+        ids: url.searchParams.has("ids") ? url.searchParams.get("ids").split(",").filter(Boolean) : undefined
+      });
+      return sendJson(res,200,{products});
+    } catch(error) {
+      console.error("Public product list:",error.message);
+      return sendJson(res,error.status||502,{error:"The product catalogue could not be loaded."});
+    }
+  }
+  if(req.method==="GET"&&route.startsWith("/api/products/")){
+    try {
+      const slug = decodeURIComponent(route.slice("/api/products/".length));
+      const products = await publicProducts({slug});
+      return products[0] ? sendJson(res,200,{product:products[0]}) : sendJson(res,404,{error:"That product was not found."});
+    } catch(error) {
+      console.error("Public product detail:",error.message);
+      return sendJson(res,error.status||502,{error:"The product could not be loaded."});
+    }
+  }
+  if(route==="/api/profile/favourites"&&req.method==="GET") {
+    try { return await profileFavourites(req,res,"GET"); }
+    catch(error) { return sendJson(res,error.status||502,{error:"Your favourites could not be loaded."}); }
+  }
+  if(route==="/api/profile/favourites"&&req.method==="POST") {
+    try { return await profileFavourites(req,res,"POST"); }
+    catch(error) { return sendJson(res,error.status||502,{error:error.message||"Your favourites could not be synced."}); }
+  }
+  if(route.startsWith("/api/staff/products/")) {
+    const handled = await staffProductImagesApi(req,res,url);
+    if(handled) return;
+  }
   if(req.method==="GET"&&route==="/api/session"){
     if(!configured())return sendJson(res,503,{error:"Customer sign-in is not configured on the server."});
     const current=await currentUser(req,res);return sendJson(res,200,{authenticated:Boolean(current),user:current?.user||null});
