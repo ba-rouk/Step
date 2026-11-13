@@ -132,10 +132,11 @@ Deno.serve(async (req: Request) => {
 
   if (action === "update-profile") {
     const fullName = clean(body.full_name, 120);
+    const email = clean(body.email, 254).toLowerCase();
     const phone = clean(body.phone, 40) || null;
     const role = clean(body.role, 20);
-    if (fullName.length < 2 || !["accountant", "cashier"].includes(role)) {
-      return reply({ error: "Enter a valid name and select Accountant or Cashier." }, 400, origin);
+    if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !["accountant", "cashier"].includes(role)) {
+      return reply({ error: "Enter a valid name, email address and select Accountant or Cashier." }, 400, origin);
     }
 
     let reportsTo = actor.id;
@@ -158,29 +159,36 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const { data: authTarget, error: authFetchError } = await admin.auth.admin.getUserById(target.user_id);
+    if (authFetchError || !authTarget?.user) return reply({ error: "Could not load the staff login to update it." }, 500, origin);
+    const nextMetadata = {
+      ...(authTarget.user.app_metadata || {}),
+      staff: true,
+      staff_role: role
+    };
+    const { error: authUpdateError } = await admin.auth.admin.updateUserById(target.user_id, {
+      email,
+      email_confirm: true,
+      app_metadata: nextMetadata,
+      user_metadata: {
+        ...(authTarget.user.user_metadata || {}),
+        full_name: fullName
+      }
+    });
+    if (authUpdateError) return reply({ error: "Could not update the staff login: " + authUpdateError.message }, 400, origin);
+
     const { error: profileError } = await admin.from("staff_profiles").update({
       full_name: fullName,
+      email,
       phone,
       role,
       reports_to: reportsTo,
       updated_at: new Date().toISOString()
     }).eq("id", target.id);
-    if (profileError) return reply({ error: "Could not update the staff profile: " + profileError.message }, 400, origin);
-
-    const { data: authTarget } = await admin.auth.admin.getUserById(target.user_id);
-    const nextMetadata = {
-      ...(authTarget?.user?.app_metadata || {}),
-      staff: true,
-      staff_role: role
-    };
-    const { error: authUpdateError } = await admin.auth.admin.updateUserById(target.user_id, {
-      app_metadata: nextMetadata,
-      user_metadata: {
-        ...(authTarget?.user?.user_metadata || {}),
-        full_name: fullName
-      }
-    });
-    if (authUpdateError) return reply({ error: "Profile updated, but sign-in metadata could not be refreshed: " + authUpdateError.message }, 500, origin);
+    if (profileError) {
+      console.error("Auth email updated but staff profile update failed:", profileError.message);
+      return reply({ error: "Login email was updated, but the staff profile update failed. Retry saving the profile: " + profileError.message }, 500, origin);
+    }
 
     await admin.from("audit_log").insert({
       actor_id: user.id,
