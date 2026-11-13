@@ -44,7 +44,7 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
   if (form) {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (error) error.textContent = "";
+      if (error) { error.textContent = ""; error.style.color = ""; }
       if (!form.reportValidity()) return;
 
       if (!supabaseConfigured || !supabase) {
@@ -83,7 +83,13 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
         submitButton.textContent = "Saving your enquiry…";
       }
 
-      const { error: insertError } = await supabase.from("enquiries").insert(enquiry);
+      let insertError = null;
+      try {
+        const result = await supabase.from("enquiries").insert(enquiry);
+        insertError = result.error;
+      } catch (submissionError) {
+        insertError = submissionError;
+      }
 
       if (submitButton) {
         submitButton.disabled = false;
