@@ -1,8 +1,8 @@
 import { supabase, supabaseConfigured } from "./supabase.js";
 import "../staff.css";
 
-const PATH = location.pathname.replace(/\/+$/, "") || "/staff";
-const PUBLIC_HOME_URL = "https://steptown.onrender.com/";
+const PATH = location.pathname.replace(/\/+$/, "") || "/";
+const PUBLIC_HOME_URL = "/";
 const ROLE_LABEL = { manager: "Manager", accountant: "Accountant", cashier: "Cashier" };
 const ROLE_ACCESS = {
   overview: ["manager", "accountant", "cashier"],
@@ -110,7 +110,7 @@ function shell(title, body, subtitle = "") {
   const role = esc(ROLE_LABEL[profile?.role] || "Staff");
   app.innerHTML =
     '<header class="staff-top">' +
-      '<a class="staff-brand" href="https://steptown.onrender.com/" aria-label="Step Town home">' +
+      '<a class="staff-brand" href="/" aria-label="Step Town home">' +
         '<img class="staff-logo" src="/step-town-logo.png" alt="Step Town">' +
         '<span><b>STEP TOWN</b><small>STAFF WORKSPACE</small></span>' +
       "</a>" +
@@ -373,11 +373,14 @@ function orderTable(orders, options = {}) {
 }
 async function overviewPage() {
   const start = todayStart();
-  const [todayOrders, paymentsToday, todayEnquiries, allRecent] = await Promise.all([
+  const sevenDaysAgo = new Date(Date.now() - 6 * 86400000);
+  const [todayOrders, paymentsToday, todayEnquiries, allRecent, recent] = await Promise.all([
     queryRows(supabase.from("store_orders").select("id,order_number,status,customer_name,customer_phone,estimated_total,created_at,requested_date,requested_time").gte("created_at", start).order("created_at", { ascending: false })),
     queryRows(supabase.from("store_order_payments").select("amount").gte("recorded_at", start)),
     queryRows(supabase.from("enquiries").select("id").gte("created_at", start)),
-    queryRows(supabase.from("store_orders").select("id,order_number,status,customer_name,customer_phone,estimated_total,created_at,requested_date,requested_time").order("created_at", { ascending: false }).limit(10))
+    queryRows(supabase.from("store_orders").select("id,order_number,status,customer_name,customer_phone,estimated_total,created_at,requested_date,requested_time").order("created_at", { ascending: false }).limit(10)),
+    profile.role === "cashier" ? Promise.resolve([]) : queryRows(supabase.from("store_orders")
+      .select("id,status,created_at,estimated_total").gte("created_at", sevenDaysAgo.toISOString()))
   ]);
   const pending = todayOrders.filter(o => o.status === "new").length;
   const progress = todayOrders.filter(o => ["confirmed", "preparing", "ready"].includes(o.status)).length;
@@ -385,9 +388,6 @@ async function overviewPage() {
   const sales = paymentsToday.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   let extra = "";
   if (profile.role !== "cashier") {
-    const sevenDaysAgo = new Date(Date.now() - 6 * 86400000);
-    const recent = await queryRows(supabase.from("store_orders")
-      .select("id,status,created_at,estimated_total").gte("created_at", sevenDaysAgo.toISOString()));
     const buckets = Array.from({ length: 7 }, (_, index) => {
       const d = new Date(sevenDaysAgo); d.setDate(d.getDate() + index);
       const key = dateKey(d);
