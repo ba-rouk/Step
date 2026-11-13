@@ -51,6 +51,20 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
     startHeroVideo();
   }
 
+  const currentPath = window.location.pathname.replace(/\/+$/, "") || "/";
+  const activeDockRoute = currentPath === "/" ? "home"
+    : currentPath.startsWith("/categories") ? "categories"
+    : currentPath.startsWith("/gallery") ? "gallery"
+    : currentPath.startsWith("/cart") ? "cart"
+    : currentPath.startsWith("/profile") || currentPath.startsWith("/account") ? "profile"
+    : "";
+  document.querySelectorAll(".mobile-dock [data-dock-route]").forEach((link) => {
+    const active = link.dataset.dockRoute === activeDockRoute;
+    link.classList.toggle("dock-active", active);
+    if (active) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
+
   const menuToggle = document.querySelector(".menu-toggle");
   const primaryNav = document.querySelector(".primary-nav");
 
