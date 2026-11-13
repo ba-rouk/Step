@@ -1,8 +1,10 @@
 import "../customer.css";
 import { apiFetch } from "./api.js";
+import { bindProductCardEvents, getFavouriteIds, renderProductCard, saveFavouriteIds } from "./product-components.js";
+import { attachProductCarousels } from "./product-carousel.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
-const isAuthRoute = ["/login","/register","/profile","/profile/orders"].includes(route);
+const isAuthRoute = ["/login","/register","/profile","/profile/orders","/profile/favourites"].includes(route);
 
 if (isAuthRoute) {
   document.body.classList.add("route-customer-page");
@@ -95,6 +97,7 @@ if (isAuthRoute) {
           error.textContent = payload.error || "We couldn't sign you in. Please try again.";
           return;
         }
+        await syncGuestFavourites();
         window.location.assign(payload.next || safeNext);
       } catch (cause) {
         error.textContent = cause.message || "We couldn't reach the sign-in service. Try again.";
@@ -144,6 +147,20 @@ if (isAuthRoute) {
     });
   }
 
+  async function syncGuestFavourites() {
+    const ids = getFavouriteIds();
+    try {
+      if (ids.length) {
+        await apiFetch("/api/profile/favourites", { method: "POST", body: { ids, merge: true } });
+      }
+      const response = await apiFetch("/api/profile/favourites");
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(payload.ids)) saveFavouriteIds([...ids, ...payload.ids]);
+    } catch {
+      // Guests keep favourites on this device and can sync again after signing in.
+    }
+  }
+
   function renderProfile(payload) {
     const profile = payload.profile || {};
     const user = payload.user || {};
@@ -152,7 +169,7 @@ if (isAuthRoute) {
     shell(
       '<h1>Your profile.</h1><p class="customer-intro">Your Step Town account and order details.</p>' +
       '<div class="customer-profile-details"><div><small>FULL NAME</small><strong>' + escapeHtml(name) + '</strong></div><div><small>PHONE NUMBER</small><strong>' + escapeHtml(phone) + '</strong></div></div>' +
-      '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/orders">View order history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
+      '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/orders">View order history</a><a class="customer-secondary" href="/profile/favourites">My favourites</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
       '<p class="customer-error" id="customer-profile-error" role="alert"></p>',
       "MY STEP TOWN PROFILE"
     );
@@ -167,6 +184,37 @@ if (isAuthRoute) {
         button.disabled = false;
       }
     });
+  }
+
+  function renderFavourites(payload) {
+    const products = Array.isArray(payload.products) ? payload.products : [];
+    const ids = Array.isArray(payload.ids) ? payload.ids : [];
+    saveFavouriteIds([...new Set([...getFavouriteIds(), ...ids])]);
+    const cards = products.map((product, index) => renderProductCard(product, index)).join("");
+    shell(
+      '<h1>Your favourites.</h1><p class="customer-intro">The Step Town items you have saved for later.</p>' +
+      (cards
+        ? '<div id="customer-favourites-grid" class="product-grid customer-favourites-grid">' + cards + '</div>'
+        : '<div class="customer-empty-orders"><strong>No favourites saved yet.</strong><p>Tap the heart on a menu item to keep it here.</p><a href="/categories">Explore the menu</a></div>') +
+      '<p class="customer-note"><a href="/profile">Back to profile</a></p>',
+      "YOUR SAVED MENU"
+    );
+    const grid = app.querySelector("#customer-favourites-grid");
+    if (grid) {
+      bindProductCardEvents(grid, {
+        onAddToCart: (id, button) => window.stepTownAddToCart?.(id, button),
+        onFavouriteChange: (nextIds, productId, liked) => {
+          apiFetch("/api/profile/favourites", { method: "POST", body: { ids: nextIds } }).catch(() => {});
+          if (!liked) {
+            grid.querySelector('[data-product-card][data-product-id="' + productId + '"]')?.remove();
+            if (!grid.querySelector("[data-product-card]")) {
+              grid.outerHTML = '<div class="customer-empty-orders"><strong>No favourites saved yet.</strong><p>Tap the heart on a menu item to keep it here.</p><a href="/categories">Explore the menu</a></div>';
+            }
+          }
+        }
+      });
+      attachProductCarousels(grid);
+    }
   }
 
   function renderOrders(payload) {
@@ -187,7 +235,17 @@ if (isAuthRoute) {
   async function loadProtectedView() {
     shell('<h1>Loading your account…</h1><p class="customer-intro">Checking your secure Step Town session.</p>', "SECURE ACCOUNT");
     try {
-      if (route === "/profile/orders") {
+      await syncGuestFavourites();
+      if (route === "/profile/favourites") {
+        const response = await apiFetch("/api/profile/favourites");
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          window.location.replace("/login?next=" + encodeURIComponent(route));
+          return;
+        }
+        if (!response.ok) throw new Error(payload.error || "Your favourites could not be loaded.");
+        renderFavourites(payload);
+      } else if (route === "/profile/orders") {
         const response = await apiFetch("/api/profile/orders");
         const payload = await response.json().catch(() => ({}));
         if (response.status === 401) {
@@ -216,7 +274,7 @@ if (isAuthRoute) {
     if (route === "/login") authForm("login", authError);
     else authForm("register", authError);
   } else {
-    document.title = route === "/profile/orders" ? "Step Town | Order history" : "Step Town | Profile";
+    document.title = route === "/profile/orders" ? "Step Town | Order history" : route === "/profile/favourites" ? "Step Town | Favourites" : "Step Town | Profile";
     loadProtectedView();
   }
 }

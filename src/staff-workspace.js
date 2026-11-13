@@ -1,5 +1,7 @@
 import { supabase, supabaseConfigured } from "./supabase.js";
 import "../staff.css";
+import "./staff-product-images.css";
+import { mountProductImageManager } from "./staff-product-images.js";
 
 const PATH = location.pathname.replace(/\/+$/, "") || "/";
 const PUBLIC_HOME_URL = "/";
@@ -621,10 +623,17 @@ async function productsPage() {
     isNew || isEdit ? Promise.resolve([]) : queryRows(supabase.from("store_products").select("*,store_categories(name)").order("sort_order").order("created_at", { ascending: false }))
   ]);
   let product = null;
+  let productImages = [];
   if (isEdit) {
     const { data, error } = await supabase.from("store_products").select("*").eq("id", productId).maybeSingle();
     if (error || !data) { shell("Product not found", panelError(error || { message: "Product not found." })); return; }
     product = data;
+    const { data: images, error: imageError } = await supabase.from("product_images")
+      .select("id,product_id,url,public_id,position,alt_text,created_at")
+      .eq("product_id", productId)
+      .order("position", { ascending: true });
+    if (imageError) throw imageError;
+    productImages = images || [];
   }
   if (isNew || isEdit) {
     const title = isNew ? "Add product" : "Edit product";
@@ -635,14 +644,15 @@ async function productsPage() {
         '<label>Price (RWF)<input name="price" type="number" min="0" step="1" value="' + (product?.price ?? "") + '" placeholder="Leave blank for quote"></label>' +
         '<label>Stock quantity<input name="stock_quantity" type="number" min="0" step="1" value="' + (product?.stock_quantity ?? "") + '" placeholder="Blank means not tracked"></label>' +
         '<label class="wide">Description<textarea name="description" rows="3">' + esc(product?.description || "") + "</textarea></label>" +
-        '<label class="wide">Product photos<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple></label>' +
-        (product?.image_urls?.length || product?.image_url ? '<div class="staff-existing-images wide">' + (product.image_urls?.length ? product.image_urls : [product.image_url]).filter(Boolean).map(url => '<img src="' + esc(url) + '" alt="">').join("") + "</div>" : "") +
+        '<div id="product-image-manager" class="wide"></div>' +
         '<label class="staff-check"><input type="checkbox" name="is_available" ' + (product?.is_available === false ? "" : "checked") + '> Available</label>' +
         '<label class="staff-check"><input type="checkbox" name="has_stock" ' + (product?.has_stock === false ? "" : "checked") + '> In stock</label>' +
         '<label class="staff-check"><input type="checkbox" name="is_visible" ' + (product?.is_visible === false ? "" : "checked") + '> Visible on public menu</label>' +
         '<div class="staff-form-actions wide"><a class="staff-quiet" href="/staff/products">Cancel</a><button class="staff-primary" type="submit">' + (isNew ? "Publish product" : "Save changes") + "</button></div>" +
         '<p id="product-message" class="staff-muted wide" role="status"></p>' +
       "</form></section>");
+    const imageManager = mountProductImageManager($("#product-image-manager"), product?.id || null, productImages);
+    let savedProductId = product?.id || null;
     $("#product-form").addEventListener("submit", async event => {
       event.preventDefault();
       const form = event.currentTarget;
@@ -656,24 +666,16 @@ async function productsPage() {
         $("#product-message").textContent = "Enter a valid price and stock quantity.";
         return;
       }
-      const submit = $("button[type=submit]", form);
+      const submit = $('button[type="submit"]', form);
       submit.disabled = true;
+      submit.textContent = savedProductId ? "Saving product…" : "Creating product…";
+      $("#product-message").textContent = "";
       try {
-        const files = Array.from($('input[name="images"]', form).files || []);
-        const uploaded = [];
-        for (let i = 0; i < files.length; i++) {
-          $("#product-message").textContent = "Uploading photo " + (i + 1) + " of " + files.length + "…";
-          uploaded.push(await uploadImage(files[i], "products"));
-        }
-        const previousImages = product?.image_urls?.length ? product.image_urls : (product?.image_url ? [product.image_url] : []);
-        const imageUrls = uploaded.length ? [...previousImages, ...uploaded] : previousImages;
         const payload = {
           name: String(fields.get("name") || "").trim(),
           category_id: fields.get("category_id"),
           price,
           description: String(fields.get("description") || "").trim() || null,
-          image_urls: imageUrls,
-          image_url: imageUrls[0] || null,
           stock_quantity: stock,
           has_stock: fields.has("has_stock") && (stock === null || stock > 0),
           is_available: fields.has("is_available"),
@@ -681,16 +683,32 @@ async function productsPage() {
           updated_by: profile.user_id,
           updated_at: new Date().toISOString()
         };
-        const result = isEdit
-          ? await supabase.from("store_products").update(payload).eq("id", productId)
-          : await supabase.from("store_products").insert({ ...payload, sort_order: 0 });
-        if (result.error) throw result.error;
-        await writeAudit(isEdit ? "product_updated" : "product_created", "store_product", productId, { name: payload.name });
+        if (savedProductId) {
+          const { error } = await supabase.from("store_products").update(payload).eq("id", savedProductId);
+          if (error) throw error;
+        } else {
+          const { data, error } = await supabase.from("store_products")
+            .insert({ ...payload, sort_order: 0 })
+            .select("id")
+            .single();
+          if (error) throw error;
+          savedProductId = data.id;
+        }
+        submit.textContent = "Saving product photos…";
+        await imageManager.save(savedProductId);
+        await writeAudit(isEdit ? "product_updated" : "product_created", "store_product", savedProductId, {
+          name: payload.name,
+          image_count: imageManager.getImages().length
+        });
+        notify(isEdit ? "Product updated." : "Product published.");
         location.assign("/staff/products");
       } catch (error) {
-        $("#product-message").textContent = error.message || "Product could not be saved.";
+        $("#product-message").textContent = error.message || "The product could not be saved.";
       } finally {
-        if (submit.isConnected) submit.disabled = false;
+        if (submit.isConnected) {
+          submit.disabled = false;
+          submit.textContent = isNew ? "Publish product" : "Save changes";
+        }
       }
     });
     return;
