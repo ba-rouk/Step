@@ -970,7 +970,7 @@ async function teamPage() {
         "</td></tr>"
       ).join("") + "</tbody></table></div>" : '<p class="staff-empty">No additional staff accounts yet.</p>') +
     "</section>" +
-    '<div id="team-edit-modal" class="staff-modal" hidden><div class="staff-modal-card"><div class="staff-panel-head"><h2>Edit staff profile</h2><button id="team-edit-close" class="staff-quiet" type="button">Close</button></div><form id="team-edit-form" class="staff-form-grid"><input type="hidden" name="user_id"><label>Full name<input name="full_name" required maxlength="120"></label><label>Phone<input name="phone" maxlength="40"></label><label>Role<select name="role"><option value="accountant">Accountant</option><option value="cashier">Cashier</option></select></label><label id="team-edit-parent-wrap" hidden>Reports to<select name="reports_to"><option value="">Choose Accountant</option>' + accountants.map(x => '<option value="' + x.id + '">' + esc(x.full_name) + "</option>").join("") + '</select></label><div class="staff-form-actions wide"><button class="staff-primary" type="submit">Save profile</button></div><p id="team-edit-message" class="staff-muted wide"></p></form></div></div>');
+    '<div id="team-edit-modal" class="staff-modal" hidden><div class="staff-modal-card"><div class="staff-panel-head"><h2>Edit staff profile</h2><button id="team-edit-close" class="staff-quiet" type="button">Close</button></div><form id="team-edit-form" class="staff-form-grid"><input type="hidden" name="user_id"><label>Full name<input name="full_name" required maxlength="120"></label><label>Email<input name="email" type="email" required maxlength="254"></label><label>Phone<input name="phone" maxlength="40"></label><label>Role<select name="role"><option value="accountant">Accountant</option><option value="cashier">Cashier</option></select></label><label id="team-edit-parent-wrap" hidden>Reports to<select name="reports_to"><option value="">Choose Accountant</option>' + accountants.map(x => '<option value="' + x.id + '">' + esc(x.full_name) + "</option>").join("") + '</select></label><div class="staff-form-actions wide"><button class="staff-primary" type="submit">Save profile</button></div><p id="team-edit-message" class="staff-muted wide"></p></form></div></div>');
   $("#team-create").elements.role.addEventListener("change", event => { $("#team-parent-wrap").hidden = event.target.value !== "cashier"; });
   $("#team-create").addEventListener("submit", async event => {
     event.preventDefault();
@@ -1003,6 +1003,7 @@ async function teamPage() {
     const form = $("#team-edit-form");
     form.elements.user_id.value = member.user_id;
     form.elements.full_name.value = member.full_name || "";
+    form.elements.email.value = member.email || "";
     form.elements.phone.value = member.phone || "";
     form.elements.role.value = member.role;
     form.elements.reports_to.value = member.reports_to || "";
@@ -1016,6 +1017,7 @@ async function teamPage() {
       action: "update-profile",
       user_id: fields.get("user_id"),
       full_name: String(fields.get("full_name") || "").trim(),
+      email: String(fields.get("email") || "").trim().toLowerCase(),
       phone: String(fields.get("phone") || "").trim(),
       role: String(fields.get("role")),
       reports_to: String(fields.get("reports_to") || "")
