@@ -241,7 +241,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   });
 
   if (searchInput) searchInput.addEventListener("input", renderProducts);
-  if (cartOpen) cartOpen.addEventListener("click", openCart);
+  const openBagForCustomer = async () => {\n    if (!supabaseConfigured || !supabase) { openCart(); return; }\n    const { data: { user } } = await supabase.auth.getUser();\n    if (!user) { window.location.assign("/account/login?next=" + encodeURIComponent("/#menu")); return; }\n    openCart();\n  };\n  if (cartOpen) cartOpen.addEventListener("click", openBagForCustomer);\n  document.querySelector("#mobile-cart-open")?.addEventListener("click", openBagForCustomer);
   if (cartClose) cartClose.addEventListener("click", closeCart);
   if (cartBackdrop) cartBackdrop.addEventListener("click", closeCart);
   document.addEventListener("keydown", (event) => {
