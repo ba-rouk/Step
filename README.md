@@ -1,56 +1,60 @@
 # Step Town — Catering, Barbecue & Wedding Cakes
 
-A responsive, single-page website for Step Town Catering and Wedding Cakes in Rwanda. The project is plain HTML, CSS and JavaScript, so it has no package installation or build step and can be published directly by Netlify.
+Responsive Vite website for Step Town Catering and Wedding Cakes in Rwanda.
 
-## Run locally
+## Stack
+- Vite 7
+- Vanilla JavaScript and CSS
+- Supabase JavaScript client
+- Supabase Postgres for customer enquiries
+- Netlify continuous deployment
 
-Open `index.html` in a browser, or run a small static server from the repository root:
+## Local development
+Requires Node.js 22.12+.
 
 ```bash
-python -m http.server 8000
+npm install
+cp .env.example .env
+npm run dev
 ```
 
-Then visit `http://localhost:8000`.
+Fill in `.env` with the Step Supabase project URL and publishable key. Never use a Supabase secret or service-role key in browser code.
 
-## Deploy with Netlify
+## Production build
+```bash
+npm run build
+npm run preview
+```
+The production site is generated in `dist/`.
 
-The repository includes `netlify.toml`. Connect the GitHub repository `ba-rouk/Step` to Netlify and use:
+## Netlify
+- Repository: `ba-rouk/Step`
+- Production branch: `main`
+- Base directory: `.` (repository root)
+- Build command: `npm run build`
+- Publish directory: `dist`
+- Functions directory: leave blank (no Netlify Functions are required for the current site)
 
-- **Build command:** leave blank
-- **Publish directory:** `.`
-- **Production branch:** `main`
+The root `netlify.toml` contains the build and publish settings. Configure these site environment variables in Netlify:
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-After Git-based continuous deployment is connected, pushes to the production branch can trigger new deployments automatically. The `.netlify` folder is ignored by Git.
+Vite exposes variables prefixed with `VITE_` to browser code. The publishable key is intended for client use; never place a Supabase secret/service-role key in these variables.
 
-## Business details included
+## Supabase
+Project: `Step` (`tyuousqmpexrwmnmvxtd`).
 
-- Business name: Step Town Catering and Wedding Cakes
-- Publicly listed location: Runda, Rwanda
-- Publicly listed contact: +250 780 382 589
-- WhatsApp enquiry link: `https://wa.me/250780382589`
-- Map search: Step Town Catering and Wedding Cakes, Runda, Rwanda
+Migration `create_step_town_enquiries` creates `public.enquiries`, enables RLS, grants anonymous visitors insert access only to the form's permitted columns, and creates no public read, update or delete policy. The site can save enquiries without exposing the enquiry list to visitors.
 
-The contact number and Runda listing were taken from the public business listing supplied during the project research. Confirm the exact street address, opening hours, service radius, and any additional branches with the business before publishing those details.
+The enquiry form validates required fields, saves the enquiry to Supabase, then offers an optional WhatsApp continuation. A successful database insert is confirmed before the success message appears.
 
-## Enquiry flow
+## Business details
+- Step Town Catering and Wedding Cakes
+- Runda, Rwanda
+- +250 780 382 589
+- WhatsApp: https://wa.me/250780382589
 
-The enquiry form does not store personal information or send it to a server. It validates the required fields and opens WhatsApp with a pre-filled message to the listed business number.
+Confirm the exact street address, opening hours, service radius, and contact details with the business before launch.
 
 ## Photography
-
-The Instagram share link supplied for this project did not expose an Instagram profile or post, so this first version uses illustrative Unsplash photographs instead of claiming that stock images are Step Town's work. Replace these images with the business's original photos before presenting the gallery as a portfolio.
-
-Current image sources (free to use under the Unsplash License; see each photo page for the photographer and license):
-
-- Barbecue image: [Grilled meat platter — Ahmad](https://unsplash.com/photos/grilled-meat-platter-RbI-U-WRuLw)
-- Barbecue / plated food image: [Grilled meat platter with salad and peppers — Gang Hao](https://unsplash.com/photos/grilled-meat-platter-with-salad-and-peppers-gM5Bdzp7LhY)
-- Wedding cake image: [White wedding cake with fresh strawberries and flowers — Mads Eneqvist](https://unsplash.com/photos/a-white-wedding-cake-with-fresh-strawberries-and-flowers-Xb5c2x6wJPc)
-- Buffet image: [People serving food from chafing dishes — Panashe Tarusenga](https://unsplash.com/photos/people-serving-food-from-chafing-dishes-at-a-buffet-gVyFFZo18ts)
-
-## Before launch
-
-1. Replace the illustrative gallery photos with Step Town's own licensed images.
-2. Confirm the exact map pin / address and whether there are multiple branches.
-3. Confirm the preferred Instagram profile URL, menu, package details, and opening hours.
-4. Test WhatsApp on a phone and verify that the business number is correct.
-5. Add the final custom domain to the Open Graph metadata and create a sitemap once the domain is known.
+The gallery currently uses illustrative preview photographs, not verified Step Town portfolio images. Replace them with the business's own licensed photographs before promoting the site as a portfolio.
