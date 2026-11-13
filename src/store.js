@@ -8,11 +8,12 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   const productHeading = document.querySelector("#product-heading");
   const searchInput = document.querySelector("#menu-search");
   const cartOpen = document.querySelector("#cart-open");
+  const mobileCartOpen = document.querySelector("#mobile-cart-open");
   const cartClose = document.querySelector("#cart-close");
   const cartBackdrop = document.querySelector("#cart-backdrop");
   const cartDrawer = document.querySelector("#cart-drawer");
   const cartItems = document.querySelector("#cart-items");
-  const cartCount = document.querySelector("#cart-count");
+  const cartCount = document.querySelector("#mobile-cart-count");
   const cartTotal = document.querySelector("#cart-total");
   const cartPricingNote = document.querySelector("#cart-pricing-note");
   const checkoutForm = document.querySelector("#checkout-form");
@@ -29,6 +30,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   let products = [];
   let selectedCategory = "all";
   let cart = loadCart();
+  let lastCartTrigger = mobileCartOpen || cartOpen;
 
   function escapeHtml(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, (character) => ({
@@ -85,12 +87,12 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   }
 
   function renderCategories() {
-    const allCard = '<button class="category-card category-card-all' + (selectedCategory === "all" ? " is-active" : "") + '" type="button" data-category="all"><span class="category-card-kicker">THE FULL MENU</span><strong>Everything</strong><span class="category-card-action">View all items ↗</span></button>';
+    const allCard = '<button class="category-card category-card-all' + (selectedCategory === "all" ? " is-active" : "") + '" type="button" data-category="all"><span class="category-card-kicker">THE FULL MENU</span><strong>Everything</strong><span class="category-card-action">View all menu</span></button>';
     const cards = categories.map((category) => {
       const image = safeImageUrl(category.cover_image_url);
       return '<button class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" type="button" data-category="' + escapeHtml(category.id) + '">' +
         (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : "") +
-        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(category.name) + '</strong><span class="category-card-action">Browse category ↗</span></span></button>';
+        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(category.name) + '</strong><span class="category-card-action">Browse category </span></span></button>';
     }).join("");
     categoryShowcase.innerHTML = allCard + cards;
   }
@@ -113,7 +115,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     if (!filtered.length) {
       productGrid.innerHTML = "";
       if (products.length === 0) {
-        catalogStatus.innerHTML = 'Our menu is being prepared. Contact Step Town for today’s catering options, barbecue selection and cake designs. <a href="https://wa.me/250780382589" target="_blank" rel="noopener">Ask us on WhatsApp ↗</a>';
+        catalogStatus.innerHTML = 'Our menu is being prepared. Contact Step Town for today’s catering options, barbecue selection and cake designs. <a href="https://wa.me/250780382589" target="_blank" rel="noopener">Ask us on WhatsApp </a>';
       } else {
         catalogStatus.textContent = searchInput && searchInput.value.trim()
           ? "No menu items match that search. Try another word or choose a different category."
@@ -143,11 +145,17 @@ import { supabase, supabaseConfigured } from "./supabase.js";
 
   function renderCart() {
     const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-    if (cartCount) cartCount.textContent = String(itemCount);
+    if (cartCount) {
+      cartCount.textContent = itemCount > 99 ? "99+" : String(itemCount);
+      cartCount.hidden = itemCount <= 0;
+    }
+    if (mobileCartOpen) {
+      mobileCartOpen.setAttribute("aria-label", itemCount ? "Open cart, " + itemCount + " items" : "Open cart");
+    }
     if (!cartItems) return;
 
     if (!cart.length) {
-      cartItems.innerHTML = '<div class="cart-empty"><span aria-hidden="true">✳</span><strong>Your bag is empty.</strong><p>Browse the menu and add something you love.</p><a href="#menu" class="text-link dark-link" id="cart-browse-menu">Explore the menu ↗</a></div>';
+      cartItems.innerHTML = '<div class="cart-empty"><span aria-hidden="true">✳</span><strong>Your bag is empty.</strong><p>Browse the menu and add something you love.</p><a href="#menu" class="text-link dark-link" id="cart-browse-menu">Explore the menu </a></div>';
       cartTotal.textContent = "RWF —";
       cartPricingNote.textContent = "Your total will appear here when you add menu items.";
       return;
@@ -182,7 +190,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     cartDrawer.setAttribute("aria-hidden", "true");
     cartBackdrop.hidden = true;
     document.body.classList.remove("cart-open");
-    if (cartOpen) cartOpen.focus();
+    if (lastCartTrigger?.isConnected) lastCartTrigger.focus();
   }
 
   function addProduct(productId) {
@@ -221,7 +229,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
 
     if (categoryResult.error || productResult.error) {
       console.error("Step Town catalogue could not load:", categoryResult.error || productResult.error);
-      catalogStatus.innerHTML = 'We could not load the menu right now. Please <a href="https://wa.me/250780382589" target="_blank" rel="noopener">contact Step Town on WhatsApp ↗</a>.';
+      catalogStatus.innerHTML = 'We could not load the menu right now. Please <a href="https://wa.me/250780382589" target="_blank" rel="noopener">contact Step Town on WhatsApp </a>.';
       return;
     }
 
@@ -257,14 +265,15 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   });
 
   if (searchInput) searchInput.addEventListener("input", renderProducts);
-  const openBagForCustomer = async () => {
+  const openBagForCustomer = async (event) => {
+    if (event?.currentTarget) lastCartTrigger = event.currentTarget;
     if (!supabaseConfigured || !supabase) { openCart(); return; }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { window.location.assign("/account/login?next=" + encodeURIComponent("/#menu")); return; }
     openCart();
   };
   if (cartOpen) cartOpen.addEventListener("click", openBagForCustomer);
-  document.querySelector("#mobile-cart-open")?.addEventListener("click", openBagForCustomer);
+  if (mobileCartOpen) mobileCartOpen.addEventListener("click", openBagForCustomer);
   if (cartClose) cartClose.addEventListener("click", closeCart);
   if (cartBackdrop) cartBackdrop.addEventListener("click", closeCart);
   document.addEventListener("keydown", (event) => {
@@ -390,7 +399,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     renderCart();
     checkoutForm.reset();
     if (fulfillmentInput && locationInput) locationInput.required = false;
-    checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener">Continue on WhatsApp ↗</a>';
+    checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener">Continue on WhatsApp </a>';
   });
 
   renderCart();

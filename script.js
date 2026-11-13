@@ -1,6 +1,56 @@
 import { supabase, supabaseConfigured } from "./src/supabase.js";
 
 (() => {
+  // Start the storefront background only after the first paint. Poster-only mode
+  // is used for reduced motion, Data Saver, or a failed media request.
+  const storefrontHero = document.querySelector(".storefront-hero");
+  const heroVideo = storefrontHero?.querySelector(".storefront-hero-video");
+  if (storefrontHero && heroVideo) {
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const dataSaverEnabled = () => Boolean(
+      connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType)
+    );
+    const showPosterOnly = () => {
+      storefrontHero.classList.add("video-poster-only");
+      heroVideo.pause?.();
+    };
+    const startHeroVideo = () => {
+      if (motionPreference.matches || dataSaverEnabled() || typeof heroVideo.play !== "function") {
+        showPosterOnly();
+        return;
+      }
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        const sources = Array.from(heroVideo.querySelectorAll("source[data-src]"));
+        if (!sources.length) {
+          showPosterOnly();
+          return;
+        }
+        sources.forEach((source) => {
+          source.src = source.dataset.src;
+          source.removeAttribute("data-src");
+        });
+        heroVideo.load();
+        const playback = heroVideo.play();
+        if (playback && typeof playback.catch === "function") playback.catch(showPosterOnly);
+      }));
+    };
+    heroVideo.addEventListener("error", showPosterOnly);
+    if (typeof motionPreference.addEventListener === "function") {
+      motionPreference.addEventListener("change", (event) => {
+        if (event.matches) showPosterOnly();
+      });
+    } else {
+      motionPreference.addListener?.((event) => {
+        if (event.matches) showPosterOnly();
+      });
+    }
+    connection?.addEventListener?.("change", () => {
+      if (dataSaverEnabled()) showPosterOnly();
+    });
+    startHeroVideo();
+  }
+
   const menuToggle = document.querySelector(".menu-toggle");
   const primaryNav = document.querySelector(".primary-nav");
 
@@ -131,7 +181,7 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
       whatsappLink.href = whatsappUrl;
       whatsappLink.target = "_blank";
       whatsappLink.rel = "noopener noreferrer";
-      whatsappLink.textContent = "Continue to WhatsApp ↗";
+      whatsappLink.textContent = "Continue to WhatsApp ";
       whatsappLink.style.display = "inline-block";
       whatsappLink.style.marginTop = "12px";
       form.querySelector(".form-whatsapp-link")?.remove();
