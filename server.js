@@ -310,7 +310,7 @@ function pageTitle(pathname){
 async function staticPage(res,pathname){
   const decoded=decodeURIComponent(pathname);
   let file=path.resolve(DIST,"."+decoded);
-  if(!file.startsWith(DIST+path.sep))return sendJson(res,400,{error:"Invalid path."});
+  if(file!==DIST&&!file.startsWith(DIST+path.sep))return sendJson(res,400,{error:"Invalid path."});
   try{const stat=await fs.stat(file);if(stat.isDirectory())file=path.join(file,"index.html");}
   catch{file=path.join(DIST,"index.html");}
   let data;
