@@ -116,3 +116,13 @@ Run the seed function exactly once using its Bearer seed token, then remove the 
 Configure `VITE_VAPID_PUBLIC_KEY` as a **public** Render environment variable on the Web Service so staff browsers can subscribe. Keep the private VAPID key only in Supabase Edge Function secrets. Schedule `escalate-orders` every 5 minutes using a trusted scheduler (for example a Render Cron Job) with `Authorization: Bearer <ESCALATION_SECRET>`. The function handles the 10-minute and second-stage timing itself.
 
 Before relying on this in production, deploy the functions, configure the provider webhook and scheduler, seed the first Manager, create the Accountant/Cashier accounts, subscribe Cashier devices, and run the end-to-end order/push/acknowledgement test. iOS push requires Home Screen installation.
+
+
+### Customer accounts, gallery and media
+- Customers can create an account or sign in with email/password or Google at `/account/login`; the profile page is `/account`.
+- Bag access and checkout require a signed-in customer. Orders are associated with `auth.uid()` and the order-number sequence generates identifiers such as `ST-1042`.
+- The public gallery reads published records live from `public.gallery_items`, with category filters for Catering, Staff, Barbecue and Cakes.
+- Accountants and Managers upload product/gallery images to the public `step-town-media` Supabase Storage bucket. The bucket accepts JPEG, PNG, WebP and AVIF images up to 10 MB. Cashiers cannot upload.
+- Products can store multiple image URLs; the public menu presents them as horizontally swipeable photo strips with local favourites.
+
+The mobile dock provides Home, Categories, Gallery, Bag and Profile shortcuts. The exact Step Town logo image supplied by the owner is used in the site metadata and brand marks.
