@@ -86,3 +86,33 @@ The current staff browser session is managed by Supabase JS. This uses Supabase'
 ## Photography sources
 Instagram profile supplied by the business: https://www.instagram.com/step_town_supermarket/
 The profile could not be read by the inspection tool. The temporary category backgrounds currently use externally hosted search-discovered images to avoid blank photo areas. They are illustrative references, not Step Town's own portfolio. Replace them with approved originals from the business before public marketing. Third-party image availability and reuse rights must be confirmed by the site owner.
+
+
+### Deploying the staff backend
+The Edge Function source lives under `supabase/functions/`:
+- `seed-manager` — one-time initial Manager bootstrap, protected by `SEED_MANAGER_TOKEN`.
+- `staff-admin` — Manager-only create/reset/deactivate/activate for Accountant and Cashier accounts.
+- `send-order-push` — sends a new-order push to active Cashier devices and optionally posts a fallback alert webhook.
+- `escalate-orders` — re-notifies Cashiers after 10 minutes, then Accountants 10 minutes later if the order remains unacknowledged.
+
+Deploy from a trusted local machine with Supabase CLI linked to project `tyuousqmpexrwmnmvxtd`:
+
+```bash
+supabase functions deploy staff-admin
+supabase functions deploy send-order-push
+supabase functions deploy seed-manager --no-verify-jwt
+supabase functions deploy escalate-orders --no-verify-jwt
+```
+
+Set these Edge Function secrets in Supabase before use:
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (the project service role key; never expose it to the browser)
+- `SEED_MANAGER_EMAIL`, `SEED_MANAGER_PASSWORD` (minimum 16 characters), `SEED_MANAGER_NAME`, `SEED_MANAGER_TOKEN`
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+- `ESCALATION_SECRET`
+- Optional fallback provider adapter: `ALERT_WEBHOOK_URL`, `ALERT_WEBHOOK_TOKEN`
+
+Run the seed function exactly once using its Bearer seed token, then remove the `SEED_MANAGER_*` secrets. The manager's temporary password must be changed on first login.
+
+Configure `VITE_VAPID_PUBLIC_KEY` as a **public** Render environment variable on the Web Service so staff browsers can subscribe. Keep the private VAPID key only in Supabase Edge Function secrets. Schedule `escalate-orders` every 5 minutes using a trusted scheduler (for example a Render Cron Job) with `Authorization: Bearer <ESCALATION_SECRET>`. The function handles the 10-minute and second-stage timing itself.
+
+Before relying on this in production, deploy the functions, configure the provider webhook and scheduler, seed the first Manager, create the Accountant/Cashier accounts, subscribe Cashier devices, and run the end-to-end order/push/acknowledgement test. iOS push requires Home Screen installation.
