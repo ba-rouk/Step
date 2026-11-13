@@ -145,7 +145,7 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
   const year = document.querySelector("#year");
   if (year) year.textContent = String(new Date().getFullYear());
 
-  const revealItems = document.querySelectorAll(".service-card, .process-step, .gallery-item");
+  const revealItems = document.querySelectorAll(".service-card, .process-step, .gallery-item, .manifesto-copy, .store-heading, .store-intro-row, .product-heading, .quote-copy, .enquiry-form, .location-copy, .map-card, .closing-inner");
   if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     document.documentElement.classList.add("reveal-ready");
     const observer = new IntersectionObserver((entries, activeObserver) => {
