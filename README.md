@@ -132,6 +132,7 @@ Customer routes are served by the Node server in `server.js`, which also provide
 
 Keep these values in the Render Web Service environment (never in browser code):
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (already used by the public catalogue and staff client).
+- `APP_URL=https://steptown.onrender.com`: pins OAuth callbacks to the production website origin.
 - `SESSION_SECRET`: a randomly generated secret of at least 32 bytes. Generate one with `openssl rand -hex 48`. Do not commit it or share it with the browser.
 - Optional server aliases: `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The server falls back to the existing `VITE_` values if these are omitted. A Supabase service-role key is not required by the customer API.
 
@@ -140,3 +141,8 @@ Enable **Phone** in Supabase Authentication providers and configure an SMS provi
 The public gallery reads published records from `public.gallery_items`, with category filters for Catering, Staff, Barbecue and Cakes. Accountants and Managers upload product/gallery images to the public `step-town-media` Supabase Storage bucket; JPEG, PNG, WebP and AVIF images up to 10 MB are accepted. Cashiers cannot upload. Products can store multiple image URLs; the public menu presents them as horizontally swipeable photo strips with local favourites.
 
 The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. The Step Town logo image supplied by the owner is used in the header, phone contact block and map card.
+
+
+#### Supabase Auth URL Configuration
+
+In **Authentication → URL Configuration**, set **Site URL** to `https://steptown.onrender.com` and add `https://steptown.onrender.com/auth/callback` to the allowed redirect URLs. Remove malformed entries such as `https://tyuousqmpexrwmnmvxtd.supabase.co/steptown.onrender.com`. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
