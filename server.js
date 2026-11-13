@@ -253,6 +253,8 @@ async function api(req,res,url) {
     if(!current)return sendJson(res,401,{error:"Sign in before sending an order request."});
     const b=await body(req),name=String(b.customer_name||current.user.user_metadata?.full_name||"").trim();
     const phone=phoneNumber(b.customer_phone||current.user.phone),fulfillment=String(b.fulfillment||"pickup");
+    const email=String(b.customer_email||current.user.email||"").trim();
+    if(email&&(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return sendJson(res,400,{error:"Enter a valid email address or leave it blank."});
     const incoming=Array.isArray(b.items)?b.items:[];
     if(name.length<2||name.length>120)return sendJson(res,400,{error:"Enter your name before sending the request."});
     if(!phone)return sendJson(res,400,{error:"Enter a valid contact phone number."});
@@ -280,7 +282,7 @@ async function api(req,res,url) {
       const date=b.requested_date?String(b.requested_date):null;
       if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid requested date."});
       const order={
-        customer_id:current.user.id,customer_name:name,customer_phone:phone,customer_email:current.user.email||null,
+        customer_id:current.user.id,customer_name:name,customer_phone:phone,customer_email:email||null,
         fulfillment,requested_date:date,requested_time:b.requested_time?String(b.requested_time).slice(0,5):null,
         delivery_location:b.delivery_location?String(b.delivery_location).trim().slice(0,180):null,
         notes:b.notes?String(b.notes).trim().slice(0,3000):null,
