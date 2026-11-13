@@ -290,6 +290,11 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     }
     if (!checkoutForm.reportValidity()) return;
 
+    const { data: { user: customer } } = await supabase.auth.getUser();
+    if (!customer) {
+      window.location.assign("/account/login?next=" + encodeURIComponent("/#menu"));
+      return;
+    }
     const formData = new FormData(checkoutForm);
     const allPriced = cart.every((item) => item.price != null && Number.isFinite(item.price));
     const total = allPriced ? cart.reduce((sum, item) => sum + item.price * item.quantity, 0) : null;
@@ -303,6 +308,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     }));
 
     const order = {
+      customer_id: customer.id,
       customer_name: String(formData.get("customer_name") || "").trim(),
       customer_phone: String(formData.get("customer_phone") || "").trim(),
       customer_email: String(formData.get("customer_email") || "").trim() || null,
@@ -321,8 +327,12 @@ import { supabase, supabaseConfigured } from "./supabase.js";
 
     let saveError = null;
     try {
-      const result = await supabase.from("store_orders").insert(order);
+      const result = await supabase.from("store_orders").insert(order).select("id,order_number").single();
       saveError = result.error;
+      if (!saveError && result.data?.id) {
+        const { error: pushError } = await supabase.functions.invoke("send-order-push", { body: { order_id: result.data.id } });
+        if (pushError) console.warn("Order saved; push notification could not be sent:", pushError.message);
+      }
     } catch (error) {
       saveError = error;
     }
