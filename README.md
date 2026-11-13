@@ -65,3 +65,24 @@ The gallery currently uses illustrative preview photographs, not verified Step T
 - Add and manage real Step Town dishes, packages, cake designs and prices in the Supabase Table Editor. Categories are pre-created: Catering, Barbecue and Wedding cakes.
 - The shopping bag is stored in the visitor's browser. Checkout writes order requests to `public.store_orders`; public visitors can submit requests but cannot read, change or delete customer orders.
 - Orders are requests, not online payments or confirmed bookings. Step Town confirms availability and final prices directly, including any items whose price is left blank.
+
+
+## Staff workspace (in progress)
+Staff routes are served by the Vite single-page application:
+- `/staff/login`
+- `/staff/dashboard`
+- `/staff/orders` and `/staff/orders/:orderNumber`
+- `/staff/products`, `/staff/gallery`, `/staff/enquiries`, `/staff/reports`
+- Manager-only views: `/staff/team` and `/staff/audit`
+
+Staff authentication uses Supabase Auth email/password sessions. The browser checks the authenticated user's `public.staff_profiles` row, active flag and role. Database RLS policies remain the actual authorization boundary; do not rely on hidden navigation as security. First-login password changes are supported through `must_change_password`.
+
+**Provisioning limitation:** the browser deliberately does not create Auth users or reset other staff passwords. Those actions require a privileged Supabase Edge Function using the Auth Admin API and must never be implemented with a service-role key in the browser. The Team view is currently read-only until that server-side function is deployed.
+
+The service worker and PWA manifest are included. They can display and route a push payload to the exact order URL. A server-side push sender, VAPID secrets, delivery retries/escalation worker and provider fallback (SMS/WhatsApp/email) still need to be configured before live push delivery can be relied on. iPhone push requires staff to install the website to the Home Screen.
+
+The current staff browser session is managed by Supabase JS. This uses Supabase's client-managed token storage/refresh rather than a custom httpOnly cookie session. For a strict httpOnly-cookie architecture, move staff auth and all privileged operations behind a server-side application/API before production.
+
+## Photography sources
+Instagram profile supplied by the business: https://www.instagram.com/step_town_supermarket/
+The profile could not be read by the inspection tool. The temporary category backgrounds currently use externally hosted search-discovered images to avoid blank photo areas. They are illustrative references, not Step Town's own portfolio. Replace them with approved originals from the business before public marketing. Third-party image availability and reuse rights must be confirmed by the site owner.
