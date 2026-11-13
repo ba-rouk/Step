@@ -13,7 +13,7 @@ Deno.serve(async req=>{
   const {order_id}=await req.json();
   const {data:order,error}=await db.from("store_orders").select("*").eq("id",order_id).maybeSingle();
   if(error||!order)return Response.json({error:"Order not found"},{status:404,headers:cors});
-  const {data:staff}=await db.from("staff_profiles").select("user_id").eq("role","cashier").eq("is_active",true);
+  const {data:staff}=await db.from("staff_profiles").select("user_id,phone,email").eq("role","cashier").eq("is_active",true);
   const isStaff=await db.from("staff_profiles").select("user_id").eq("user_id",user.id).eq("is_active",true).maybeSingle();
   if(order.customer_id!==user.id&&!isStaff.data)return Response.json({error:"Not allowed to notify for this order"},{status:403,headers:cors});
   const recipients=(staff||[]).map(x=>x.user_id);
@@ -29,5 +29,15 @@ Deno.serve(async req=>{
     try{await webpush.sendNotification({endpoint:s.endpoint,keys:{p256dh:s.p256dh,auth:s.auth_key}},payload);return true;}
     catch(e){if(e.statusCode===404||e.statusCode===410)await db.from("push_subscriptions").delete().eq("id",s.id);return false;}
   }));
-  return Response.json({ok:true,sent:outcomes.filter(Boolean).length,attempted:outcomes.length},{headers:cors});
+  let fallbackSent=false;
+  const webhook=Deno.env.get("ALERT_WEBHOOK_URL");
+  if(webhook){
+    try{
+      const headers:Record<string,string>={"Content-Type":"application/json"};
+      const webhookToken=Deno.env.get("ALERT_WEBHOOK_TOKEN");if(webhookToken)headers.Authorization="Bearer "+webhookToken;
+      const response=await fetch(webhook,{method:"POST",headers,body:JSON.stringify({event:"step_town.new_order",title:"New order "+order.order_number,body,order_number:order.order_number,order_url:"https://steptown.onrender.com/staff/orders/"+encodeURIComponent(order.order_number),recipients:(staff||[]).map(x=>({phone:x.phone,email:x.email}))})});
+      fallbackSent=response.ok;
+    }catch(error){console.error("Fallback alert webhook failed",error);}
+  }
+  return Response.json({ok:true,sent:outcomes.filter(Boolean).length,attempted:outcomes.length,fallback_sent:fallbackSent},{headers:cors});
 });
