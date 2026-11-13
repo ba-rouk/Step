@@ -1408,9 +1408,9 @@ body.route-customer-page .mobile-dock { display: grid; }
   .map-directions-link { width: 44px; height: 44px; }
 }
 @media (max-width: 380px) {
-  .map-caption { grid-template-columns: 40px minmax(0,1fr) 42px; gap: 7px; padding-inline: 8px; }
-  .map-logo { width: 40px; height: 40px; }
-  .map-directions-link { width: 42px; height: 42px; }
+  .map-caption { grid-template-columns: 44px minmax(0,1fr) 44px; gap: 6px; padding-inline: 8px; }
+  .map-logo { width: 44px; height: 44px; }
+  .map-directions-link { width: 44px; height: 44px; }
   .map-caption-copy strong { font-size: 9px; }
   .map-caption-copy small { font-size: 9px; }
 }
