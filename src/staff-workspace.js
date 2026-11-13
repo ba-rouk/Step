@@ -982,7 +982,7 @@ async function teamPage() {
     '<section class="staff-panel"><p class="staff-eyebrow">TEAM ADMINISTRATION</p><h2>Create a staff account</h2><form id="team-create" class="staff-form-grid">' +
       '<label>Full name<input name="full_name" required maxlength="120"></label><label>Email<input name="email" type="email" required maxlength="254"></label>' +
       '<label>Phone<input name="phone" type="tel" maxlength="40"></label><label>Role<select name="role"><option value="accountant">Accountant</option><option value="cashier">Cashier</option></select></label>' +
-      '<label class="wide" id="team-parent-wrap" hidden>Reports to Accountant<select name="reports_to"><option value="">Choose an Accountant</option>' + accountants.map(x => '<option value="' + x.id + '">' + esc(x.full_name) + "</option>").join("") + "</select></label>' +
+      '<label class="wide" id="team-parent-wrap" hidden>Reports to Accountant<select name="reports_to"><option value="">Choose an Accountant</option>' + accountants.map(x => '<option value="' + x.id + '">' + esc(x.full_name) + "</option>").join("") + '</select></label>' +
       '<label class="wide">Temporary password<input name="password" type="password" required minlength="12" autocomplete="new-password"></label>' +
       '<button class="staff-primary" type="submit">Create account</button><p id="team-message" class="staff-muted" role="status">New staff will be required to change their temporary password.</p>' +
     "</form></section>" +
