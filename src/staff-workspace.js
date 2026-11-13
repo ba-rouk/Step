@@ -14,7 +14,7 @@ const ROLE_ACCESS = {
   audit: ["manager"]
 };
 const ORDER_STATUSES = ["new", "confirmed", "preparing", "ready", "completed", "cancelled"];
-const ENQUIRY_STATUSES = ["new", "contacted", "quoted", "won", "lost"];
+const ENQUIRY_STATUSES = ["new", "contacted", "quoted", "won", "lost", "confirmed", "closed"];
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
@@ -296,7 +296,10 @@ function loginView(message = "") {
         email: String(fields.get("email")).trim().toLowerCase(),
         password: String(fields.get("password"))
       });
-      if (error) throw error;
+      if (error) {
+        await supabase.functions.invoke("staff-login-audit", { body: { event: "failed", email: String(fields.get("email") || "").trim().toLowerCase() } });
+        throw error;
+      }
       const staff = await getProfile();
       if (!staff) {
         await supabase.auth.signOut({ scope: "global" });
