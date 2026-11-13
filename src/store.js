@@ -7,8 +7,8 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   const catalogCount = document.querySelector("#catalog-count");
   const productHeading = document.querySelector("#product-heading");
   const searchInput = document.querySelector("#menu-search");
-  const cartOpen = document.querySelector("#cart-open");
-  const mobileCartOpen = document.querySelector("#mobile-cart-open");
+  const cartOpen = null;
+  const mobileCartOpen = document.querySelector(".mobile-dock-cart");
   const cartClose = document.querySelector("#cart-close");
   const cartBackdrop = document.querySelector("#cart-backdrop");
   const cartDrawer = document.querySelector("#cart-drawer");
@@ -28,7 +28,18 @@ import { supabase, supabaseConfigured } from "./supabase.js";
 
   let categories = [];
   let products = [];
+  const pathname = decodeURIComponent(window.location.pathname.replace(/\/+$/, "") || "/");
+  const categoryRoute = pathname === "/categories" || pathname.startsWith("/categories/");
+  const galleryRoute = pathname === "/gallery";
+  const cartRoute = pathname === "/cart";
+  const categorySlug = categoryRoute && pathname.startsWith("/categories/") ? pathname.split("/").filter(Boolean).at(-1) : "";
   let selectedCategory = "all";
+  if (categoryRoute) document.body.classList.add("route-categories");
+  if (galleryRoute) document.body.classList.add("route-gallery");
+  if (cartRoute) document.body.classList.add("route-cart");
+  const routeSearchMount = document.querySelector(".route-search-mount");
+  const routeSearch = document.querySelector(".storefront-hero .menu-search");
+  if (categoryRoute && routeSearchMount && routeSearch) routeSearchMount.append(routeSearch);
   let cart = loadCart();
   let lastCartTrigger = mobileCartOpen || cartOpen;
 
@@ -87,12 +98,12 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   }
 
   function renderCategories() {
-    const allCard = '<button class="category-card category-card-all' + (selectedCategory === "all" ? " is-active" : "") + '" type="button" data-category="all"><span class="category-card-kicker">THE FULL MENU</span><strong>Everything</strong><span class="category-card-action">View all menu</span></button>';
+    const allCard = '<a class="category-card category-card-all' + (selectedCategory === "all" ? " is-active" : "") + '" href="/categories"><span class="category-card-kicker">THE FULL MENU</span><strong>Everything</strong><span class="category-card-action">View all menu</span></a>';
     const cards = categories.map((category) => {
       const image = safeImageUrl(category.cover_image_url);
-      return '<button class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" type="button" data-category="' + escapeHtml(category.id) + '">' +
+      return '<a class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" href="/categories/' + encodeURIComponent(category.id) + '">' +
         (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : "") +
-        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(category.name) + '</strong><span class="category-card-action">Browse category </span></span></button>';
+        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(category.name) + '</strong><span class="category-card-action">Browse category</span></span></a>';
     }).join("");
     categoryShowcase.innerHTML = allCard + cards;
   }
@@ -139,7 +150,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
         '<button class="product-favourite" type="button" data-favourite="' + escapeHtml(product.id) + '" aria-label="Save ' + escapeHtml(product.name) + ' to favourites">♡</button>' +
         '<span class="product-category">' + escapeHtml(category ? category.name : "Menu") + '</span></div>' +
         '<div class="product-card-copy"><h4>' + escapeHtml(product.name) + '</h4>' + description +
-        '<div class="product-card-bottom"><strong>' + escapeHtml(price) + '</strong><button class="add-to-bag" type="button" data-add-product="' + escapeHtml(product.id) + '">＋ Add to bag</button></div></div></article>';
+        '<div class="product-card-bottom"><strong>' + escapeHtml(price) + '</strong><button class="add-to-bag" type="button" data-add-product="' + escapeHtml(product.id) + '">＋ add to cart</button></div></div></article>';
     }).join("");
   }
 
@@ -150,12 +161,12 @@ import { supabase, supabaseConfigured } from "./supabase.js";
       cartCount.hidden = itemCount <= 0;
     }
     if (mobileCartOpen) {
-      mobileCartOpen.setAttribute("aria-label", itemCount ? "Open cart, " + itemCount + " items" : "Open cart");
+      mobileCartOpen.setAttribute("aria-label", itemCount ? "Cart, " + itemCount + " items" : "Cart");
     }
     if (!cartItems) return;
 
     if (!cart.length) {
-      cartItems.innerHTML = '<div class="cart-empty"><span aria-hidden="true">✳</span><strong>Your bag is empty.</strong><p>Browse the menu and add something you love.</p><a href="#menu" class="text-link dark-link" id="cart-browse-menu">Explore the menu </a></div>';
+      cartItems.innerHTML = '<div class="cart-empty"><span aria-hidden="true">✳</span><strong>Your cart is empty.</strong><p>Browse the menu and add something you love.</p><a href="/categories" class="text-link dark-link" id="cart-browse-menu">Explore the menu</a></div>';
       cartTotal.textContent = "RWF —";
       cartPricingNote.textContent = "Your total will appear here when you add menu items.";
       return;
@@ -235,17 +246,21 @@ import { supabase, supabaseConfigured } from "./supabase.js";
 
     categories = categoryResult.data || [];
     products = productResult.data || [];
+    if (categorySlug) {
+      const requestedCategory = categories.find((item) =>
+        item.id === categorySlug ||
+        String(item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") === categorySlug.toLowerCase()
+      );
+      selectedCategory = requestedCategory ? requestedCategory.id : categorySlug;
+      const selectedTitle = requestedCategory?.name || "Category";
+      const routeTitle = document.querySelector(".route-catalog-heading h1");
+      if (routeTitle) routeTitle.textContent = selectedTitle;
+    }
     renderCategories();
     renderProducts();
   }
 
-  categoryShowcase.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-category]");
-    if (!button) return;
-    selectedCategory = button.dataset.category || "all";
-    renderCategories();
-    renderProducts();
-  });
+  // Category cards use real /categories routes and allow browser navigation.
 
   productGrid.addEventListener("click", (event) => {
     const favourite = event.target.closest("[data-favourite]");
@@ -273,7 +288,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     openCart();
   };
   if (cartOpen) cartOpen.addEventListener("click", openBagForCustomer);
-  if (mobileCartOpen) mobileCartOpen.addEventListener("click", openBagForCustomer);
+  // The Cart tab navigates to /cart; checkout requires customer sign-in when needed.
   if (cartClose) cartClose.addEventListener("click", closeCart);
   if (cartBackdrop) cartBackdrop.addEventListener("click", closeCart);
   document.addEventListener("keydown", (event) => {
@@ -404,4 +419,5 @@ import { supabase, supabaseConfigured } from "./supabase.js";
 
   renderCart();
   loadCatalog();
+  if (cartRoute) openCart();
 })();
