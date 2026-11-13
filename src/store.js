@@ -149,7 +149,7 @@ import { apiFetch } from "./api.js";
     const slides = uniqueImages.length ? uniqueImages.map((image, i) => {
       const src = safeImageUrl(image.url);
       const variants = image.variants && typeof image.variants === "object" ? image.variants : {};
-      const srcset = Object.entries(variants).filter(([width,url]) => /^\\d+$/.test(width) && safeImageUrl(url)).map(([width,url]) => safeImageUrl(url) + " " + width + "w").join(", ");
+      const srcset = Object.entries(variants).filter(([width,url]) => Number.isInteger(Number(width)) && safeImageUrl(url)).map(([width,url]) => safeImageUrl(url) + " " + width + "w").join(", ");
       return '<img src="' + escapeHtml(src) + '"' + (srcset ? ' srcset="' + escapeHtml(srcset) + '" sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw"' : '') + ' alt="' + escapeHtml(image.alt_text || product.name + " — photo " + (i+1)) + '" width="800" height="600" ' + (index === 0 && i === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"') + ' decoding="async">';
     }).join("") : '<div class="product-image-placeholder" role="img" aria-label="' + escapeHtml(product.name) + ' image unavailable">STEP TOWN</div>';
     const dots = uniqueImages.length > 1 ? '<div class="product-dots" role="group" aria-label="Choose product photo">' + uniqueImages.map((_,i) => '<button type="button" data-dot="' + i + '" aria-label="Show photo ' + (i+1) + '" aria-pressed="' + (i===0) + '" class="' + (i===0 ? 'is-active' : '') + '"></button>').join("") + '</div>' : "";
