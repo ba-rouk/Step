@@ -238,6 +238,25 @@ async function api(req,res,url) {
   }
   if(req.method==="POST"&&route.startsWith("/api/auth/"))return authRoutes(req,res,url);
 
+  if(req.method==="GET"&&route==="/api/profile/favourites"){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Please sign in to view favourites."});
+    try{
+      const rows=await sb("/rest/v1/customer_favourites?select=product_id&customer_id=eq."+encodeURIComponent(current.user.id),{access:current.session.access_token});
+      return sendJson(res,200,{product_ids:(rows||[]).map(row=>row.product_id)});
+    }catch(e){return sendJson(res,e.status||502,{error:"Favourites could not be loaded."});}
+  }
+  if(req.method==="PUT"&&route==="/api/profile/favourites"){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Please sign in to sync favourites."});
+    const b=await body(req),ids=Array.isArray(b.product_ids)?[...new Set(b.product_ids.map(String))]:[];
+    if(ids.length>200||ids.some(id=>! /^[0-9a-f-]{36}$/i.test(id)))return sendJson(res,400,{error:"The favourites list is invalid."});
+    try{
+      await sb("/rest/v1/customer_favourites?customer_id=eq."+encodeURIComponent(current.user.id),{method:"DELETE",access:current.session.access_token,headers:{Prefer:"return=minimal"}});
+      if(ids.length)await sb("/rest/v1/customer_favourites",{method:"POST",access:current.session.access_token,body:ids.map(product_id=>({customer_id:current.user.id,product_id})),headers:{Prefer:"return=minimal"}});
+      return sendJson(res,200,{ok:true,count:ids.length});
+    }catch(e){return sendJson(res,e.status||502,{error:"Favourites could not be synced."});}
+  }
   if(req.method==="GET"&&(route==="/api/profile"||route==="/api/profile/orders")){
     const current=await currentUser(req,res);
     if(!current)return sendJson(res,401,{error:"Please sign in to view your account."});
