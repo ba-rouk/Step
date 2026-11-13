@@ -41,7 +41,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .primary-nav .nav-cta:hover { color: white; background: var(--rust-dark); }
 .nav-cta span, .button span, .arrow-link span { padding-left: 9px; }
 .menu-toggle { display: none; }
-.hero { position: relative; min-height: 690px; display: flex; align-items: center; overflow: hidden; color: #fffaf1; background: #29221d url("https://images.unsplash.com/photo-1567932783552-e305bbf70b63?auto=format&fit=crop&w=2200&q=90") center 52% / cover no-repeat; }
+.hero { position: relative; min-height: 690px; display: flex; align-items: center; overflow: hidden; color: #fffaf1; background: #29221d none; }
 .hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(25,22,19,.92) 0%, rgba(25,22,19,.74) 42%, rgba(25,22,19,.15) 100%), linear-gradient(0deg, rgba(25,22,19,.4), transparent 45%); }
 .hero-content { position: relative; z-index: 1; padding-top: 50px; padding-bottom: 88px; }
 .eyebrow { margin: 0 0 21px; display: flex; align-items: center; gap: 10px; color: var(--rust-dark); font-size: 9px; font-weight: 700; letter-spacing: .2em; line-height: 1.5; }
@@ -915,3 +915,12 @@ h1,h2,h3,h4,strong{color:inherit} p{color:inherit}
 .image-slot { transition: filter .35s ease; }
 .service-image:hover .image-slot,
 .gallery-item:hover .image-slot { filter: saturate(1.12) brightness(1.06); }
+
+/* Reusable top-edge highlight for frosted panels. */
+.category-card,.process-step,.map-card,.store-help,.manifesto-copy { position: relative; }
+.process-step::before,.map-card::before,.store-help::before,.manifesto-copy::before {
+  position:absolute;top:0;right:0;left:0;height:1px;content:"";
+  background:linear-gradient(90deg,rgba(255,255,255,.62),rgba(255,255,255,.04),transparent);
+  pointer-events:none;
+}
+.enquiry-form,.checkout-fields { color-scheme: dark; }
