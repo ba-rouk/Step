@@ -263,7 +263,8 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     if (!user) { window.location.assign("/account/login?next=" + encodeURIComponent("/#menu")); return; }
     openCart();
   };
-  if (cartOpen) cartOpen.addEventListener("click", openBagForCustomer);\n  document.querySelector("#mobile-cart-open")?.addEventListener("click", openBagForCustomer);
+  if (cartOpen) cartOpen.addEventListener("click", openBagForCustomer);
+  document.querySelector("#mobile-cart-open")?.addEventListener("click", openBagForCustomer);
   if (cartClose) cartClose.addEventListener("click", closeCart);
   if (cartBackdrop) cartBackdrop.addEventListener("click", closeCart);
   document.addEventListener("keydown", (event) => {
