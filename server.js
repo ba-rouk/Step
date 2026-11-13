@@ -182,7 +182,7 @@ async function authRoutes(req,res,url) {
       const credentials=emailLogin?{email:identifier.toLowerCase(),password}:{phone,password};
       const session=await sb("/auth/v1/token?grant_type=password",{method:"POST",body:credentials});
       if(!session.access_token||!session.user)return sendJson(res,401,{error:"The phone number/email or password is incorrect."});
-      setSession(res,req,session);await profileUpsert(session,session.user,session.user.user_metadata?.full_name,phone);
+      setSession(res,req,session);if(phone)await profileUpsert(session,session.user,session.user.user_metadata?.full_name,phone);
       return sendJson(res,200,{authenticated:true,next:safeNext(b.next)});
     }catch(e){return sendJson(res,e.status&&e.status<500?401:502,{error:e.status===400?"The phone number/email or password is incorrect.":e.message});}
   }
