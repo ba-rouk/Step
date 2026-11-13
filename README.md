@@ -58,3 +58,10 @@ Confirm the exact street address, opening hours, service radius, and contact det
 
 ## Photography
 The gallery currently uses illustrative preview photographs, not verified Step Town portfolio images. Replace them with the business's own licensed photographs before promoting the site as a portfolio.
+
+
+## Online menu and orders
+- The storefront reads active categories from `public.store_categories` and available menu items from `public.store_products`.
+- Add and manage real Step Town dishes, packages, cake designs and prices in the Supabase Table Editor. Categories are pre-created: Catering, Barbecue and Wedding cakes.
+- The shopping bag is stored in the visitor's browser. Checkout writes order requests to `public.store_orders`; public visitors can submit requests but cannot read, change or delete customer orders.
+- Orders are requests, not online payments or confirmed bookings. Step Town confirms availability and final prices directly, including any items whose price is left blank.
