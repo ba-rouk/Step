@@ -119,10 +119,24 @@ Before relying on this in production, deploy the functions, configure the provid
 
 
 ### Customer accounts, gallery and media
-- Customers can create an account or sign in with email/password or Google at `/account/login`; the profile page is `/account`.
-- Bag access and checkout require a signed-in customer. Orders are associated with `auth.uid()` and the order-number sequence generates identifiers such as `ST-1042`.
-- The public gallery reads published records live from `public.gallery_items`, with category filters for Catering, Staff, Barbecue and Cakes.
-- Accountants and Managers upload product/gallery images to the public `step-town-media` Supabase Storage bucket. The bucket accepts JPEG, PNG, WebP and AVIF images up to 10 MB. Cashiers cannot upload.
-- Products can store multiple image URLs; the public menu presents them as horizontally swipeable photo strips with local favourites.
 
-The mobile dock provides Home, Categories, Gallery, Bag and Profile shortcuts. The exact Step Town logo image supplied by the owner is used in the site metadata and brand marks.
+Customer routes are served by the Node server in `server.js`, which also provides the History API fallback:
+- Public pages: `/`, `/categories`, `/categories/:slug`, `/gallery`, and `/cart`.
+- Protected pages: `/profile` and `/profile/orders`. Logged-out visitors are redirected to `/login?next=<original-path>`.
+- Customer auth: `/login` and `/register`; registration uses full name, phone number and password. Phone-confirmation projects use an SMS OTP screen. Google sign-in continues through a server-side PKCE callback.
+- Cart contents remain in the browser's `localStorage` across public page changes. The server validates the current customer, product availability and prices before inserting an order.
+- Customer access/refresh tokens are encrypted into an `HttpOnly`, `Secure`, `SameSite=Lax` cookie. Unsafe API requests require a same-origin CSRF token and auth/order endpoints are rate-limited. Supabase Auth handles password hashing (bcrypt); the app never stores plaintext passwords.
+- Staff routes and the Manager, Accountant and Cashier authentication remain separate at `/staff/login` and `/staff/*`.
+
+#### Required production environment
+
+Keep these values in the Render Web Service environment (never in browser code):
+- `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (already used by the public catalogue and staff client).
+- `SESSION_SECRET`: a randomly generated secret of at least 32 bytes. Generate one with `openssl rand -hex 48`. Do not commit it or share it with the browser.
+- Optional server aliases: `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The server falls back to the existing `VITE_` values if these are omitted. A Supabase service-role key is not required by the customer API.
+
+Enable **Phone** in Supabase Authentication providers and configure an SMS provider if phone confirmation is enabled. Set the site URL to `https://steptown.onrender.com`. Add `https://steptown.onrender.com/auth/callback` to the allowed Auth redirect URLs for Google OAuth. Phone/password authentication requires a verified phone number when SMS confirmation is enabled; Supabase recommends MFA because phone numbers can be recycled.
+
+The public gallery reads published records from `public.gallery_items`, with category filters for Catering, Staff, Barbecue and Cakes. Accountants and Managers upload product/gallery images to the public `step-town-media` Supabase Storage bucket; JPEG, PNG, WebP and AVIF images up to 10 MB are accepted. Cashiers cannot upload. Products can store multiple image URLs; the public menu presents them as horizontally swipeable photo strips with local favourites.
+
+The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. The Step Town logo image supplied by the owner is used in the header, phone contact block and map card.
