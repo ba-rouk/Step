@@ -353,31 +353,10 @@ import { apiFetch } from "./api.js";
       checkoutStatus.textContent = "Add at least one menu item before sending your order request.";
       return;
     }
-    if (!supabaseConfigured || !supabase) {
-      checkoutStatus.textContent = "Online order saving is not configured. Please contact Step Town on WhatsApp.";
-      return;
-    }
     if (!checkoutForm.reportValidity()) return;
 
-    const { data: { user: customer } } = await supabase.auth.getUser();
-    if (!customer) {
-      window.location.assign("/account/login?next=" + encodeURIComponent("/#menu"));
-      return;
-    }
     const formData = new FormData(checkoutForm);
-    const allPriced = cart.every((item) => item.price != null && Number.isFinite(item.price));
-    const total = allPriced ? cart.reduce((sum, item) => sum + item.price * item.quantity, 0) : null;
-    const items = cart.map((item) => ({
-      product_id: item.product_id,
-      name: item.name,
-      category: item.category_name,
-      quantity: item.quantity,
-      unit_price: item.price,
-      line_total: item.price == null ? null : item.price * item.quantity
-    }));
-
     const order = {
-      customer_id: customer.id,
       customer_name: String(formData.get("customer_name") || "").trim(),
       customer_phone: String(formData.get("customer_phone") || "").trim(),
       customer_email: String(formData.get("customer_email") || "").trim() || null,
@@ -385,58 +364,61 @@ import { apiFetch } from "./api.js";
       requested_date: String(formData.get("requested_date") || "") || null,
       delivery_location: String(formData.get("delivery_location") || "").trim() || null,
       notes: String(formData.get("notes") || "").trim() || null,
-      items,
-      estimated_total: total,
-      price_needs_confirmation: total == null
+      items: cart.map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity
+      }))
     };
 
     const originalText = checkoutSubmit.innerHTML;
     checkoutSubmit.disabled = true;
     checkoutSubmit.textContent = "Saving your request…";
 
-    let saveError = null;
     try {
-      const result = await supabase.from("store_orders").insert(order).select("id,order_number").single();
-      saveError = result.error;
-      if (!saveError && result.data?.id) {
-        const { error: pushError } = await supabase.functions.invoke("send-order-push", { body: { order_id: result.data.id } });
-        if (pushError) console.warn("Order saved; push notification could not be sent:", pushError.message);
+      const response = await apiFetch("/api/orders", { method: "POST", body: order });
+      const payload = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        window.location.assign("/login?next=" + encodeURIComponent("/cart"));
+        return;
       }
+      if (!response.ok) {
+        checkoutStatus.textContent = payload.error || "We couldn't save your request. Please check your details and try again.";
+        return;
+      }
+
+      const savedOrder = payload.order || {};
+      const finalTotal = savedOrder.estimated_total == null ? null : Number(savedOrder.estimated_total);
+      const messageLines = [
+        "Hello Step Town, I have submitted an order request on your website.",
+        "",
+        "Order: " + (savedOrder.order_number || "New order request"),
+        "Name: " + order.customer_name,
+        "Phone: " + order.customer_phone,
+        "Fulfilment: " + order.fulfillment,
+        order.requested_date ? "Requested date: " + order.requested_date : "",
+        order.delivery_location ? "Location: " + order.delivery_location : "",
+        "",
+        "Order items:",
+        ...cart.map((item) => "- " + item.name + " × " + item.quantity),
+        finalTotal == null ? "Total: To be confirmed by Step Town" : "Estimated total: " + money(finalTotal),
+        order.notes ? "Notes: " + order.notes : ""
+      ].filter(Boolean);
+      const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(messageLines.join("\n"));
+
+      cart = [];
+      saveCart();
+      renderCart();
+      checkoutForm.reset();
+      if (fulfillmentInput && locationInput) locationInput.required = false;
+      checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>';
     } catch (error) {
-      saveError = error;
+      console.error("Step Town order request failed:", error);
+      checkoutStatus.textContent = "We couldn't reach the order service. Please try again or contact Step Town on WhatsApp.";
+    } finally {
+      checkoutSubmit.disabled = false;
+      checkoutSubmit.innerHTML = originalText;
     }
-
-    checkoutSubmit.disabled = false;
-    checkoutSubmit.innerHTML = originalText;
-
-    if (saveError) {
-      console.error("Step Town order request could not be saved:", saveError);
-      checkoutStatus.textContent = "We couldn't save your request. Please check your connection or contact us on WhatsApp.";
-      return;
-    }
-
-    const messageLines = [
-      "Hello Step Town, I have submitted an order request on your website.",
-      "",
-      "Name: " + order.customer_name,
-      "Phone: " + order.customer_phone,
-      "Fulfilment: " + order.fulfillment,
-      order.requested_date ? "Requested date: " + order.requested_date : "",
-      order.delivery_location ? "Location: " + order.delivery_location : "",
-      "",
-      "Order items:",
-      ...cart.map((item) => "- " + item.name + " × " + item.quantity + (item.price == null ? " (quote requested)" : " — " + money(item.price * item.quantity))),
-      total == null ? "Total: To be confirmed by Step Town" : "Estimated total: " + money(total),
-      order.notes ? "Notes: " + order.notes : ""
-    ].filter(Boolean);
-    const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(messageLines.join("\n"));
-
-    cart = [];
-    saveCart();
-    renderCart();
-    checkoutForm.reset();
-    if (fulfillmentInput && locationInput) locationInput.required = false;
-    checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener">Continue on WhatsApp </a>';
   });
 
   renderCart();
