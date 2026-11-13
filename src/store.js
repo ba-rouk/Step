@@ -208,6 +208,7 @@ import { apiFetch } from "./api.js";
     cartDrawer.hidden = false;
     cartDrawer.setAttribute("aria-hidden", "false");
     cartDrawer.setAttribute("aria-modal", cartRoute ? "false" : "true");
+    cartDrawer.setAttribute("role", cartRoute ? "region" : "dialog");
     cartBackdrop.hidden = cartRoute;
     if (!cartRoute) document.body.classList.add("cart-open");
     if (cartClose) cartClose.focus();

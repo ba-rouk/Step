@@ -1,11 +1,11 @@
 /* Step Town staff workspace — warm glass UI */
-.staff-app{min-height:100vh;color:#f8eee5;background:radial-gradient(ellipse at 10% 5%,rgba(193,91,42,.28),transparent 35%),radial-gradient(ellipse at 90% 90%,rgba(112,34,53,.3),transparent 38%),#211d1a;font-family:"DM Sans",Arial,sans-serif}
+.staff-app{min-height:100vh;color:#f8eee5;background:radial-gradient(ellipse at 10% 5%,rgba(193,91,42,.28),transparent 35%),radial-gradient(ellipse at 90% 90%,rgba(112,34,53,.3),transparent 38%),#211d1a;font-family:var(--font-sans)}
 .staff-app *{box-sizing:border-box}.staff-app a{color:inherit}.staff-loading{padding:4rem;text-align:center;color:#ead9c9}
 .staff-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:14px clamp(16px,4vw,56px);background:rgba(35,29,26,.78);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.14)}
-.staff-brand{display:flex;align-items:center;gap:11px;text-decoration:none}.staff-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#d69b5c,#7b342b);font-family:Georgia,serif;font-weight:bold;color:#211d1a}.staff-brand b{display:block;letter-spacing:.16em;font-size:12px}.staff-brand small{display:block;color:#c8b7aa;font-size:9px;letter-spacing:.18em;margin-top:3px}
-.staff-user{display:flex;align-items:center;gap:14px;color:#e5d7ca;font-size:12px}.staff-main{width:min(1180px,calc(100% - 32px));margin:0 auto;padding:36px 0 80px}.staff-title-row{display:flex;justify-content:space-between;align-items:end;gap:18px;margin-bottom:24px}.staff-title-row h1,.staff-login-card h1{font:600 clamp(32px,5vw,54px)/1.05 "Playfair Display",Georgia,serif;margin:8px 0}.staff-eyebrow{font-size:10px;letter-spacing:.19em;color:#d8a56f;font-weight:700}.staff-home{font-size:12px;color:#e4c5a5;text-decoration:none}
+.staff-brand{display:flex;align-items:center;gap:11px;text-decoration:none}.staff-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#d69b5c,#7b342b);font-family:var(--font-serif);font-weight:bold;color:#211d1a}.staff-brand b{display:block;letter-spacing:.16em;font-size:12px}.staff-brand small{display:block;color:#c8b7aa;font-size:9px;letter-spacing:.18em;margin-top:3px}
+.staff-user{display:flex;align-items:center;gap:14px;color:#e5d7ca;font-size:12px}.staff-main{width:min(1180px,calc(100% - 32px));margin:0 auto;padding:36px 0 80px}.staff-title-row{display:flex;justify-content:space-between;align-items:end;gap:18px;margin-bottom:24px}.staff-title-row h1,.staff-login-card h1{font:600 clamp(32px,5vw,54px)/1.05 var(--font-serif);margin:8px 0}.staff-eyebrow{font-size:10px;letter-spacing:.19em;color:#d8a56f;font-weight:700}.staff-home{font-size:12px;color:#e4c5a5;text-decoration:none}
 .staff-nav{display:flex;gap:8px;overflow:auto;padding:8px;margin-bottom:20px;border:1px solid rgba(255,255,255,.13);border-radius:18px;background:rgba(255,255,255,.06);backdrop-filter:blur(18px)}.staff-nav a{white-space:nowrap;padding:10px 14px;border-radius:12px;text-decoration:none;color:#d6c7bb;font-size:12px}.staff-nav a.active,.staff-nav a:hover{background:rgba(215,151,91,.2);color:#fff}
-.staff-panel,.staff-stats article,.staff-login-card{background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.055));border:1px solid rgba(255,255,255,.17);border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,.18),inset 1px 1px rgba(255,255,255,.08);backdrop-filter:blur(20px) saturate(145%);padding:clamp(18px,3vw,28px);margin-bottom:18px}.staff-panel h2{font:600 23px "Playfair Display",Georgia,serif;margin:0 0 18px}.staff-panel h3{font:600 18px "Playfair Display",Georgia,serif;margin-top:24px}.staff-panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.staff-panel-head h2{margin:0 0 14px}.staff-panel-head a{font-size:12px;color:#e4b985}.staff-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}.staff-stats article{margin:0;display:flex;flex-direction:column;gap:8px}.staff-stats span,.staff-stats small{color:#d0bfb1;font-size:12px}.staff-stats b{font:600 34px "Playfair Display",Georgia,serif}
+.staff-panel,.staff-stats article,.staff-login-card{background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.055));border:1px solid rgba(255,255,255,.17);border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,.18),inset 1px 1px rgba(255,255,255,.08);backdrop-filter:blur(20px) saturate(145%);padding:clamp(18px,3vw,28px);margin-bottom:18px}.staff-panel h2{font:600 23px var(--font-serif);margin:0 0 18px}.staff-panel h3{font:600 18px var(--font-serif);margin-top:24px}.staff-panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.staff-panel-head h2{margin:0 0 14px}.staff-panel-head a{font-size:12px;color:#e4b985}.staff-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}.staff-stats article{margin:0;display:flex;flex-direction:column;gap:8px}.staff-stats span,.staff-stats small{color:#d0bfb1;font-size:12px}.staff-stats b{font:600 34px var(--font-serif)}
 .staff-table-wrap{width:100%;overflow:auto} .staff-app table{border-collapse:collapse;width:100%;min-width:620px;font-size:12px}.staff-app th{text-align:left;color:#d7a36e;font-size:10px;letter-spacing:.1em;text-transform:uppercase}.staff-app td,.staff-app th{padding:13px 10px;border-bottom:1px solid rgba(255,255,255,.1);vertical-align:middle}.staff-app td small{display:block;color:#c5b3a5;margin-top:4px}.staff-app td a{color:#f0c08d}.staff-status{display:inline-block;padding:6px 10px;border-radius:99px;background:rgba(224,157,93,.16);border:1px solid rgba(224,157,93,.24);font-size:10px;text-transform:capitalize}.staff-empty,.staff-muted{color:#cbbbae;font-size:13px;line-height:1.6}.staff-alert,.staff-error{color:#ffd1c7;font-size:12px}.staff-filters{display:flex;gap:10px;margin:18px 0}.staff-filters input{flex:1}
 .staff-app label{display:flex;flex-direction:column;gap:8px;font-size:12px;color:#e8d9cd}.staff-app input,.staff-app select,.staff-app textarea{width:100%;min-height:44px;padding:12px 13px;border-radius:12px;border:1px solid rgba(255,255,255,.19);background:rgba(18,15,14,.5);color:#fff;font:inherit;outline:none}.staff-app input:focus,.staff-app select:focus,.staff-app textarea:focus{border-color:#d9a06c;box-shadow:0 0 0 3px rgba(217,160,108,.16)}.staff-app select option{background:#2b2420;color:#fff}.staff-primary{display:inline-flex;justify-content:center;align-items:center;gap:10px;border:0;border-radius:999px;padding:13px 20px;background:linear-gradient(110deg,#e4b37c,#b65a38 75%,#79333b);color:#201713;font-weight:700;font-size:12px;text-decoration:none;cursor:pointer}.staff-primary:disabled{opacity:.6}.staff-quiet{border:1px solid rgba(255,255,255,.17);background:rgba(255,255,255,.06);color:#f1dfcf;border-radius:999px;padding:9px 13px;font-size:11px;cursor:pointer}.staff-inline-form,.staff-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.staff-form-grid .wide{grid-column:1/-1}.staff-check{flex-direction:row!important;align-items:center}.staff-check input{width:auto;min-height:auto}.staff-actions{display:flex;gap:10px;margin-top:12px}.staff-actions a{font-size:12px;color:#edbd8a}.staff-order-head{display:flex;justify-content:space-between;gap:15px}.staff-order-head h2{margin-bottom:6px}.staff-order-head p{color:#d3c1b3;font-size:12px}.staff-detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:24px 0}.staff-detail-grid div{padding:12px;border-radius:14px;background:rgba(255,255,255,.055)}.staff-detail-grid small,.staff-detail-grid b{display:block}.staff-detail-grid small{font-size:9px;color:#c6aa94;letter-spacing:.1em;margin-bottom:8px}.staff-detail-grid b{font-size:12px}.staff-items p{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);padding:10px 0;font-size:13px}.staff-notes{color:#d1c0b4;font-size:12px}.staff-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}.staff-gallery article{display:flex;flex-direction:column;gap:7px;font-size:12px}.staff-gallery img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px}.staff-gallery button,.staff-app td button{align-self:start;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:7px 10px}
 .staff-login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px;position:relative;background:radial-gradient(ellipse at 15% 10%,rgba(205,104,48,.3),transparent 38%),radial-gradient(ellipse at 85% 90%,rgba(115,34,57,.35),transparent 40%),#211d1a}.staff-login-brand{position:absolute;top:28px;left:clamp(20px,5vw,64px)}.staff-login-card{width:min(460px,100%);padding:clamp(25px,5vw,42px);margin:0}.staff-login-card h1{font-size:42px}.staff-login-card form{display:grid;gap:17px;margin-top:26px}.staff-login-card .staff-primary{width:100%;margin-top:6px}.staff-login-foot{font-size:11px;color:#cbbbae;line-height:1.6;margin:20px 0 0}.staff-cancel{position:absolute;top:28px;right:clamp(20px,5vw,64px);font-size:30px;text-decoration:none;color:#f2e6db}.staff-password{max-width:560px}.staff-password form{display:grid;gap:14px}
@@ -17,3 +17,75 @@
 .staff-order-tabs button{border:1px solid rgba(255,255,255,.17);border-radius:999px;padding:9px 13px;background:rgba(255,255,255,.06);color:#e7d8cc;font-size:11px;cursor:pointer}
 .staff-order-tabs button.active{background:linear-gradient(110deg,#e4b37c,#b65a38);color:#211713;border-color:transparent}
 @media(max-width:700px){.staff-order-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.staff-order-tabs button{width:100%}}
+
+
+/* Staff UI stays interface-first, with serif page titles and mono references. */
+.staff-app,
+.staff-app button,
+.staff-app input,
+.staff-app select,
+.staff-app textarea,
+.staff-app table {
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+}
+.staff-title-row h1,
+.staff-login-card h1,
+.staff-panel h2,
+.staff-panel h3 {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-weight: 550;
+  letter-spacing: -.02em;
+  text-wrap: balance;
+}
+.staff-title-row h1,
+.staff-login-card h1 {
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1.12;
+}
+.staff-panel h2 { font-size: clamp(1.4rem, 3.2vw, 1.7rem); }
+.staff-panel h3 { font-size: 1.3rem; }
+.staff-app p,
+.staff-app label,
+.staff-app input,
+.staff-app select,
+.staff-app textarea,
+.staff-app td,
+.staff-app th,
+.staff-nav a,
+.staff-primary,
+.staff-quiet {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.staff-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+.staff-app code,
+.staff-app pre,
+.staff-app .staff-order-number,
+.staff-app [data-order-number],
+.staff-order-head h2,
+.staff-order-ref,
+.staff-receipt-number,
+.staff-payment-reference {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.staff-app button,
+.staff-primary,
+.staff-quiet {
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.staff-stats b { font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
+
+.staff-app .staff-primary, .staff-app .staff-quiet { font-size: 16px; }
+.staff-empty, .staff-muted { color: #e2d6cc; }

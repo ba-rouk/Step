@@ -48,7 +48,7 @@ if (isAuthRoute) {
   }
 
   function shell(content, kicker = "STEP TOWN ACCOUNT") {
-    app.innerHTML = '<section class="customer-auth"><a class="customer-brand" href="/" aria-label="Step Town home"><img src="/step-town-logo.png" alt=""><span><b>STEP TOWN</b><small>FOOD · CELEBRATIONS · CAKES</small></span></a><div class="customer-auth-card"><p class="customer-kicker">' + kicker + '</p>' + content + '</div></section>';
+    app.innerHTML = '<section class="customer-auth"><div class="customer-auth-card"><p class="customer-kicker">' + kicker + '</p>' + content + '</div></section>';
     app.focus({ preventScroll: true });
   }
 
@@ -65,7 +65,7 @@ if (isAuthRoute) {
       '<p class="customer-error" role="alert" aria-live="polite">' + escapeHtml(message) + '</p>' +
       '<button class="customer-submit" type="submit">' + (registering ? "Create account" : "Sign in") + '</button></form>' +
       '<div class="customer-divider"><span>OR</span></div>' +
-      '<a class="customer-google" href="/api/auth/google?next=' + encodeURIComponent(safeNext) + '"><span class="customer-google-mark">G</span> Continue with Google</a>' +
+      '<a class="customer-google" href="/api/auth/google?next=' + encodeURIComponent(safeNext) + '"><svg class="customer-google-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.3 30.4 0 24 0 14.6 0 6.5 5.4 2.5 13.3l7.9 6.1C12.3 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M47.5 24.5c0-1.6-.2-3.2-.5-4.7H24v9h13.2c-.6 2.9-2.2 5.3-4.6 6.9l7.5 5.8c4.6-4.2 7.4-10.2 7.4-17z"/><path fill="#FBBC05" d="M10.4 28.6A14.5 14.5 0 0 1 9.6 24c0-1.6.3-3.1.8-4.6l-7.9-6.1A23.7 23.7 0 0 0 0 24c0 3.8.9 7.5 2.5 10.7z"/><path fill="#34A853" d="M24 48c6.4 0 11.8-2.1 15.7-5.8l-7.5-5.8c-2.1 1.4-4.8 2.2-8.2 2.2-6.3 0-11.7-4.1-13.6-9.9l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg> Continue with Google</a>' +
       '<p class="customer-note">' + (registering ? 'Already have an account? <a href="/login?next=' + encodeURIComponent(safeNext) + '">Sign in</a>.' : 'New to Step Town? <a href="/register?next=' + encodeURIComponent(safeNext) + '">Create an account</a>.') + '</p>' +
       '<p class="customer-note">Staff use the separate <a href="/staff/login">staff sign-in</a>.</p>',
       registering ? "JOIN THE STEP TOWN TABLE" : "YOUR STEP TOWN ACCOUNT"
