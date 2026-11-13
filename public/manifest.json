@@ -1,0 +1,25 @@
+{
+  "name": "Step Town Catering & Wedding Cakes",
+  "short_name": "Step Town",
+  "description": "Order catering, barbecue and wedding cakes from Step Town in Runda, Rwanda.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#211d1a",
+  "theme_color": "#211d1a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}
