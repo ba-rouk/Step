@@ -1789,3 +1789,15 @@ body.route-customer-page .customer-note {
 body.route-customer-page .customer-error {
   text-align: left;
 }
+
+.customer-secondary { font-size: 16px; }
+.customer-auth-card .customer-intro { color: rgba(245,239,232,.92); }
+.customer-auth-card .customer-note { color: rgba(245,239,232,.88); }
+.storefront .product-description,
+.section-aside,
+.gallery-heading > p,
+.manifesto-copy > p:not(.eyebrow),
+.process-step p {
+  color: rgba(245,239,232,.9);
+}
+.storefront .product-description { color: rgba(245,239,232,.9); }
