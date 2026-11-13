@@ -315,10 +315,11 @@ function pageTitle(pathname){
 }
 async function staticPage(res,pathname){
   const decoded=decodeURIComponent(pathname);
-  let file=path.resolve(DIST,"."+decoded);
-  if(file!==DIST&&!file.startsWith(DIST+path.sep))return sendJson(res,400,{error:"Invalid path."});
+  const staffRoute=decoded==="/staff"||decoded.startsWith("/staff/");
+  let file=staffRoute?path.join(DIST,"staff.html"):path.resolve(DIST,"."+decoded);
+  if(!staffRoute&&file!==DIST&&!file.startsWith(DIST+path.sep))return sendJson(res,400,{error:"Invalid path."});
   try{const stat=await fs.stat(file);if(stat.isDirectory())file=path.join(file,"index.html");}
-  catch{file=path.join(DIST,"index.html");}
+  catch{file=path.join(DIST,staffRoute?"staff.html":"index.html");}
   let data;
   try{data=await fs.readFile(file);}
   catch{try{file=path.join(DIST,"index.html");data=await fs.readFile(file);}catch{return sendJson(res,503,{error:"The website is building. Refresh shortly."});}}
