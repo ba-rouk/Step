@@ -174,14 +174,17 @@ async function authRoutes(req,res,url) {
   }
   if(route==="/api/auth/login"){
     if(!rateLimit(req,"login",10))return sendJson(res,429,{error:"Too many sign-in attempts. Try again in 15 minutes."});
-    const b=await body(req),phone=phoneNumber(b.phone),password=String(b.password||"");
-    if(!phone||!password||password.length>128)return sendJson(res,400,{error:"Enter your phone number and password."});
+    const b=await body(req),identifier=String(b.phone||b.email||"").trim(),password=String(b.password||"");
+    const emailLogin=identifier.includes("@")&&identifier.length<=254&&/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(identifier);
+    const phone=phoneNumber(identifier);
+    if((!emailLogin&&!phone)||!password||password.length>128)return sendJson(res,400,{error:"Enter a valid phone number or email address and password."});
     try{
-      const session=await sb("/auth/v1/token?grant_type=password",{method:"POST",body:{phone,password}});
-      if(!session.access_token||!session.user)return sendJson(res,401,{error:"The phone number or password is incorrect."});
+      const credentials=emailLogin?{email:identifier.toLowerCase(),password}:{phone,password};
+      const session=await sb("/auth/v1/token?grant_type=password",{method:"POST",body:credentials});
+      if(!session.access_token||!session.user)return sendJson(res,401,{error:"The phone number/email or password is incorrect."});
       setSession(res,req,session);await profileUpsert(session,session.user,session.user.user_metadata?.full_name,phone);
       return sendJson(res,200,{authenticated:true,next:safeNext(b.next)});
-    }catch(e){return sendJson(res,e.status&&e.status<500?401:502,{error:e.status===400?"The phone number or password is incorrect.":e.message});}
+    }catch(e){return sendJson(res,e.status&&e.status<500?401:502,{error:e.status===400?"The phone number/email or password is incorrect.":e.message});}
   }
   if(route==="/api/auth/logout"){
     const current=await currentUser(req,res);
