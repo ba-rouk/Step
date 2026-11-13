@@ -8,6 +8,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
 const PORT = Number(process.env.PORT || 10000);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
+const APP_URL = String(process.env.APP_URL || "https://steptown.onrender.com").replace(/\/+$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
 const KEY = SESSION_SECRET ? createHash("sha256").update(SESSION_SECRET).digest() : null;
@@ -202,7 +203,7 @@ async function oauthStart(req,res,url) {
   const verifier=randomBytes(48).toString("base64url"),challenge=createHash("sha256").update(verifier).digest("base64url");
   appendCookie(res,cookie(OAUTH_COOKIE,seal({verifier,next:safeNext(url.searchParams.get("next")||"/profile"),created:Date.now()}),req,{httpOnly:true,maxAge:600}));
   const u=new URL(SUPABASE_URL+"/auth/v1/authorize");
-  u.searchParams.set("provider","google");u.searchParams.set("redirect_to",origin(req)+"/auth/callback");
+  u.searchParams.set("provider","google");u.searchParams.set("redirect_to",APP_URL+"/auth/callback");
   u.searchParams.set("code_challenge",challenge);u.searchParams.set("code_challenge_method","s256");
   res.writeHead(303,{Location:u.toString(),"Cache-Control":"no-store"}).end();
 }
@@ -336,7 +337,7 @@ async function handle(req,res){
     try{return await api(req,res,url);}
     catch(e){console.error("API:",e);return sendJson(res,e.status||500,{error:e.status===413?e.message:"The request could not be completed."});}
   }
-  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders")){
+  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders"||route==="/cart")){
     const current=await currentUser(req,res);
     if(!current){appendCookie(res,clearCookie(SESSION_COOKIE,req,true));res.writeHead(303,{Location:"/login?next="+encodeURIComponent(route+url.search),"Cache-Control":"no-store"});return res.end();}
   }
