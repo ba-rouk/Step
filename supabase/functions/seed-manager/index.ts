@@ -2,7 +2,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 Deno.serve(async req=>{
   if(req.method!=="POST")return new Response("Method not allowed",{status:405});
-  const seedToken=Deno.env.get("SEED_MANAGER_TOKEN");\n  if(!seedToken||req.headers.get("Authorization")!=="Bearer "+seedToken)return new Response("Unauthorized",{status:401});\n  const email=Deno.env.get("SEED_MANAGER_EMAIL"),password=Deno.env.get("SEED_MANAGER_PASSWORD"),name=Deno.env.get("SEED_MANAGER_NAME")||"Step Town Manager";
+  const seedToken=Deno.env.get("SEED_MANAGER_TOKEN");
+  if(!seedToken||req.headers.get("Authorization")!=="Bearer "+seedToken)return new Response("Unauthorized",{status:401});
+  const email=Deno.env.get("SEED_MANAGER_EMAIL"),password=Deno.env.get("SEED_MANAGER_PASSWORD"),name=Deno.env.get("SEED_MANAGER_NAME")||"Step Town Manager";
   if(!email||!password||password.length<16)return Response.json({error:"Set SEED_MANAGER_EMAIL and a SEED_MANAGER_PASSWORD of at least 16 characters."},{status:400});
   const supabase=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{autoRefreshToken:false,persistSession:false}});
   const {count,error:countError}=await supabase.from("staff_profiles").select("*",{count:"exact",head:true}).eq("role","manager");
