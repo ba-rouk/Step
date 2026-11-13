@@ -36,6 +36,7 @@ const todayStart = () => {
 const waPhone = value => String(value || "").replace(/\D/g, "");
 let app;
 let profile = null;
+let profileGuardChannel = null;
 let teamCache = [];
 let toastTimer;
 
@@ -315,6 +316,29 @@ function loginView(message = "") {
     }
   });
 }
+function watchStaffProfile() {
+  if (!profile?.user_id || profileGuardChannel) return;
+  profileGuardChannel = supabase.channel("staff-profile-guard-" + profile.user_id)
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "staff_profiles",
+      filter: "user_id=eq." + profile.user_id
+    }, payload => {
+      const updated = payload.new;
+      if (!updated?.is_active || updated.role !== profile.role) {
+        const channel = profileGuardChannel;
+        profileGuardChannel = null;
+        channel?.unsubscribe();
+        void supabase.auth.signOut({ scope: "global" }).finally(() => {
+          location.replace("/staff/login?reason=access-changed");
+        });
+      } else {
+        profile = { ...profile, full_name: updated.full_name, email: updated.email, phone: updated.phone };
+      }
+    })
+    .subscribe();
+}
 async function requireProfile() {
   const staff = await getProfile();
   if (!staff) {
@@ -322,6 +346,7 @@ async function requireProfile() {
     location.replace("/staff/login?next=" + encodeURIComponent(PATH));
     return false;
   }
+  watchStaffProfile();
   if (staff.must_change_password && PATH !== "/staff/change-password") {
     location.replace("/staff/change-password");
     return false;
