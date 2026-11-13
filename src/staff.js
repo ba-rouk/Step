@@ -19,33 +19,115 @@ if (!path.startsWith("/staff")) {
 
   function decodeVapidKey(value){const padding="=".repeat((4-value.length%4)%4);const base64=(value+padding).replace(/-/g,"+").replace(/_/g,"/");const raw=atob(base64);return Uint8Array.from(raw,c=>c.charCodeAt(0));}
   function shell(title, body) {
-    app.innerHTML = '<header class="staff-top"><a class="staff-brand" href="/"><span class="staff-mark">ST</span><span><b>STEP TOWN</b><small>STAFF WORKSPACE</small></span></a><div class="staff-user"><span>'+esc(profile?.full_name || "Staff")+' · '+esc(roleTitle(profile?.role))+'</span><button id="staff-enable-push" class="staff-quiet" type="button">Enable alerts</button><button id="staff-logout" class="staff-quiet">Sign out</button></div></header><main class="staff-main"><div class="staff-title-row"><div><p class="staff-eyebrow">STEP TOWN · RUNDA, RWANDA</p><h1 class="'+(String(title).startsWith("Order ST-")?"staff-order-number":"")+'">'+esc(title)+'</h1></div><a class="staff-home" href="/"> Public website</a></div><nav class="staff-nav">'+navLinks()+'</nav>'+body+'</main>';
-    document.querySelector("#staff-logout")?.addEventListener("click", async()=>{await supabase.auth.signOut(); location.assign("/staff/login");});
-    document.querySelector("#staff-enable-push")?.addEventListener("click", async (event)=>{
-      const button=event.currentTarget;
-      const publicKey=import.meta.env.VITE_VAPID_PUBLIC_KEY;
-      if(!("serviceWorker" in navigator)||!("PushManager" in window)){alert("Push notifications are not supported by this browser. On iPhone, install Step Town to your Home Screen first.");return;}
-      if(!publicKey){alert("VITE_VAPID_PUBLIC_KEY is not configured on the site yet.");return;}
-      const permission=await Notification.requestPermission();
-      if(permission!=="granted"){alert("Notification permission was not granted.");return;}
-      button.disabled=true;button.textContent="Enabling…";
-      try{
-        const registration=await navigator.serviceWorker.register("/sw.js");
-        const subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:decodeVapidKey(publicKey)});
-        const json=subscription.toJSON();
-        const {error}=await supabase.from("push_subscriptions").upsert({user_id:profile.user_id,endpoint:json.endpoint,p256dh:json.keys.p256dh,auth_key:json.keys.auth,user_agent:navigator.userAgent,updated_at:new Date().toISOString()},{onConflict:"endpoint"});
-        if(error)throw error;
-        button.textContent="Alerts enabled";
-      }catch(error){console.error(error);alert("Could not enable notifications: "+error.message);button.disabled=false;button.textContent="Enable alerts";}
+    const staffName = esc(profile?.full_name || "Staff");
+    const staffRole = esc(roleTitle(profile?.role));
+    app.innerHTML =
+      '<header class="staff-top">' +
+        '<a class="staff-brand" href="/" aria-label="Step Town home">' +
+          '<img class="staff-logo" src="/step-town-logo.png" alt="Step Town">' +
+          '<span><b>STEP TOWN</b><small>STAFF WORKSPACE</small></span>' +
+        '</a>' +
+        '<div class="staff-top-meta"><strong>' + staffName + '</strong><span>' + staffRole + '</span></div>' +
+        '<button id="staff-menu-toggle" class="staff-menu-toggle" type="button" aria-label="Open staff menu" aria-expanded="false" aria-controls="staff-sidebar">' +
+          '<span></span><span></span><span></span>' +
+        '</button>' +
+      '</header>' +
+      '<div class="staff-workspace">' +
+        '<aside id="staff-sidebar" class="staff-sidebar" aria-label="Staff workspace navigation">' +
+          '<div class="staff-sidebar-heading"><span>WORKSPACE</span><button id="staff-sidebar-close" class="staff-sidebar-close" type="button" aria-label="Close staff menu">×</button></div>' +
+          '<nav class="staff-nav" aria-label="Staff navigation">' + navLinks() + '</nav>' +
+          '<div class="staff-sidebar-footer">' +
+            '<div class="staff-sidebar-user"><strong>' + staffName + '</strong><small>' + staffRole + '</small></div>' +
+            '<button id="staff-enable-push" class="staff-alert-button" type="button"><span class="staff-alert-dot" aria-hidden="true"></span><span>Enable alerts</span></button>' +
+            '<button id="staff-logout" class="staff-signout" type="button">Sign out</button>' +
+          '</div>' +
+        '</aside>' +
+        '<button id="staff-sidebar-backdrop" class="staff-sidebar-backdrop" type="button" aria-label="Close staff navigation" hidden></button>' +
+        '<main class="staff-main"><div class="staff-title-row"><div><h1 class="' + (String(title).startsWith("Order ST-") ? "staff-order-number" : "") + '">' + esc(title) + '</h1></div></div>' + body + '</main>' +
+      '</div>';
+
+    document.querySelector("#staff-logout")?.addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      location.assign("/staff/login");
     });
-    app.querySelectorAll("[data-staff-nav]").forEach(a=>a.classList.toggle("active", a.getAttribute("href")===location.pathname));
+
+    document.querySelector("#staff-enable-push")?.addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        alert("Push notifications are not supported by this browser. On iPhone, install Step Town to your Home Screen first.");
+        return;
+      }
+      if (!publicKey) {
+        alert("VITE_VAPID_PUBLIC_KEY is not configured on the site yet.");
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        alert("Notification permission was not granted.");
+        return;
+      }
+      button.disabled = true;
+      button.textContent = "Enabling…";
+      try {
+        const registration = await navigator.serviceWorker.register("/sw.js");
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: decodeVapidKey(publicKey)
+        });
+        const json = subscription.toJSON();
+        const { error } = await supabase.from("push_subscriptions").upsert({
+          user_id: profile.user_id,
+          endpoint: json.endpoint,
+          p256dh: json.keys.p256dh,
+          auth_key: json.keys.auth,
+          user_agent: navigator.userAgent,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "endpoint" });
+        if (error) throw error;
+        button.innerHTML = '<span class="staff-alert-dot" aria-hidden="true"></span><span>Alerts enabled</span>';
+      } catch (error) {
+        console.error(error);
+        alert("Could not enable notifications: " + error.message);
+        button.disabled = false;
+        button.innerHTML = '<span class="staff-alert-dot" aria-hidden="true"></span><span>Enable alerts</span>';
+      }
+    });
+
+    const sidebar = app.querySelector("#staff-sidebar");
+    const menuToggle = app.querySelector("#staff-menu-toggle");
+    const menuClose = app.querySelector("#staff-sidebar-close");
+    const backdrop = app.querySelector("#staff-sidebar-backdrop");
+    const setSidebarOpen = (open) => {
+      sidebar?.classList.toggle("is-open", open);
+      if (backdrop) backdrop.hidden = !open;
+      menuToggle?.setAttribute("aria-expanded", String(open));
+      menuToggle?.setAttribute("aria-label", open ? "Close staff menu" : "Open staff menu");
+      document.body.classList.toggle("staff-menu-open", open);
+    };
+    menuToggle?.addEventListener("click", () => setSidebarOpen(true));
+    menuClose?.addEventListener("click", () => setSidebarOpen(false));
+    backdrop?.addEventListener("click", () => setSidebarOpen(false));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") setSidebarOpen(false);
+    });
+
+    const currentPath = path === "/staff" ? "/staff/dashboard" : path;
+    app.querySelectorAll("[data-staff-nav]").forEach((link) => {
+      const href = link.getAttribute("href");
+      const active = href === currentPath || (href === "/staff/orders" && currentPath.startsWith("/staff/orders/"));
+      link.classList.toggle("active", active);
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+      link.addEventListener("click", () => setSidebarOpen(false));
+    });
   }
   function navLinks(){
     const items=[["/staff/dashboard","Overview",["manager","accountant","cashier"]],["/staff/orders","Orders",["manager","accountant","cashier"]],["/staff/products","Products",["manager","accountant"]],["/staff/gallery","Gallery",["manager","accountant"]],["/staff/enquiries","Enquiries",["manager","accountant","cashier"]],["/staff/reports","Reports",["manager","accountant"]],["/staff/team","Team",["manager"]],["/staff/audit","Audit log",["manager"]]];
     return items.filter(x=>x[2].includes(profile?.role)).map(x=>'<a data-staff-nav href="'+x[0]+'">'+x[1]+'</a>').join("");
   }
   function loginView(message=""){
-    app.innerHTML='<div class="staff-login-wrap"><a class="staff-brand staff-login-brand" href="/"><span class="staff-mark">ST</span><span><b>STEP TOWN</b><small>STAFF ACCESS</small></span></a><section class="staff-login-card"><p class="staff-eyebrow">PRIVATE TEAM PORTAL</p><h1>Welcome back.</h1><p class="staff-muted">Sign in with the credentials issued by your manager.</p><form id="staff-login-form"><label>Email address<input name="email" type="email" autocomplete="username" required placeholder="name@steptown.rw"></label><label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="Your password"></label><p id="staff-login-error" class="staff-error" role="alert">'+esc(message)+'</p><button class="staff-primary" type="submit">Sign in securely</button></form><p class="staff-login-foot">Staff accounts are invitation-only. There is no public staff registration.</p></section><a class="staff-cancel" href="/" aria-label="Cancel and return home">×</a></div>';
+    app.innerHTML='<div class="staff-login-wrap"><a class="staff-brand staff-login-brand" href="/" aria-label="Step Town home"><img class="staff-logo" src="/step-town-logo.png" alt="Step Town"><span><b>STEP TOWN</b><small>STAFF ACCESS</small></span></a><section class="staff-login-card"><p class="staff-eyebrow">PRIVATE TEAM PORTAL</p><h1>Welcome back.</h1><p class="staff-muted">Sign in with the credentials issued by your manager.</p><form id="staff-login-form"><label>Email address<input name="email" type="email" autocomplete="username" required placeholder="name@steptown.rw"></label><label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="Your password"></label><p id="staff-login-error" class="staff-error" role="alert">'+esc(message)+'</p><button class="staff-primary" type="submit">Sign in securely</button></form><p class="staff-login-foot">Staff accounts are invitation-only. There is no public staff registration.</p></section><a class="staff-cancel" href="/" aria-label="Cancel and return home">×</a></div>';
     document.querySelector("#staff-login-form")?.addEventListener("submit", async e=>{
       e.preventDefault(); const form=e.currentTarget; const data=new FormData(form); const button=form.querySelector("button"); const error=form.querySelector("#staff-login-error");
       button.disabled=true; button.textContent="Signing in…"; error.textContent="";
@@ -67,21 +149,34 @@ if (!path.startsWith("/staff")) {
   }
   async function rows(table, query){const result=await query; if(result.error) throw result.error; return result.data||[];}
   function errorPanel(error){return '<div class="staff-alert">'+esc(error?.message || "Something went wrong. Refresh and try again.")+'</div>';}
-  async function dashboard(){
-    const [orders,enquiries,products]=await Promise.all([
-      rows("orders",supabase.from("store_orders").select("id,order_number,status,customer_name,estimated_total,created_at").order("created_at",{ascending:false}).limit(8)),
-      rows("enquiries",supabase.from("enquiries").select("id,name,service,status,created_at").order("created_at",{ascending:false}).limit(5)),
-      rows("products",supabase.from("store_products").select("id",{count:"exact",head:true}))
+  async function dashboard() {
+    const [orders, enquiries, productsResult] = await Promise.all([
+      rows("orders", supabase.from("store_orders").select("id,order_number,status,customer_name,estimated_total,created_at").order("created_at", { ascending: false }).limit(8)),
+      rows("enquiries", supabase.from("enquiries").select("id,name,service,status,created_at").order("created_at", { ascending: false }).limit(5)),
+      supabase.from("store_products").select("id", { count: "exact", head: true })
     ]);
-    shell("Good day, "+(profile.full_name||"team")+".",'<section class="staff-stats"><article><span>Recent orders</span><b>'+orders.length+'</b><small>Latest requests</small></article><article><span>Open enquiries</span><b>'+enquiries.filter(x=>x.status!=="closed").length+'</b><small>Need follow-up</small></article><article><span>Menu items</span><b>'+products.length+'</b><small>Catalog records</small></article></section><section class="staff-panel"><div class="staff-panel-head"><h2>Latest orders</h2><a href="/staff/orders">View all </a></div>'+orderTable(orders)+'</section><section class="staff-panel"><div class="staff-panel-head"><h2>Recent enquiries</h2><a href="/staff/enquiries">Open inbox </a></div>'+enquiryTable(enquiries)+'</section>');
+    if (productsResult.error) throw productsResult.error;
+    const teamShortcut = profile.role === "manager"
+      ? '<section class="staff-panel staff-team-shortcut"><div><p class="staff-eyebrow">TEAM ACCESS</p><h2>Build your team</h2><p class="staff-muted">Create Accountant and Cashier accounts and manage staff access.</p></div><a class="staff-primary" href="/staff/team">Create staff account</a></section>'
+      : "";
+    shell("Good day, " + (profile.full_name || "team") + ".",
+      '<section class="staff-stats">' +
+        '<article><span>Recent orders</span><b>' + orders.length + '</b><small>Latest requests</small></article>' +
+        '<article><span>Open enquiries</span><b>' + enquiries.filter(x => x.status !== "closed").length + '</b><small>Need follow-up</small></article>' +
+        '<article><span>Menu items</span><b>' + (productsResult.count || 0) + '</b><small>Catalog records</small></article>' +
+      '</section>' +
+      teamShortcut +
+      '<section class="staff-panel"><div class="staff-panel-head"><h2>Latest orders</h2><a href="/staff/orders">View all</a></div>' + orderTable(orders) + '</section>' +
+      '<section class="staff-panel"><div class="staff-panel-head"><h2>Recent enquiries</h2><a href="/staff/enquiries">Open inbox</a></div>' + enquiryTable(enquiries) + '</section>'
+    );
   }
   function orderTable(data){return data.length?'<div class="staff-table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Total</th><th></th></tr></thead><tbody>'+data.map(o=>'<tr><td><b class="staff-order-number">'+esc(o.order_number||o.id.slice(0,8))+'</b><small>'+new Date(o.created_at).toLocaleString()+'</small></td><td>'+esc(o.customer_name)+'</td><td><span class="staff-status">'+esc(o.status)+'</span></td><td>'+money(o.estimated_total)+'</td><td><a href="/staff/orders/'+encodeURIComponent(o.order_number||o.id)+'">Open </a></td></tr>').join("")+'</tbody></table></div>':'<p class="staff-empty">No orders yet.</p>';}
   function enquiryTable(data){return data.length?'<div class="staff-table-wrap"><table><thead><tr><th>Customer</th><th>Service</th><th>Status</th><th>Date</th></tr></thead><tbody>'+data.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.service)+'</td><td>'+esc(x.status)+'</td><td>'+new Date(x.created_at).toLocaleDateString()+'</td></tr>').join("")+'</tbody></table></div>':'<p class="staff-empty">No enquiries yet.</p>';}
   async function orderList(){
     const {data,error}=await supabase.from("store_orders").select("*").order("created_at",{ascending:false}).limit(200);
-    shell("Orders",'<section class="staff-panel"><div class="staff-panel-head"><h2>Order inbox</h2><span>New · Confirmed · Preparing · Ready · Completed · Cancelled</span></div><div class="staff-filters"><input id="order-filter" placeholder="Search order or customer"><div class="staff-order-tabs"><button type="button" data-order-tab="pending" class="active">Pending</button><button type="button" data-order-tab="progress">In progress</button><button type="button" data-order-tab="finished">Finished</button><button type="button" data-order-tab="cancelled">Cancelled</button><button type="button" data-order-tab="all">All</button></div></div><div id="order-table">'+(error?errorPanel(error):orderTable(data||[]))+'</div></section>');
+    shell("Orders",'<section class="staff-panel"><div class="staff-panel-head"><h2>Order inbox</h2><span>New · Contacted · Confirmed · Completed · Cancelled</span></div><div class="staff-filters"><input id="order-filter" placeholder="Search order or customer"><div class="staff-order-tabs"><button type="button" data-order-tab="pending" class="active">Pending</button><button type="button" data-order-tab="progress">In progress</button><button type="button" data-order-tab="finished">Finished</button><button type="button" data-order-tab="cancelled">Cancelled</button><button type="button" data-order-tab="all">All</button></div></div><div id="order-table">'+(error?errorPanel(error):orderTable(data||[]))+'</div></section>');
     let group="pending";
-    const render=()=>{const term=app.querySelector("#order-filter").value.toLowerCase();const filtered=(data||[]).filter(o=>{const status=o.status;const inGroup=group==="all"||(group==="pending"&&status==="new")||(group==="progress"&&["confirmed","preparing","ready","in_progress"].includes(status))||(group==="finished"&&["completed","finished"].includes(status))||(group==="cancelled"&&status==="cancelled");return inGroup&&((o.order_number||"").toLowerCase().includes(term)||(o.customer_name||"").toLowerCase().includes(term));});app.querySelector("#order-table").innerHTML=orderTable(filtered);};
+    const render=()=>{const term=app.querySelector("#order-filter").value.toLowerCase();const filtered=(data||[]).filter(o=>{const status=o.status;const inGroup=group==="all"||(group==="pending"&&["new","contacted"].includes(status))||(group==="progress"&&status==="confirmed")||(group==="finished"&&status==="completed")||(group==="cancelled"&&status==="cancelled");return inGroup&&((o.order_number||"").toLowerCase().includes(term)||(o.customer_name||"").toLowerCase().includes(term));});app.querySelector("#order-table").innerHTML=orderTable(filtered);};
     app.querySelector("#order-filter")?.addEventListener("input",render);
     app.querySelectorAll("[data-order-tab]").forEach(button=>button.addEventListener("click",()=>{group=button.dataset.orderTab;app.querySelectorAll("[data-order-tab]").forEach(x=>x.classList.toggle("active",x===button));render();}));
     render();
@@ -92,7 +187,7 @@ if (!path.startsWith("/staff")) {
     if(error||!o){shell("Order not found",errorPanel(error||{message:"No order matches "+key}));return;}
     activeOrder=o;
     const {data:payments}=await supabase.from("store_order_payments").select("*").eq("order_id",o.id).order("recorded_at",{ascending:false});
-    shell("Order "+esc(o.order_number||o.id.slice(0,8)),'<section class="staff-panel"><div class="staff-order-head"><div><p class="staff-eyebrow">ORDER DETAILS</p><h2>'+esc(o.customer_name)+'</h2><p>'+esc(o.customer_phone)+' · '+esc(o.customer_email||"No email")+'</p><div class="staff-actions"><a href="tel:'+esc(o.customer_phone)+'">Call customer</a><a target="_blank" rel="noopener" href="https://wa.me/'+esc(o.customer_phone.replace(/\D/g,""))+'">WhatsApp</a></div></div><span class="staff-status">'+esc(o.status)+'</span></div><div class="staff-detail-grid"><div><small>FULFILMENT</small><b>'+esc(o.fulfillment)+'</b></div><div><small>REQUESTED DATE</small><b>'+esc(o.requested_date||"Not specified")+' '+esc(o.requested_time||"")+'</b></div><div><small>LOCATION</small><b>'+esc(o.delivery_location||"Pickup")+'</b></div><div><small>ESTIMATED TOTAL</small><b>'+money(o.estimated_total)+'</b></div></div><h3>Items</h3><div class="staff-items">'+(Array.isArray(o.items)?o.items.map(i=>'<p><b>'+Number(i.quantity||1)+' × '+esc(i.name)+'</b><span>'+money(i.line_total)+'</span></p>').join(""):"")+'</div><p class="staff-notes">'+esc(o.notes||"No additional notes.")+'</p></section><section class="staff-panel"><h2>Update order</h2><form id="order-update-form" class="staff-inline-form"><label>Status<select name="status">'+["new","confirmed","preparing","ready","completed","cancelled"].map(s=>'<option value="'+s+'" '+(o.status===s?"selected":"")+'>'+s[0].toUpperCase()+s.slice(1)+'</option>').join("")+'</select></label><label>Payment method<select name="method"><option value="cash">Cash</option><option value="mobile_money">Mobile money</option></select></label><label>Amount paid<input name="amount" type="number" min="0" step="1" placeholder="0"></label><label>Reference<input name="reference" placeholder="Optional transaction reference"></label><button class="staff-primary">Save update</button></form><div id="order-update-message" class="staff-muted"></div><h3>Payments</h3>'+(payments||[]).map(p=>'<p>'+esc(p.method)+' · '+money(p.amount)+' · <code class="staff-payment-reference">'+esc(p.reference||"No reference")+'</code></p>').join("")+'</section><button class="staff-quiet" id="print-order">Print receipt</button>');
+    shell("Order "+esc(o.order_number||o.id.slice(0,8)),'<section class="staff-panel"><div class="staff-order-head"><div><p class="staff-eyebrow">ORDER DETAILS</p><h2>'+esc(o.customer_name)+'</h2><p>'+esc(o.customer_phone)+' · '+esc(o.customer_email||"No email")+'</p><div class="staff-actions"><a href="tel:'+esc(o.customer_phone)+'">Call customer</a><a target="_blank" rel="noopener" href="https://wa.me/'+esc(o.customer_phone.replace(/\D/g,""))+'">WhatsApp</a></div></div><span class="staff-status">'+esc(o.status)+'</span></div><div class="staff-detail-grid"><div><small>FULFILMENT</small><b>'+esc(o.fulfillment)+'</b></div><div><small>REQUESTED DATE</small><b>'+esc(o.requested_date||"Not specified")+' '+esc(o.requested_time||"")+'</b></div><div><small>LOCATION</small><b>'+esc(o.delivery_location||"Pickup")+'</b></div><div><small>ESTIMATED TOTAL</small><b>'+money(o.estimated_total)+'</b></div></div><h3>Items</h3><div class="staff-items">'+(Array.isArray(o.items)?o.items.map(i=>'<p><b>'+Number(i.quantity||1)+' × '+esc(i.name)+'</b><span>'+money(i.line_total)+'</span></p>').join(""):"")+'</div><p class="staff-notes">'+esc(o.notes||"No additional notes.")+'</p></section><section class="staff-panel"><h2>Update order</h2><form id="order-update-form" class="staff-inline-form"><label>Status<select name="status">'+["new","contacted","confirmed","completed","cancelled"].map(s=>'<option value="'+s+'" '+(o.status===s?"selected":"")+'>'+s[0].toUpperCase()+s.slice(1)+'</option>').join("")+'</select></label><label>Payment method<select name="method"><option value="cash">Cash</option><option value="mobile_money">Mobile money</option></select></label><label>Amount paid<input name="amount" type="number" min="0" step="1" placeholder="0"></label><label>Reference<input name="reference" placeholder="Optional transaction reference"></label><button class="staff-primary">Save update</button></form><div id="order-update-message" class="staff-muted"></div><h3>Payments</h3>'+(payments||[]).map(p=>'<p>'+esc(p.method)+' · '+money(p.amount)+' · <code class="staff-payment-reference">'+esc(p.reference||"No reference")+'</code></p>').join("")+'</section><button class="staff-quiet" id="print-order">Print receipt</button>');
     app.querySelector("#order-update-form")?.addEventListener("submit",async e=>{
       e.preventDefault();const f=new FormData(e.currentTarget);const status=String(f.get("status"));const old=o.status;
       const {error:upErr}=await supabase.from("store_orders").update({status,acknowledged_at:o.acknowledged_at||(status!=="new"?new Date().toISOString():null),updated_at:new Date().toISOString(),updated_by:profile.user_id}).eq("id",o.id);
@@ -127,28 +222,127 @@ if (!path.startsWith("/staff")) {
   async function reportsPage(){
     const since=new Date();since.setDate(since.getDate()-7);
     const {data,error}=await supabase.from("store_orders").select("order_number,customer_name,status,estimated_total,created_at").gte("created_at",since.toISOString()).order("created_at");
-    const completed=(data||[]).filter(o=>["completed","finished"].includes(o.status));const total=completed.reduce((s,o)=>s+Number(o.estimated_total||0),0);const todayStart=new Date();todayStart.setHours(0,0,0,0);const todayCompleted=completed.filter(o=>new Date(o.created_at)>=todayStart);const todaySales=todayCompleted.reduce((s,o)=>s+Number(o.estimated_total||0),0);
+    const completed=(data||[]).filter(o=>o.status==="completed");const total=completed.reduce((s,o)=>s+Number(o.estimated_total||0),0);const todayStart=new Date();todayStart.setHours(0,0,0,0);const todayCompleted=completed.filter(o=>new Date(o.created_at)>=todayStart);const todaySales=todayCompleted.reduce((s,o)=>s+Number(o.estimated_total||0),0);
     shell("Reports",'<section class="staff-stats"><article><span>Today · completed orders</span><b>'+todayCompleted.length+'</b></article><article><span>Today · sales</span><b>'+money(todaySales)+'</b></article><article><span>7-day orders</span><b>'+(data||[]).length+'</b></article><article><span>7-day completed</span><b>'+completed.length+'</b></article><article><span>7-day sales</span><b>'+money(total)+'</b></article></section><section class="staff-panel"><div class="staff-panel-head"><h2>Last 7 days</h2><button id="export-csv" class="staff-quiet">Export CSV </button></div>'+(error?errorPanel(error):orderTable(data||[]))+'</section>');
     app.querySelector("#export-csv")?.addEventListener("click",()=>{const lines=[["Order","Customer","Status","Total RWF","Created"],...(data||[]).map(o=>[o.order_number,o.customer_name,o.status,o.estimated_total,o.created_at])];const csv=lines.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));const a=document.createElement("a");a.href=url;a.download="step-town-sales-last-7-days.csv";a.click();URL.revokeObjectURL(url);});
   }
-  async function teamPage(){
-    const {data,error}=await supabase.from("staff_profiles").select("id,user_id,full_name,email,role,is_active,reports_to,created_at").order("created_at");
-    const accountants=(data||[]).filter(x=>x.role==="accountant"&&x.is_active);
-    shell("Team",'<section class="staff-panel"><h2>Create a staff account</h2><form id="team-create-form" class="staff-form-grid"><label>Full name<input name="full_name" required maxlength="100"></label><label>Email<input name="email" type="email" required></label><label>Role<select name="role"><option value="accountant">Accountant</option><option value="cashier">Cashier</option></select></label><label>Temporary password<input name="password" type="password" minlength="12" required></label><label id="reports-to-wrap" class="wide" hidden>Reports to<select name="reports_to"><option value="">Choose an Accountant</option>'+accountants.map(x=>'<option value="'+x.id+'">'+esc(x.full_name)+'</option>').join("")+'</select></label><button class="staff-primary">Create account</button></form><p id="team-message" class="staff-muted">New accounts are required to change their password on first sign-in.</p></section><section class="staff-panel"><h2>Staff accounts</h2>'+(error?errorPanel(error):'<div class="staff-table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Reports to</th><th>Active</th><th>Actions</th></tr></thead><tbody>'+(data||[]).map(x=>'<tr><td>'+esc(x.full_name)+'</td><td>'+esc(x.email)+'</td><td>'+esc(roleTitle(x.role))+'</td><td>'+esc((data||[]).find(y=>y.id===x.reports_to)?.full_name||"—")+'</td><td>'+ (x.is_active?"Yes":"No")+'</td><td>'+(x.role!=="manager"?'<button data-staff-action="reset" data-user="'+x.user_id+'">Reset password</button> <button data-staff-action="'+(x.is_active?"deactivate":"activate")+'" data-user="'+x.user_id+'">'+(x.is_active?"Deactivate":"Activate")+'</button>':"—")+'</td></tr>').join("")+'</tbody></table></div>')+'</section>');
-    const roleSelect=app.querySelector('[name="role"]'),reportsWrap=app.querySelector("#reports-to-wrap");
-    roleSelect?.addEventListener("change",()=>{reportsWrap.hidden=roleSelect.value!=="cashier";});
-    app.querySelector("#team-create-form")?.addEventListener("submit",async e=>{
-      e.preventDefault();const f=new FormData(e.currentTarget);const payload={action:"create",full_name:String(f.get("full_name")).trim(),email:String(f.get("email")).trim(),password:String(f.get("password")),role:String(f.get("role")),reports_to:String(f.get("reports_to")||"")};
-      const {data:result,error:fnError}=await supabase.functions.invoke("staff-admin",{body:payload});
-      app.querySelector("#team-message").textContent=fnError?.message||result?.error||"Account created. Share the temporary password securely.";
-      if(!fnError&&result?.ok)setTimeout(teamPage,700);
+  async function teamPage(notice = "") {
+    const { data: teamResult, error: teamFunctionError } = await supabase.functions.invoke("staff-admin", {
+      body: { action: "team" }
     });
-    app.querySelectorAll("[data-staff-action]").forEach(button=>button.addEventListener("click",async()=>{
-      const action=button.dataset.staffAction;let body={action,user_id:button.dataset.user};
-      if(action==="reset"){const password=prompt("Enter a new temporary password (at least 12 characters):");if(!password)return;if(password.length<12){alert("Use at least 12 characters.");return;}body.password=password;}
-      if(action==="deactivate"&&!confirm("Deactivate this staff account?"))return;
-      const {data:result,error:fnError}=await supabase.functions.invoke("staff-admin",{body});
-      if(fnError||result?.error)alert(fnError?.message||result.error);else teamPage();
+    const data = teamResult?.staff || [];
+    const error = teamFunctionError || (teamResult?.error ? { message: teamResult.error } : null);
+    const accountants = data.filter(x => x.role === "accountant" && x.is_active);
+
+    shell("Team",
+      '<section class="staff-panel">' +
+        '<h2>Create a staff account</h2>' +
+        '<p class="staff-muted">Create Accountant and Cashier accounts here. New staff must change their temporary password on first sign-in.</p>' +
+        '<form id="team-create-form" class="staff-form-grid">' +
+          '<label>Full name<input name="full_name" required maxlength="100" autocomplete="name"></label>' +
+          '<label>Email<input name="email" type="email" required autocomplete="email"></label>' +
+          '<label>Role<select name="role"><option value="accountant">Accountant</option><option value="cashier">Cashier</option></select></label>' +
+          '<label>Temporary password<input name="password" type="password" minlength="12" required autocomplete="new-password"></label>' +
+          '<label id="reports-to-wrap" class="wide" hidden>Reports to<select name="reports_to"><option value="">Choose an Accountant</option>' +
+            accountants.map(x => '<option value="' + x.id + '">' + esc(x.full_name) + '</option>').join("") +
+          '</select></label>' +
+          '<button class="staff-primary" type="submit">Create account</button>' +
+        '</form>' +
+        '<p id="team-message" class="staff-muted" role="status" aria-live="polite">' + esc(notice || "New accounts are required to change their password on first sign-in.") + '</p>' +
+      '</section>' +
+      '<section class="staff-panel"><h2>Staff accounts</h2>' +
+        (error ? errorPanel(error) :
+          '<div class="staff-table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Reports to</th><th>Active</th><th>Actions</th></tr></thead><tbody>' +
+            data.map(x =>
+              '<tr><td>' + esc(x.full_name) + '</td><td>' + esc(x.email) + '</td><td>' + esc(roleTitle(x.role)) + '</td><td>' +
+                esc(data.find(y => y.id === x.reports_to)?.full_name || "—") + '</td><td>' + (x.is_active ? "Yes" : "No") + '</td><td>' +
+                (x.role !== "manager"
+                  ? '<button data-staff-action="reset" data-user="' + x.user_id + '">Reset password</button> <button data-staff-action="' + (x.is_active ? "deactivate" : "activate") + '" data-user="' + x.user_id + '">' + (x.is_active ? "Deactivate" : "Activate") + '</button>'
+                  : "—") +
+              '</td></tr>'
+            ).join("") +
+          '</tbody></table></div>'
+        ) +
+      '</section>'
+    );
+
+    const roleSelect = app.querySelector('[name="role"]');
+    const reportsWrap = app.querySelector("#reports-to-wrap");
+    roleSelect?.addEventListener("change", () => {
+      reportsWrap.hidden = roleSelect.value !== "cashier";
+    });
+
+    app.querySelector("#team-create-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const fields = new FormData(form);
+      const payload = {
+        action: "create",
+        full_name: String(fields.get("full_name") || "").trim(),
+        email: String(fields.get("email") || "").trim(),
+        password: String(fields.get("password") || ""),
+        role: String(fields.get("role") || ""),
+        reports_to: String(fields.get("reports_to") || "")
+      };
+      const message = app.querySelector("#team-message");
+      const submit = form.querySelector('button[type="submit"]');
+
+      if (payload.password.length < 12) {
+        message.textContent = "Use a temporary password with at least 12 characters.";
+        return;
+      }
+      if (payload.role === "cashier" && !payload.reports_to) {
+        message.textContent = "Choose the Accountant this Cashier reports to.";
+        return;
+      }
+
+      submit.disabled = true;
+      submit.textContent = "Creating account…";
+      message.textContent = "";
+
+      try {
+        const { data: result, error: fnError } = await supabase.functions.invoke("staff-admin", { body: payload });
+        if (fnError || !result?.ok) {
+          message.textContent = fnError?.message || result?.error || "The staff account could not be created.";
+          return;
+        }
+        await teamPage("Created " + payload.full_name + " as " + roleTitle(payload.role) + ". Share the temporary password securely.");
+      } catch (createError) {
+        message.textContent = createError?.message || "The staff account could not be created.";
+      } finally {
+        if (submit?.isConnected) {
+          submit.disabled = false;
+          submit.textContent = "Create account";
+        }
+      }
+    });
+
+    app.querySelectorAll("[data-staff-action]").forEach(button => button.addEventListener("click", async () => {
+      const action = button.dataset.staffAction;
+      const request = { action, user_id: button.dataset.user };
+      if (action === "reset") {
+        const password = prompt("Enter a new temporary password (at least 12 characters):");
+        if (!password) return;
+        if (password.length < 12) {
+          alert("Use at least 12 characters.");
+          return;
+        }
+        request.password = password;
+      }
+      if (action === "deactivate" && !confirm("Deactivate this staff account?")) return;
+      button.disabled = true;
+      try {
+        const { data: result, error: fnError } = await supabase.functions.invoke("staff-admin", { body: request });
+        if (fnError || result?.error) {
+          alert(fnError?.message || result.error);
+          button.disabled = false;
+          return;
+        }
+        await teamPage(action === "reset" ? "Temporary password reset. The staff member must change it at next sign-in." : "Staff account updated.");
+      } catch (actionError) {
+        alert(actionError?.message || "The staff account could not be updated.");
+        button.disabled = false;
+      }
     }));
   }
   async function auditPage(){

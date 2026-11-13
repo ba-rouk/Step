@@ -1804,3 +1804,22 @@ body.route-customer-page .customer-error {
   color: rgba(245,239,232,.9);
 }
 .storefront .product-description { color: rgba(245,239,232,.9); }
+
+
+/* Keep the Step Town wordmark and tagline in the same type family as the site UI. */
+.brand-copy strong,
+.brand-copy small {
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+  font-style: normal;
+}
+.brand-copy strong {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+.brand-copy small {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: .12em;
+}
