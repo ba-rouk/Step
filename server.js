@@ -253,7 +253,7 @@ async function api(req,res,url) {
     const current=await currentUser(req,res);
     if(!current)return sendJson(res,401,{error:"Please sign in to view favourites."});
     try{
-      const rows=await sb("/rest/v1/customer_favourites?select=product_id&customer_id=eq."+encodeURIComponent(current.user.id),{access:current.session.access_token});
+      const rows=await sb("/rest/v1/customer_favourites?select=product_id&user_id=eq."+encodeURIComponent(current.user.id),{access:current.session.access_token});
       return sendJson(res,200,{product_ids:(rows||[]).map(row=>row.product_id)});
     }catch(e){return sendJson(res,e.status||502,{error:"Favourites could not be loaded."});}
   }
@@ -263,8 +263,8 @@ async function api(req,res,url) {
     const b=await body(req),ids=Array.isArray(b.product_ids)?[...new Set(b.product_ids.map(String))]:[];
     if(ids.length>200||ids.some(id=>! /^[0-9a-f-]{36}$/i.test(id)))return sendJson(res,400,{error:"The favourites list is invalid."});
     try{
-      await sb("/rest/v1/customer_favourites?customer_id=eq."+encodeURIComponent(current.user.id),{method:"DELETE",access:current.session.access_token,headers:{Prefer:"return=minimal"}});
-      if(ids.length)await sb("/rest/v1/customer_favourites",{method:"POST",access:current.session.access_token,body:ids.map(product_id=>({customer_id:current.user.id,product_id})),headers:{Prefer:"return=minimal"}});
+      await sb("/rest/v1/customer_favourites?user_id=eq."+encodeURIComponent(current.user.id),{method:"DELETE",access:current.session.access_token,headers:{Prefer:"return=minimal"}});
+      if(ids.length)await sb("/rest/v1/customer_favourites",{method:"POST",access:current.session.access_token,body:ids.map(product_id=>({user_id:current.user.id,product_id})),headers:{Prefer:"return=minimal"}});
       return sendJson(res,200,{ok:true,count:ids.length});
     }catch(e){return sendJson(res,e.status||502,{error:"Favourites could not be synced."});}
   }
@@ -276,7 +276,7 @@ async function api(req,res,url) {
         const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
         return sendJson(res,200,{user:current.user,profile:rows[0]||null});
       }
-      const orders=await sb("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=50",{access:current.session.access_token});
+      const orders=await sb("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation&user_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=50",{access:current.session.access_token});
       return sendJson(res,200,{orders:orders||[]});
     }catch(e){return sendJson(res,e.status||502,{error:"Your account data could not be loaded."});}
   }
@@ -316,7 +316,7 @@ async function api(req,res,url) {
       const date=b.requested_date?String(b.requested_date):null;
       if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid requested date."});
       const order={
-        customer_id:current.user.id,customer_name:name,customer_phone:phone,customer_email:email||null,
+        user_id:current.user.id,customer_name:name,customer_phone:phone,customer_email:email||null,
         fulfillment,requested_date:date,requested_time:b.requested_time?String(b.requested_time).slice(0,5):null,
         delivery_location:b.delivery_location?String(b.delivery_location).trim().slice(0,180):null,
         notes:b.notes?String(b.notes).trim().slice(0,3000):null,
