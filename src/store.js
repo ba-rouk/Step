@@ -88,7 +88,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(cart));
     } catch {
-      if (cartPricingNote) cartPricingNote.textContent = "Your browser could not save this bag between visits.";
+      if (cartPricingNote) cartPricingNote.textContent = "Your browser could not save this cart between visits.";
     }
   }
 
@@ -197,6 +197,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   }
 
   function closeCart() {
+    if (cartRoute) { window.location.assign("/categories"); return; }
     cartDrawer.hidden = true;
     cartDrawer.setAttribute("aria-hidden", "true");
     cartBackdrop.hidden = true;
