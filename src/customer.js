@@ -31,8 +31,8 @@ if (isAuthRoute) {
     ? "Google sign-in could not be completed. Please try again or use your phone number."
     : "";
 
-  const passwordField = (label, autocomplete = "current-password") =>
-    '<label class="customer-field"><span>' + label + '</span><span class="customer-password-wrap"><input name="password" type="password" minlength="10" maxlength="128" required autocomplete="' + autocomplete + '" placeholder="At least 10 characters"><button class="customer-password-toggle" type="button" data-toggle-password aria-label="Show password" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.4 6.5-9.5 6.5S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg></button></span></label>';
+  const passwordField = (label, autocomplete = "current-password", minLength = 8) =>
+    '<label class="customer-field"><span>' + label + '</span><span class="customer-password-wrap"><input name="password" type="password" minlength="' + minLength + '" maxlength="128" required autocomplete="' + autocomplete + '" placeholder="At least 10 characters"><button class="customer-password-toggle" type="button" data-toggle-password aria-label="Show password" title="Show password"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.4 6.5-9.5 6.5S2.5 12 2.5 12Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg></button></span></label>';
 
   function wirePasswordToggles(root) {
     root.querySelectorAll("[data-toggle-password]").forEach((button) => {
@@ -57,7 +57,7 @@ if (isAuthRoute) {
     const fields =
       (registering ? '<label class="customer-field"><span>Full name</span><input name="name" type="text" autocomplete="name" minlength="2" maxlength="120" required placeholder="Your full name"></label>' : "") +
       '<label class="customer-field"><span>' + (registering ? "Phone number" : "Phone number or email") + '</span><input name="phone" type="' + (registering ? "tel" : "text") + '" autocomplete="' + (registering ? "tel" : "username") + '" ' + (registering ? 'inputmode="tel" placeholder="+250 780 382 589"' : 'placeholder="+250 780 382 589 or you@example.com"') + ' required></label>' +
-      passwordField("Password", registering ? "new-password" : "current-password");
+      passwordField("Password", registering ? "new-password" : "current-password", registering ? 10 : 8);
     shell(
       '<h1>' + (registering ? "Create your account." : "Welcome back.") + '</h1>' +
       '<p class="customer-intro">' + (registering ? "Create a Step Town account to keep your orders and details together." : "Sign in to view your profile and order history, or send an order request.") + '</p>' +
