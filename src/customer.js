@@ -56,7 +56,7 @@ if (isAuthRoute) {
     const registering = mode === "register";
     const fields =
       (registering ? '<label class="customer-field"><span>Full name</span><input name="name" type="text" autocomplete="name" minlength="2" maxlength="120" required placeholder="Your full name"></label>' : "") +
-      '<label class="customer-field"><span>Phone number</span><input name="phone" type="tel" autocomplete="tel" inputmode="tel" required placeholder="+250 780 382 589"></label>' +
+      '<label class="customer-field"><span>' + (registering ? "Phone number" : "Phone number or email") + '</span><input name="phone" type="' + (registering ? "tel" : "text") + '" autocomplete="' + (registering ? "tel" : "username") + '" ' + (registering ? 'inputmode="tel" placeholder="+250 780 382 589"' : 'placeholder="+250 780 382 589 or you@example.com"') + ' required></label>' +
       passwordField("Password", registering ? "new-password" : "current-password");
     shell(
       '<h1>' + (registering ? "Create your account." : "Welcome back.") + '</h1>' +
