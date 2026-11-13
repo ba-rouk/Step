@@ -1,4 +1,5 @@
 import { supabase, supabaseConfigured } from "./supabase.js";
+import { apiFetch } from "./api.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -6,6 +7,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   const catalogStatus = document.querySelector("#catalog-status");
   const catalogCount = document.querySelector("#catalog-count");
   const productHeading = document.querySelector("#product-heading");
+  const categoryFilterRow = document.querySelector("#category-filter-row");
   const searchInput = document.querySelector("#menu-search");
   const cartOpen = null;
   const mobileCartOpen = document.querySelector(".mobile-dock-cart");
@@ -97,15 +99,29 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     return category ? category.name : "Step Town";
   }
 
+  function categorySlugFor(category) {
+    return String(category.slug || category.name || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+
   function renderCategories() {
     const allCard = '<a class="category-card category-card-all' + (selectedCategory === "all" ? " is-active" : "") + '" href="/categories"><span class="category-card-kicker">THE FULL MENU</span><strong>Everything</strong><span class="category-card-action">View all menu</span></a>';
     const cards = categories.map((category) => {
       const image = safeImageUrl(category.cover_image_url);
-      return '<a class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" href="/categories/' + encodeURIComponent(category.id) + '">' +
+      return '<a class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '">' +
         (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : "") +
         '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(category.name) + '</strong><span class="category-card-action">Browse category</span></span></a>';
     }).join("");
     categoryShowcase.innerHTML = allCard + cards;
+  }
+
+  function renderCategoryFilters() {
+    if (!categoryFilterRow || !categoryRoute || !categorySlug) return;
+    const all = '<a href="/categories">All categories</a>';
+    const links = categories.map((category) => {
+      const active = category.id === selectedCategory;
+      return '<a href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(category.name) + '</a>';
+    }).join("");
+    categoryFilterRow.innerHTML = all + links;
   }
 
   function visibleProducts() {
@@ -250,19 +266,31 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     products = productResult.data || [];
     if (categorySlug) {
       const requestedCategory = categories.find((item) =>
+        item.slug === categorySlug ||
         item.id === categorySlug ||
-        String(item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") === categorySlug.toLowerCase()
+        categorySlugFor(item) === categorySlug.toLowerCase()
       );
-      selectedCategory = requestedCategory ? requestedCategory.id : categorySlug;
-      const selectedTitle = requestedCategory?.name || "Category";
+      selectedCategory = requestedCategory ? requestedCategory.id : "__missing_category__";
+      document.body.classList.add("route-category-detail");
       const routeTitle = document.querySelector(".route-catalog-heading h1");
-      if (routeTitle) routeTitle.textContent = selectedTitle;
+      if (routeTitle) routeTitle.textContent = requestedCategory?.name || "Category not found";
+      const routeIntro = document.querySelector(".route-catalog-heading > p:not(.eyebrow)");
+      if (routeIntro) routeIntro.textContent = requestedCategory?.description || "Browse the menu items in this category.";
+      const routeHeading = document.querySelector(".route-catalog-heading");
+      if (routeHeading && !routeHeading.querySelector(".category-back-link")) {
+        const back = document.createElement("a");
+        back.className = "category-back-link";
+        back.href = "/categories";
+        back.textContent = "All categories";
+        routeHeading.append(back);
+      }
     }
     renderCategories();
+    renderCategoryFilters();
     renderProducts();
   }
 
-  // Category cards use real /categories routes and allow browser navigation.
+  // Category cards and filter chips navigate to real /categories/:slug routes.
 
   productGrid.addEventListener("click", (event) => {
     const favourite = event.target.closest("[data-favourite]");
@@ -282,16 +310,8 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   });
 
   if (searchInput) searchInput.addEventListener("input", renderProducts);
-  const openBagForCustomer = async (event) => {
-    if (event?.currentTarget) lastCartTrigger = event.currentTarget;
-    if (!supabaseConfigured || !supabase) { openCart(); return; }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { window.location.assign("/account/login?next=" + encodeURIComponent("/#menu")); return; }
-    openCart();
-  };
-  if (cartOpen) cartOpen.addEventListener("click", openBagForCustomer);
-  // The Cart tab navigates to /cart; checkout requires customer sign-in when needed.
-  if (cartClose) cartClose.addEventListener("click", closeCart);
+  // The Cart tab opens the public /cart page; login is required only when submitting an order.
+    if (cartClose) cartClose.addEventListener("click", closeCart);
   if (cartBackdrop) cartBackdrop.addEventListener("click", closeCart);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !cartDrawer.hidden) closeCart();
@@ -333,31 +353,10 @@ import { supabase, supabaseConfigured } from "./supabase.js";
       checkoutStatus.textContent = "Add at least one menu item before sending your order request.";
       return;
     }
-    if (!supabaseConfigured || !supabase) {
-      checkoutStatus.textContent = "Online order saving is not configured. Please contact Step Town on WhatsApp.";
-      return;
-    }
     if (!checkoutForm.reportValidity()) return;
 
-    const { data: { user: customer } } = await supabase.auth.getUser();
-    if (!customer) {
-      window.location.assign("/account/login?next=" + encodeURIComponent("/#menu"));
-      return;
-    }
     const formData = new FormData(checkoutForm);
-    const allPriced = cart.every((item) => item.price != null && Number.isFinite(item.price));
-    const total = allPriced ? cart.reduce((sum, item) => sum + item.price * item.quantity, 0) : null;
-    const items = cart.map((item) => ({
-      product_id: item.product_id,
-      name: item.name,
-      category: item.category_name,
-      quantity: item.quantity,
-      unit_price: item.price,
-      line_total: item.price == null ? null : item.price * item.quantity
-    }));
-
     const order = {
-      customer_id: customer.id,
       customer_name: String(formData.get("customer_name") || "").trim(),
       customer_phone: String(formData.get("customer_phone") || "").trim(),
       customer_email: String(formData.get("customer_email") || "").trim() || null,
@@ -365,58 +364,61 @@ import { supabase, supabaseConfigured } from "./supabase.js";
       requested_date: String(formData.get("requested_date") || "") || null,
       delivery_location: String(formData.get("delivery_location") || "").trim() || null,
       notes: String(formData.get("notes") || "").trim() || null,
-      items,
-      estimated_total: total,
-      price_needs_confirmation: total == null
+      items: cart.map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity
+      }))
     };
 
     const originalText = checkoutSubmit.innerHTML;
     checkoutSubmit.disabled = true;
     checkoutSubmit.textContent = "Saving your request…";
 
-    let saveError = null;
     try {
-      const result = await supabase.from("store_orders").insert(order).select("id,order_number").single();
-      saveError = result.error;
-      if (!saveError && result.data?.id) {
-        const { error: pushError } = await supabase.functions.invoke("send-order-push", { body: { order_id: result.data.id } });
-        if (pushError) console.warn("Order saved; push notification could not be sent:", pushError.message);
+      const response = await apiFetch("/api/orders", { method: "POST", body: order });
+      const payload = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        window.location.assign("/login?next=" + encodeURIComponent("/cart"));
+        return;
       }
+      if (!response.ok) {
+        checkoutStatus.textContent = payload.error || "We couldn't save your request. Please check your details and try again.";
+        return;
+      }
+
+      const savedOrder = payload.order || {};
+      const finalTotal = savedOrder.estimated_total == null ? null : Number(savedOrder.estimated_total);
+      const messageLines = [
+        "Hello Step Town, I have submitted an order request on your website.",
+        "",
+        "Order: " + (savedOrder.order_number || "New order request"),
+        "Name: " + order.customer_name,
+        "Phone: " + order.customer_phone,
+        "Fulfilment: " + order.fulfillment,
+        order.requested_date ? "Requested date: " + order.requested_date : "",
+        order.delivery_location ? "Location: " + order.delivery_location : "",
+        "",
+        "Order items:",
+        ...cart.map((item) => "- " + item.name + " × " + item.quantity),
+        finalTotal == null ? "Total: To be confirmed by Step Town" : "Estimated total: " + money(finalTotal),
+        order.notes ? "Notes: " + order.notes : ""
+      ].filter(Boolean);
+      const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(messageLines.join("\n"));
+
+      cart = [];
+      saveCart();
+      renderCart();
+      checkoutForm.reset();
+      if (fulfillmentInput && locationInput) locationInput.required = false;
+      checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>';
     } catch (error) {
-      saveError = error;
+      console.error("Step Town order request failed:", error);
+      checkoutStatus.textContent = "We couldn't reach the order service. Please try again or contact Step Town on WhatsApp.";
+    } finally {
+      checkoutSubmit.disabled = false;
+      checkoutSubmit.innerHTML = originalText;
     }
-
-    checkoutSubmit.disabled = false;
-    checkoutSubmit.innerHTML = originalText;
-
-    if (saveError) {
-      console.error("Step Town order request could not be saved:", saveError);
-      checkoutStatus.textContent = "We couldn't save your request. Please check your connection or contact us on WhatsApp.";
-      return;
-    }
-
-    const messageLines = [
-      "Hello Step Town, I have submitted an order request on your website.",
-      "",
-      "Name: " + order.customer_name,
-      "Phone: " + order.customer_phone,
-      "Fulfilment: " + order.fulfillment,
-      order.requested_date ? "Requested date: " + order.requested_date : "",
-      order.delivery_location ? "Location: " + order.delivery_location : "",
-      "",
-      "Order items:",
-      ...cart.map((item) => "- " + item.name + " × " + item.quantity + (item.price == null ? " (quote requested)" : " — " + money(item.price * item.quantity))),
-      total == null ? "Total: To be confirmed by Step Town" : "Estimated total: " + money(total),
-      order.notes ? "Notes: " + order.notes : ""
-    ].filter(Boolean);
-    const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(messageLines.join("\n"));
-
-    cart = [];
-    saveCart();
-    renderCart();
-    checkoutForm.reset();
-    if (fulfillmentInput && locationInput) locationInput.required = false;
-    checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener">Continue on WhatsApp </a>';
   });
 
   renderCart();

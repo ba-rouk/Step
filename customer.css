@@ -5,3 +5,129 @@
   body.route-profile .customer-auth{min-height:calc(100svh - 63px);padding-bottom:30px;}
   body.route-profile .mobile-dock{display:grid;}
 }
+
+
+/* Customer authentication and account routes share the main storefront shell. */
+body.route-customer-page {
+  min-height: 100vh;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  background: #1d202d;
+}
+body.route-customer-page > main:not(#customer-account),
+body.route-customer-page > footer { display: none !important; }
+body.route-customer-page > main#customer-account {
+  display: grid;
+  min-height: calc(100svh - 78px);
+  align-content: center;
+  padding: 26px 16px calc(88px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(ellipse at 12% 14%,rgba(212,124,77,.2),transparent 36%),
+    radial-gradient(ellipse at 88% 90%,rgba(81,55,100,.3),transparent 40%),
+    linear-gradient(145deg,#171923,#242035 55%,#182b34);
+}
+body.route-customer-page .customer-auth {
+  min-height: auto;
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 24px;
+  padding: 28px 0;
+}
+body.route-customer-page .customer-brand {
+  position: static;
+  width: min(450px,100%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  color: #fff;
+  font-size: 12px;
+}
+body.route-customer-page .customer-brand img {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border: 1px solid rgba(255,255,255,.55);
+  border-radius: 50%;
+  object-fit: contain;
+  background: #fff;
+}
+body.route-customer-page .customer-brand span { display: grid; gap: 3px; }
+body.route-customer-page .customer-brand b { letter-spacing: .16em; }
+body.route-customer-page .customer-brand small { color: rgba(255,255,255,.66); font-size: 8px; letter-spacing: .11em; }
+body.route-customer-page .customer-auth-card {
+  width: min(450px,100%);
+  color: #fff;
+  background: linear-gradient(145deg,rgba(255,255,255,.16),rgba(255,255,255,.065));
+  border: 1px solid rgba(255,255,255,.22);
+  box-shadow: 0 26px 75px rgba(0,0,0,.3);
+  -webkit-backdrop-filter: blur(25px) saturate(135%);
+  backdrop-filter: blur(25px) saturate(135%);
+}
+.customer-auth-card .customer-intro { color: rgba(255,255,255,.75); }
+.customer-field { display: grid; gap: 7px; color: #f5e6dc; font-size: 12px; font-weight: 650; }
+.customer-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 13px 14px;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 12px;
+  outline: 0;
+  background: rgba(7,10,18,.24);
+  font: inherit;
+  font-size: 14px;
+}
+.customer-field input::placeholder { color: rgba(255,255,255,.46); }
+.customer-field input:focus { border-color: #ffb27a; box-shadow: 0 0 0 3px rgba(255,178,122,.15); }
+.customer-password-wrap { position: relative; display: flex; align-items: center; }
+.customer-password-wrap input { padding-right: 48px; }
+.customer-password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+  transform: translateY(-50%);
+  color: rgba(255,255,255,.76);
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  cursor: pointer;
+}
+.customer-password-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.customer-password-toggle.is-visible { color: #ffb27a; background: rgba(255,178,122,.12); }
+.customer-auth-card .customer-submit { min-height: 46px; margin-top: 3px; }
+.customer-divider { display: flex; align-items: center; gap: 12px; margin: 17px 0 13px; color: rgba(255,255,255,.45); font-size: 9px; font-weight: 700; letter-spacing: .18em; }
+.customer-divider::before,.customer-divider::after { content:""; height:1px; flex:1; background:rgba(255,255,255,.16); }
+.customer-auth-card .customer-google { min-height: 44px; margin: 0; border-radius: 999px; color: #fff; background: rgba(255,255,255,.08); text-decoration: none; }
+.customer-google-mark { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; color: #fff; background: #4285f4; font-weight: 800; }
+.customer-auth-card .customer-note { color: rgba(255,255,255,.66); }
+.customer-auth-card .customer-note a { color: #ffbd8d; font-weight: 700; }
+.customer-auth-card .customer-error { color: #ffc1b5; margin: 0; }
+.customer-profile-details { display: grid; gap: 11px; margin: 24px 0; }
+.customer-profile-details > div { display: grid; gap: 5px; padding: 14px; border: 1px solid rgba(255,255,255,.15); border-radius: 14px; background: rgba(255,255,255,.07); }
+.customer-profile-details small { color: rgba(255,255,255,.55); font-size: 9px; font-weight: 800; letter-spacing: .14em; }
+.customer-profile-details strong { color: #fff; overflow-wrap: anywhere; }
+.customer-profile-actions { display: grid; gap: 10px; }
+.customer-secondary { min-height: 44px; display: flex; justify-content: center; align-items: center; padding: 12px 16px; color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.07); font: inherit; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.customer-order-list { display: grid; gap: 11px; margin: 24px 0; }
+.customer-order-card { display: grid; gap: 8px; padding: 15px; border: 1px solid rgba(255,255,255,.16); border-radius: 15px; background: rgba(255,255,255,.07); }
+.customer-order-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.customer-order-top strong { color: #fff; font-size: 13px; }
+.customer-order-top span { color: #ffc18d; font-size: 10px; font-weight: 800; text-transform: capitalize; }
+.customer-order-card small { color: rgba(255,255,255,.6); }
+.customer-order-card p { color: rgba(255,255,255,.8); margin: 0; font-size: 12px; line-height: 1.5; }
+.customer-order-card > b { color: #ffc18d; font-size: 13px; }
+.customer-empty-orders { padding: 24px; text-align: center; border: 1px solid rgba(255,255,255,.16); border-radius: 15px; background: rgba(255,255,255,.07); }
+.customer-empty-orders strong { color: #fff; }
+.customer-empty-orders p { color: rgba(255,255,255,.68); font-size: 12px; }
+.customer-empty-orders a { color: #ffbd8d; font-size: 12px; font-weight: 700; }
+@media(max-width:430px) {
+  body.route-customer-page > main#customer-account { padding-inline: 13px; }
+  body.route-customer-page .customer-auth { gap: 16px; }
+  body.route-customer-page .customer-auth-card { padding: 23px 19px; border-radius: 21px; }
+}

@@ -56,7 +56,7 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
     : currentPath.startsWith("/categories") ? "categories"
     : currentPath.startsWith("/gallery") ? "gallery"
     : currentPath.startsWith("/cart") ? "cart"
-    : currentPath.startsWith("/profile") || currentPath.startsWith("/account") ? "profile"
+    : currentPath.startsWith("/profile") || currentPath.startsWith("/account") || currentPath === "/login" || currentPath === "/register" ? "profile"
     : "";
   document.querySelectorAll(".mobile-dock [data-dock-route]").forEach((link) => {
     const active = link.dataset.dockRoute === activeDockRoute;
