@@ -44,7 +44,7 @@ Vite exposes variables prefixed with `VITE_` to browser code. The publishable ke
 ## Supabase
 Project: `Step` (`tyuousqmpexrwmnmvxtd`).
 
-Migration `create_step_town_enquiries` creates `public.enquiries`, enables RLS, grants anonymous visitors insert access only to the form's permitted columns, and creates no public read, update or delete policy. The site can save enquiries without exposing the enquiry list to visitors.
+Migrations `create_step_town_enquiries` and `allow_public_enquiry_insert` create `public.enquiries`, enable RLS, and allow anonymous inserts only when the new enquiry has the `new` status. There is no public read, update or delete policy, so visitors cannot list or manage stored enquiries.
 
 The enquiry form validates required fields, saves the enquiry to Supabase, then offers an optional WhatsApp continuation. A successful database insert is confirmed before the success message appears.
 
