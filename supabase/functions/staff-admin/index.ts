@@ -95,6 +95,38 @@ Deno.serve(async (req: Request) => {
     return json({ staff: data || [] }, 200, origin);
   }
 
+  if (action === "audit") {
+    const limit = Math.min(300, Math.max(1, Number(body.limit) || 150));
+    const { data, error } = await admin.from("audit_log")
+      .select("id,actor_id,actor_role,action,entity_type,entity_id,details,created_at")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) return json({ error: "Could not load the audit log." }, 500, origin);
+    const actorIds = [...new Set((data || []).map((row: any) => row.actor_id).filter(Boolean))];
+    const names = new Map<string, string>();
+    if (actorIds.length) {
+      const { data: profiles } = await admin.from("staff_profiles")
+        .select("user_id,full_name,email").in("user_id", actorIds);
+      for (const profile of profiles || []) names.set(profile.user_id, profile.full_name || profile.email);
+    }
+    return json({
+      entries: (data || []).map((row: any) => ({ ...row, actor_name: names.get(row.actor_id) || "Customer / system" }))
+    }, 200, origin);
+  }
+
+  if (action === "team-activity") {
+    const { data: cashiers } = await admin.from("staff_profiles")
+      .select("user_id,full_name").eq("role", "cashier").eq("is_active", true);
+    const cashierIds = (cashiers || []).map((p: any) => p.user_id);
+    if (!cashierIds.length) return json({ entries: [] }, 200, origin);
+    const { data, error } = await admin.from("audit_log")
+      .select("id,actor_id,actor_role,action,entity_type,entity_id,details,created_at")
+      .in("actor_id", cashierIds).order("created_at", { ascending: false }).limit(150);
+    if (error) return json({ error: "Could not load Cashier activity." }, 500, origin);
+    const nameMap = new Map((cashiers || []).map((p: any) => [p.user_id, p.full_name]));
+    return json({ entries: (data || []).map((row: any) => ({ ...row, actor_name: nameMap.get(row.actor_id) || "Cashier" })) }, 200, origin);
+  }
+
   if (action === "create") {
     const email = clean(body.email, 254).toLowerCase();
     const fullName = clean(body.full_name, 120);
