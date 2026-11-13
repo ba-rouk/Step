@@ -1,4 +1,5 @@
 import { supabase, supabaseConfigured } from "./supabase.js";
+import { apiFetch } from "./api.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -6,6 +7,7 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   const catalogStatus = document.querySelector("#catalog-status");
   const catalogCount = document.querySelector("#catalog-count");
   const productHeading = document.querySelector("#product-heading");
+  const categoryFilterRow = document.querySelector("#category-filter-row");
   const searchInput = document.querySelector("#menu-search");
   const cartOpen = null;
   const mobileCartOpen = document.querySelector(".mobile-dock-cart");
@@ -97,15 +99,29 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     return category ? category.name : "Step Town";
   }
 
+  function categorySlugFor(category) {
+    return String(category.slug || category.name || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+
   function renderCategories() {
     const allCard = '<a class="category-card category-card-all' + (selectedCategory === "all" ? " is-active" : "") + '" href="/categories"><span class="category-card-kicker">THE FULL MENU</span><strong>Everything</strong><span class="category-card-action">View all menu</span></a>';
     const cards = categories.map((category) => {
       const image = safeImageUrl(category.cover_image_url);
-      return '<a class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" href="/categories/' + encodeURIComponent(category.id) + '">' +
+      return '<a class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '">' +
         (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : "") +
         '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(category.name) + '</strong><span class="category-card-action">Browse category</span></span></a>';
     }).join("");
     categoryShowcase.innerHTML = allCard + cards;
+  }
+
+  function renderCategoryFilters() {
+    if (!categoryFilterRow || !categoryRoute || !categorySlug) return;
+    const all = '<a href="/categories">All categories</a>';
+    const links = categories.map((category) => {
+      const active = category.id === selectedCategory;
+      return '<a href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(category.name) + '</a>';
+    }).join("");
+    categoryFilterRow.innerHTML = all + links;
   }
 
   function visibleProducts() {
@@ -250,19 +266,31 @@ import { supabase, supabaseConfigured } from "./supabase.js";
     products = productResult.data || [];
     if (categorySlug) {
       const requestedCategory = categories.find((item) =>
+        item.slug === categorySlug ||
         item.id === categorySlug ||
-        String(item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") === categorySlug.toLowerCase()
+        categorySlugFor(item) === categorySlug.toLowerCase()
       );
-      selectedCategory = requestedCategory ? requestedCategory.id : categorySlug;
-      const selectedTitle = requestedCategory?.name || "Category";
+      selectedCategory = requestedCategory ? requestedCategory.id : "__missing_category__";
+      document.body.classList.add("route-category-detail");
       const routeTitle = document.querySelector(".route-catalog-heading h1");
-      if (routeTitle) routeTitle.textContent = selectedTitle;
+      if (routeTitle) routeTitle.textContent = requestedCategory?.name || "Category not found";
+      const routeIntro = document.querySelector(".route-catalog-heading > p:not(.eyebrow)");
+      if (routeIntro) routeIntro.textContent = requestedCategory?.description || "Browse the menu items in this category.";
+      const routeHeading = document.querySelector(".route-catalog-heading");
+      if (routeHeading && !routeHeading.querySelector(".category-back-link")) {
+        const back = document.createElement("a");
+        back.className = "category-back-link";
+        back.href = "/categories";
+        back.textContent = "All categories";
+        routeHeading.append(back);
+      }
     }
     renderCategories();
+    renderCategoryFilters();
     renderProducts();
   }
 
-  // Category cards use real /categories routes and allow browser navigation.
+  // Category cards and filter chips navigate to real /categories/:slug routes.
 
   productGrid.addEventListener("click", (event) => {
     const favourite = event.target.closest("[data-favourite]");
@@ -282,16 +310,8 @@ import { supabase, supabaseConfigured } from "./supabase.js";
   });
 
   if (searchInput) searchInput.addEventListener("input", renderProducts);
-  const openBagForCustomer = async (event) => {
-    if (event?.currentTarget) lastCartTrigger = event.currentTarget;
-    if (!supabaseConfigured || !supabase) { openCart(); return; }
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { window.location.assign("/account/login?next=" + encodeURIComponent("/#menu")); return; }
-    openCart();
-  };
-  if (cartOpen) cartOpen.addEventListener("click", openBagForCustomer);
-  // The Cart tab navigates to /cart; checkout requires customer sign-in when needed.
-  if (cartClose) cartClose.addEventListener("click", closeCart);
+  // The Cart tab opens the public /cart page; login is required only when submitting an order.
+    if (cartClose) cartClose.addEventListener("click", closeCart);
   if (cartBackdrop) cartBackdrop.addEventListener("click", closeCart);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !cartDrawer.hidden) closeCart();
