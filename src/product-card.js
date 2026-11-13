@@ -1,0 +1,89 @@
+const escapeHtml = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, (character) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+})[character]);
+
+function safeImageUrl(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(String(value), window.location.origin);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : "";
+  } catch { return ""; }
+}
+
+export function productSlug(product) {
+  return String(product.slug || product.name || product.id).toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || product.id;
+}
+
+function productImages(product) {
+  const rows = Array.isArray(product.images) && product.images.length
+    ? product.images
+    : (Array.isArray(product.image_urls) ? product.image_urls : [product.image_url]).filter(Boolean).map(url => ({url}));
+  const seen = new Set();
+  return rows.filter(image => {
+    const url = safeImageUrl(image && image.url);
+    if (!url || seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
+}
+
+function formatPrice(value) {
+  if (value == null || value === "") return "Request a quote";
+  const amount = Number(value);
+  return Number.isFinite(amount)
+    ? new Intl.NumberFormat("en-RW", {style:"currency",currency:"RWF",maximumFractionDigits:0}).format(amount)
+    : "Request a quote";
+}
+
+/** The single product template shared by all public and account product lists. */
+export function renderProductCard(product, options = {}) {
+  const categoryName = options.categoryName || product.category_name || "Menu";
+  const liked = Boolean(options.liked);
+  const detail = Boolean(options.detail);
+  const eager = Boolean(options.eager);
+  const extraClass = options.extraClass ? " " + escapeHtml(options.extraClass) : "";
+  const href = "/product/" + encodeURIComponent(productSlug(product));
+  const images = productImages(product);
+  const slides = images.length ? images.map((image,index) => {
+    const src = safeImageUrl(image.url);
+    const variants = image.variants && typeof image.variants === "object" ? image.variants : {};
+    const srcset = Object.entries(variants)
+      .filter(([width,url]) => Number.isInteger(Number(width)) && safeImageUrl(url))
+      .map(([width,url]) => safeImageUrl(url) + " " + Number(width) + "w").join(", ");
+    const loading = eager && index === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"';
+    return '<img src="' + escapeHtml(src) + '"' +
+      (srcset ? ' srcset="' + escapeHtml(srcset) + '" sizes="(max-width:639px) calc(100vw - 30px), (max-width:1023px) 50vw, 33vw"' : "") +
+      ' alt="' + escapeHtml(image.alt_text || product.name + " — photo " + (index+1)) + '"' +
+      ' width="800" height="1000" ' + loading + ' decoding="async">';
+  }).join("") : '<div class="product-image-placeholder" role="img" aria-label="' + escapeHtml(product.name) + ' image unavailable">STEP TOWN</div>';
+  const dots = images.length > 1
+    ? '<div class="product-dots" role="group" aria-label="Choose product photo">' +
+      images.map((image,i) => '<button type="button" data-dot="' + i + '" aria-label="Show photo ' + (i+1) + '" aria-pressed="' + (i===0) + '" class="' + (i===0 ? "is-active" : "") + '"></button>').join("") +
+      '</div>'
+    : "";
+  const price = formatPrice(product.price);
+  return '<article class="product-card' + (detail ? " product-card-detail" : "") + extraClass + '" data-product-card="' + escapeHtml(product.id) + '" data-product-id="' + escapeHtml(product.id) + '">' +
+    '<div class="product-image">' +
+      '<a class="product-open product-image-link" href="' + href + '" aria-label="View ' + escapeHtml(product.name) + '">' +
+        '<div class="product-image-strip" tabindex="0" role="region" aria-label="' + escapeHtml(product.name) + ' photos">' + slides + '</div>' +
+      '</a>' +
+      '<button class="product-image-action product-cart-action" type="button" data-add-product="' + escapeHtml(product.id) + '" aria-label="Add to cart" title="Add to cart">' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H6"></path><circle cx="10" cy="20" r="1.3"></circle><circle cx="18" cy="20" r="1.3"></circle></svg>' +
+      '</button>' +
+      '<button class="product-image-action product-favourite' + (liked ? " is-saved" : "") + '" type="button" data-favourite="' + escapeHtml(product.id) + '" aria-label="' + (liked ? "Remove from" : "Add to") + ' favourites" aria-pressed="' + liked + '" title="' + (liked ? "Remove from favourites" : "Save to favourites") + '">' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.8 8.8c0 5.2-8.8 10.2-8.8 10.2S3.2 14 3.2 8.8A4.7 4.7 0 0 1 12 6.1a4.7 4.7 0 0 1 8.8 2.7Z"></path></svg>' +
+      '</button>' +
+      '<div class="product-image-bottom"><span class="product-category" title="' + escapeHtml(categoryName) + '">' + escapeHtml(categoryName) + '</span>' + dots + '</div>' +
+    '</div>' +
+    '<div class="product-card-copy">' +
+      '<a class="product-open product-copy-link" href="' + href + '"><h4 title="' + escapeHtml(product.name) + '">' + escapeHtml(product.name) + '</h4></a>' +
+      '<a class="product-open product-description-link" href="' + href + '"><p class="product-description' + (detail ? " is-expanded" : "") + '">' + escapeHtml(product.description || "Prepared with care by Step Town.") + '</p></a>' +
+      '<div class="product-card-bottom">' +
+        (detail ? '<strong class="product-price">' + escapeHtml(price) + '</strong>' : '<a class="product-open product-price-link" href="' + href + '"><strong class="product-price">' + escapeHtml(price) + '</strong></a>') +
+        (detail ? '<button class="product-detail-add" type="button" data-add-product="' + escapeHtml(product.id) + '">Add to cart</button>' : "") +
+      '</div>' +
+      (detail ? '<a class="product-back-link" href="/categories">Back to menu</a>' : "") +
+    '</div>' +
+  '</article>';
+}

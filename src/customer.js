@@ -1,5 +1,7 @@
 import "../customer.css";
 import { apiFetch } from "./api.js";
+import { renderProductCard } from "./product-card.js";
+import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const isAuthRoute = ["/login","/register","/profile","/profile/orders"].includes(route);
@@ -149,14 +151,14 @@ if (isAuthRoute) {
     const user = payload.user || {};
     const name = profile.full_name || user.user_metadata?.full_name || user.user_metadata?.name || "Step Town customer";
     const phone = profile.phone || user.phone || "Not provided";
-    const favouritesMarkup = favouriteProducts.length ? favouriteProducts.map(product => {
-      const images = product.images?.length ? product.images : (product.image_urls || [product.image_url]).filter(Boolean).map(url => ({url}));
-      const price = product.price == null ? "Request a quote" : new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(product.price));
-      const slug = String(product.name || product.id).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-      const slides = images.map((image,index) => '<img src="' + escapeHtml(image.url) + '" alt="' + escapeHtml(image.alt_text || product.name + " photo " + (index+1)) + '" width="800" height="600" ' + (index ? 'loading="lazy"' : 'loading="eager"') + ' decoding="async">').join("");
-      const dots = images.length>1 ? '<div class="product-dots">' + images.map((_,index)=>'<button type="button" data-favourite-dot="' + index + '" aria-label="Show photo ' + (index+1) + '" aria-pressed="' + (!index) + '" class="' + (!index?'is-active':'') + '"></button>').join("") + '</div>' : "";
-      return '<article class="product-card customer-favourite-card" data-fav-card="' + escapeHtml(product.id) + '"><div class="product-image"><a class="product-image-link" href="/product/' + encodeURIComponent(slug) + '"><div class="product-image-strip" tabindex="0">' + (slides || '<span class="product-image-placeholder">STEP TOWN</span>') + '</div></a><button class="product-image-action product-cart-action" type="button" data-fav-cart="' + escapeHtml(product.id) + '" aria-label="Add to cart"><span aria-hidden="true">🛒</span><span class="product-cart-plus">+</span></button><button class="product-image-action product-favourite is-saved" type="button" data-fav-remove="' + escapeHtml(product.id) + '" aria-label="Remove ' + escapeHtml(product.name) + ' from favourites" aria-pressed="true">♥</button><span class="product-category">' + escapeHtml(product.category_name || "Menu") + '</span>' + dots + '</div><div class="product-card-copy"><a href="/product/' + encodeURIComponent(slug) + '"><h4>' + escapeHtml(product.name) + '</h4></a><p class="product-description">' + escapeHtml(product.description || "Prepared with care by Step Town.") + '</p><div class="product-card-bottom"><strong>' + escapeHtml(price) + '</strong></div></div></article>';
-    }).join("") : '<p class="customer-empty-favourites">You have not saved any menu items yet. Tap the heart on a product to add it here.</p>';
+    const favouritesMarkup = favouriteProducts.length
+      ? favouriteProducts.map((product,index) => renderProductCard(product, {
+          categoryName: product.category_name || "Menu",
+          liked: true,
+          eager: index === 0,
+          extraClass: "customer-favourite-card"
+        })).join("")
+      : '<p class="customer-empty-favourites">You have not saved any menu items yet. Tap the heart on a product to add it here.</p>';
     shell(
       '<h1>Your profile.</h1><p class="customer-intro">Your Step Town account and order details.</p>' +
       '<div class="customer-profile-details"><div><small>FULL NAME</small><strong>' + escapeHtml(name) + '</strong></div><div><small>PHONE NUMBER</small><strong>' + escapeHtml(phone) + '</strong></div></div>' +
@@ -166,55 +168,51 @@ if (isAuthRoute) {
       "MY STEP TOWN PROFILE"
     );
     const favouritesGrid = app.querySelector(".customer-favourites-grid");
-    favouritesGrid?.addEventListener("scroll", event => {
-      const strip=event.target.closest(".product-image-strip");
-      if(!strip)return;
-      let active=0,min=Infinity;
-      [...strip.querySelectorAll("img")].forEach((img,index)=>{
-        const distance=Math.abs(img.getBoundingClientRect().left-strip.getBoundingClientRect().left);
-        if(distance<min){min=distance;active=index;}
-      });
-      strip.closest(".product-image")?.querySelectorAll("[data-favourite-dot]").forEach((dot,index)=>{
-        dot.classList.toggle("is-active",index===active);
-        dot.setAttribute("aria-pressed",String(index===active));
-      });
-    },true);
-    favouritesGrid?.addEventListener("keydown",event=>{
-      const strip=event.target.closest(".product-image-strip");
-      if(!strip||!["ArrowLeft","ArrowRight"].includes(event.key))return;
-      event.preventDefault();
-      strip.scrollBy({left:(event.key==="ArrowRight"?1:-1)*strip.clientWidth,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
-    });
-    app.querySelector(".customer-favourites-grid")?.addEventListener("click", async event => {
-      const dot=event.target.closest("[data-favourite-dot]");
-      if(dot){
-        const strip=dot.closest(".product-image").querySelector(".product-image-strip");
-        strip?.querySelectorAll("img")[Number(dot.dataset.favouriteDot)]?.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"nearest",inline:"center"});
+    bindProductGallery(favouritesGrid);
+    favouritesGrid?.addEventListener("click", async (event) => {
+      const remove = event.target.closest("[data-favourite]");
+      if (remove) {
+        const ids = JSON.parse(localStorage.getItem("step-town-favourites-v1") || "[]")
+          .filter((id) => id !== remove.dataset.favourite);
+        localStorage.setItem("step-town-favourites-v1", JSON.stringify(ids));
+        remove.classList.remove("is-saved");
+        remove.setAttribute("aria-pressed", "false");
+        remove.closest("[data-product-card]")?.remove();
+        if (!favouritesGrid.querySelector("[data-product-card]")) {
+          favouritesGrid.innerHTML = '<p class="customer-empty-favourites">You have not saved any menu items yet. Tap the heart on a product to add it here.</p>';
+        }
+        try {
+          await apiFetch("/api/profile/favourites", {method:"PUT",body:{product_ids:ids}});
+        } catch (error) {
+          console.warn("Favourite removal sync deferred:", error.message);
+        }
         return;
       }
-      const remove=event.target.closest("[data-fav-remove]");
-      if(remove){
-        const ids=JSON.parse(localStorage.getItem("step-town-favourites-v1")||"[]").filter(id=>id!==remove.dataset.favRemove);
-        localStorage.setItem("step-town-favourites-v1",JSON.stringify(ids));
-        await apiFetch("/api/profile/favourites",{method:"PUT",body:{product_ids:ids}});
-        remove.closest("[data-fav-card]")?.remove();
-        return;
+      const add = event.target.closest("[data-add-product]");
+      if (!add) return;
+      const product = favouriteProducts.find(item => item.id === add.dataset.addProduct);
+      if (!product) return;
+      let cart = [];
+      try { cart = JSON.parse(localStorage.getItem("step-town-cart-v1") || "[]"); } catch {}
+      const existing = cart.find(item => item.product_id === product.id);
+      if (existing) existing.quantity = Math.min(20, existing.quantity + 1);
+      else cart.push({
+        product_id: product.id,
+        name: product.name,
+        category_name: product.category_name || "Menu",
+        price: product.price == null ? null : Number(product.price),
+        image_url: product.images?.[0]?.url || product.image_urls?.[0] || product.image_url || "",
+        quantity: 1
+      });
+      localStorage.setItem("step-town-cart-v1", JSON.stringify(cart));
+      const count = cart.reduce((sum,item) => sum + Number(item.quantity || 0), 0);
+      const badge = document.querySelector("#mobile-cart-count");
+      if (badge) {
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.hidden = count === 0;
       }
-      const add=event.target.closest("[data-fav-cart]");
-      if(add){
-        const product=favouriteProducts.find(item=>item.id===add.dataset.favCart);
-        if(!product)return;
-        let cart=[];try{cart=JSON.parse(localStorage.getItem("step-town-cart-v1")||"[]");}catch{}
-        const existing=cart.find(item=>item.product_id===product.id);
-        if(existing)existing.quantity=Math.min(20,existing.quantity+1);
-        else cart.push({product_id:product.id,name:product.name,category_name:product.category_name||"Menu",price:product.price==null?null:Number(product.price),image_url:product.images?.[0]?.url||product.image_url||"",quantity:1});
-        localStorage.setItem("step-town-cart-v1",JSON.stringify(cart));
-        const count=cart.reduce((sum,item)=>sum+Number(item.quantity||0),0);
-        const badge=document.querySelector("#mobile-cart-count");
-        if(badge){badge.textContent=count>99?"99+":String(count);badge.hidden=count===0;}
-        add.classList.add("is-added");
-        setTimeout(()=>add.classList.remove("is-added"),1000);
-      }
+      flashCartButton(add);
+      showProductToast("Added to your cart");
     });
     app.querySelector("#customer-signout").addEventListener("click", async () => {
       const button = app.querySelector("#customer-signout");
