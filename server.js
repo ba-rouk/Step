@@ -32,7 +32,7 @@ function cookies(req) {
 }
 function secure(req) { return PROD || req.headers["x-forwarded-proto"]==="https"; }
 function cookie(name,value,req,opts={}) {
-  const p=[name+"="+encodeURIComponent(value),"Path=/","SameSite=Lax"];
+  const p=[name+"="+encodeURIComponent(value),"Path=/","SameSite="+(opts.sameSite||"Lax")];
   if(opts.httpOnly) p.push("HttpOnly");
   if(secure(req)) p.push("Secure");
   if(opts.maxAge!==undefined) p.push("Max-Age="+opts.maxAge);
@@ -223,7 +223,7 @@ async function api(req,res,url) {
   const route=url.pathname;
   if(req.method==="GET"&&route==="/api/csrf"){
     const token=randomBytes(32).toString("base64url");
-    appendCookie(res,cookie(CSRF_COOKIE,token,req,{httpOnly:false,maxAge:28800}));
+    appendCookie(res,cookie(CSRF_COOKIE,token,req,{httpOnly:false,maxAge:28800,sameSite:"Strict"}));
     return sendJson(res,200,{csrfToken:token});
   }
   if(["POST","PUT","PATCH","DELETE"].includes(req.method)&&route.startsWith("/api/")&&!csrfValid(req))
