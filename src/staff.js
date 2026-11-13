@@ -127,8 +127,24 @@ if (!path.startsWith("/staff")) {
     app.querySelector("#export-csv")?.addEventListener("click",()=>{const lines=[["Order","Customer","Status","Total RWF","Created"],...(data||[]).map(o=>[o.order_number,o.customer_name,o.status,o.estimated_total,o.created_at])];const csv=lines.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));const a=document.createElement("a");a.href=url;a.download="step-town-sales-last-7-days.csv";a.click();URL.revokeObjectURL(url);});
   }
   async function teamPage(){
-    const {data,error}=await supabase.from("staff_profiles").select("full_name,email,role,is_active,reports_to,created_at").order("created_at");
-    shell("Team",'<section class="staff-panel"><h2>Staff accounts</h2><p class="staff-muted">Manager can review team roles here. Account creation, password resets and deactivation must be performed through a privileged server-side Admin function; they are intentionally not exposed from this browser-only page.</p>'+(error?errorPanel(error):'<div class="staff-table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Active</th></tr></thead><tbody>'+(data||[]).map(x=>'<tr><td>'+esc(x.full_name)+'</td><td>'+esc(x.email)+'</td><td>'+esc(roleTitle(x.role))+'</td><td>'+ (x.is_active?"Yes":"No")+'</td></tr>').join("")+'</tbody></table></div>')+'</section>');
+    const {data,error}=await supabase.from("staff_profiles").select("user_id,full_name,email,role,is_active,reports_to,created_at").order("created_at");
+    const accountants=(data||[]).filter(x=>x.role==="accountant"&&x.is_active);
+    shell("Team",'<section class="staff-panel"><h2>Create a staff account</h2><form id="team-create-form" class="staff-form-grid"><label>Full name<input name="full_name" required maxlength="100"></label><label>Email<input name="email" type="email" required></label><label>Role<select name="role"><option value="accountant">Accountant</option><option value="cashier">Cashier</option></select></label><label>Temporary password<input name="password" type="password" minlength="12" required></label><label id="reports-to-wrap" class="wide" hidden>Reports to<select name="reports_to"><option value="">Choose an Accountant</option>'+accountants.map(x=>'<option value="'+x.user_id+'">'+esc(x.full_name)+'</option>').join("")+'</select></label><button class="staff-primary">Create account</button></form><p id="team-message" class="staff-muted">New accounts are required to change their password on first sign-in.</p></section><section class="staff-panel"><h2>Staff accounts</h2>'+(error?errorPanel(error):'<div class="staff-table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Reports to</th><th>Active</th><th>Actions</th></tr></thead><tbody>'+(data||[]).map(x=>'<tr><td>'+esc(x.full_name)+'</td><td>'+esc(x.email)+'</td><td>'+esc(roleTitle(x.role))+'</td><td>'+esc((data||[]).find(y=>y.user_id===x.reports_to)?.full_name||"—")+'</td><td>'+ (x.is_active?"Yes":"No")+'</td><td>'+(x.role!=="manager"?'<button data-staff-action="reset" data-user="'+x.user_id+'">Reset password</button> <button data-staff-action="'+(x.is_active?"deactivate":"activate")+'" data-user="'+x.user_id+'">'+(x.is_active?"Deactivate":"Activate")+'</button>':"—")+'</td></tr>').join("")+'</tbody></table></div>')+'</section>');
+    const roleSelect=app.querySelector('[name="role"]'),reportsWrap=app.querySelector("#reports-to-wrap");
+    roleSelect?.addEventListener("change",()=>{reportsWrap.hidden=roleSelect.value!=="cashier";});
+    app.querySelector("#team-create-form")?.addEventListener("submit",async e=>{
+      e.preventDefault();const f=new FormData(e.currentTarget);const payload={action:"create",full_name:String(f.get("full_name")).trim(),email:String(f.get("email")).trim(),password:String(f.get("password")),role:String(f.get("role")),reports_to:String(f.get("reports_to")||"")};
+      const {data:result,error:fnError}=await supabase.functions.invoke("staff-admin",{body:payload});
+      app.querySelector("#team-message").textContent=fnError?.message||result?.error||"Account created. Share the temporary password securely.";
+      if(!fnError&&result?.ok)setTimeout(teamPage,700);
+    });
+    app.querySelectorAll("[data-staff-action]").forEach(button=>button.addEventListener("click",async()=>{
+      const action=button.dataset.staffAction;let body={action,user_id:button.dataset.user};
+      if(action==="reset"){const password=prompt("Enter a new temporary password (at least 12 characters):");if(!password)return;if(password.length<12){alert("Use at least 12 characters.");return;}body.password=password;}
+      if(action==="deactivate"&&!confirm("Deactivate this staff account?"))return;
+      const {data:result,error:fnError}=await supabase.functions.invoke("staff-admin",{body});
+      if(fnError||result?.error)alert(fnError?.message||result.error);else teamPage();
+    }));
   }
   async function auditPage(){
     const {data,error}=await supabase.from("audit_log").select("*").order("created_at",{ascending:false}).limit(300);
