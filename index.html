@@ -51,9 +51,8 @@
         <a href="#services">What we do</a>
         <a href="#gallery">The good stuff</a>
         <a href="#location">Find us</a>
-        <a class="nav-cta" href="#enquiry">Plan your event <span aria-hidden="true">↗</span></a>
+        <a class="nav-cta" href="#enquiry">Plan your event <span aria-hidden="true"></span></a>
       </nav>
-      <button class="cart-trigger" id="cart-open" type="button" aria-label="Open shopping bag">Bag <span id="cart-count">0</span></button>
     </div>
   </header>
 
@@ -65,8 +64,8 @@
         <h1>From the first<br>flame to the <em>last slice.</em></h1>
         <p class="hero-intro">Food has a way of bringing people closer. We bring together catering, barbecue and beautiful cakes for the moments you want to remember.</p>
         <div class="hero-actions">
-          <a class="button button-light" href="#menu">Browse the menu <span aria-hidden="true">↗</span></a>
-          <a class="text-link light-link" href="#services">Explore our services <span aria-hidden="true">↓</span></a>
+          <a class="button button-light" href="#menu">Browse the menu <span aria-hidden="true"></span></a>
+          <a class="text-link light-link" href="#services">Explore our services <span aria-hidden="true"></span></a>
         </div>
         <div class="hero-note"><span class="note-rule"></span><span>GOOD FOOD. THOUGHTFUL DETAILS. YOUR KIND OF CELEBRATION.</span></div>
       </div>
@@ -77,13 +76,19 @@
       <div class="page-shell intro-grid">
         <p class="eyebrow">A TABLE FOR EVERY OCCASION</p>
         <p class="intro-statement">One destination for <em>memorable food</em> — from generous event tables and smoky barbecue to cakes made for the big day.</p>
-        <a class="round-link" href="#services" aria-label="Explore what we do"><span>↓</span></a>
+        <a class="round-link" href="#services" aria-label="Explore what we do">Explore</a>
       </div>
     </section>
 
 
     <section class="storefront section-space" id="menu">
-      <div class="page-shell">
+      <div class="storefront-hero">
+      <video class="storefront-hero-video" autoplay muted loop playsinline preload="metadata" poster="/assets/hero-poster.jpg" aria-hidden="true">
+        <source data-src="/assets/hero.webm" type="video/webm">
+        <source data-src="/assets/hero.mp4" type="video/mp4">
+      </video>
+      <div class="storefront-hero-overlay" aria-hidden="true"></div>
+      <div class="page-shell storefront-hero-content">
         <div class="section-heading store-heading">
           <div>
             <p class="eyebrow"><span class="eyebrow-line"></span> THE STEP TOWN MENU</p>
@@ -93,8 +98,11 @@
         </div>
         <div class="store-intro-row">
           <p>EXPLORE BY CATEGORY</p>
-          <label class="menu-search" for="menu-search"><span aria-hidden="true">⌕</span><input id="menu-search" type="search" placeholder="Search the menu..." autocomplete="off"></label>
+          <label class="menu-search" for="menu-search"><svg class="menu-search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.5 4.5"></path></svg><input id="menu-search" type="search" placeholder="Search the menu..." autocomplete="off"></label>
         </div>
+      </div>
+    </div>
+    <div class="page-shell">
         <div class="category-showcase" id="category-showcase" aria-label="Menu categories">
           <p class="catalog-loading">Loading menu categories…</p>
         </div>
@@ -106,7 +114,7 @@
         <div class="product-grid" id="product-grid"></div>
         <div class="store-help">
           <div><strong>Planning food for a whole event?</strong><p>Tell us your date, location and guest count for a tailored catering or cake quote.</p></div>
-          <a class="button button-dark" href="#enquiry">Request an event quote <span aria-hidden="true">↗</span></a>
+          <a class="button button-dark" href="#enquiry">Request an event quote <span aria-hidden="true"></span></a>
         </div>
       </div>
     </section>
@@ -131,7 +139,7 @@
               <p class="card-kicker">THE SHARED TABLE</p>
               <h3>Event catering</h3>
               <p>Thoughtful food for weddings, family celebrations, private gatherings and the occasions that deserve a little more care.</p>
-              <a class="arrow-link" href="#enquiry">Plan your catering <span aria-hidden="true">↗</span></a>
+              <a class="arrow-link" href="#enquiry">Plan your catering <span aria-hidden="true"></span></a>
             </div>
           </article>
 
@@ -144,7 +152,7 @@
               <p class="card-kicker">OVER THE FIRE</p>
               <h3>Barbecue</h3>
               <p>Bring the warmth of the grill to your gathering with a barbecue experience made for sharing, conversation and second helpings.</p>
-              <a class="arrow-link" href="#enquiry">Talk barbecue with us <span aria-hidden="true">↗</span></a>
+              <a class="arrow-link" href="#enquiry">Talk barbecue with us <span aria-hidden="true"></span></a>
             </div>
           </article>
 
@@ -157,7 +165,7 @@
               <p class="card-kicker">THE SWEET FINALE</p>
               <h3>Wedding cakes</h3>
               <p>A centrepiece that feels like yours. Tell us the occasion, the look you love and the number of guests — then let's shape the idea together.</p>
-              <a class="arrow-link" href="#enquiry">Begin your cake enquiry <span aria-hidden="true">↗</span></a>
+              <a class="arrow-link" href="#enquiry">Begin your cake enquiry <span aria-hidden="true"></span></a>
             </div>
           </article>
         </div>
@@ -174,7 +182,7 @@
         <h2>It's not just<br>what's on the<br><em>plate.</em></h2>
         <p class="manifesto-lead">It's the feeling around the table.</p>
         <p>We believe the best celebrations are the ones where the host gets to enjoy the moment too. That's why we start by listening: what you're celebrating, who is coming, what you have in mind and what will make the day feel right.</p>
-        <a class="button button-dark" href="#enquiry">Let's talk about your occasion <span aria-hidden="true">↗</span></a>
+        <a class="button button-dark" href="#enquiry">Let's talk about your occasion <span aria-hidden="true"></span></a>
       </div>
     </section>
 
@@ -257,7 +265,7 @@
             <label for="location">Event location<input id="location" name="location" type="text" placeholder="Where will it happen?"></label>
           </div>
           <label for="details">A little more about your plans<textarea id="details" name="details" rows="3" placeholder="Style, cake inspiration, food preferences or anything else we should know..."></textarea></label>
-          <button class="button button-dark form-submit" type="submit">Save enquiry & continue <span aria-hidden="true">↗</span></button>
+          <button class="button button-dark form-submit" type="submit">Save enquiry & continue <span aria-hidden="true"></span></button>
           <p class="form-privacy">Your enquiry is saved securely with Step Town. You can also continue on WhatsApp after submitting.</p>
           <p class="form-error" id="form-error" role="alert" aria-live="polite"></p>
         </form>
@@ -274,11 +282,11 @@
             <div><small>LOCATION</small><strong>Runda, Rwanda</strong></div>
             <div><small>CALL OR WHATSAPP</small><a href="tel:+250780382589">+250 780 382 589</a></div>
           </div>
-          <a class="text-link dark-link" href="https://www.google.com/maps/search/?api=1&query=Step+Town+Catering+and+Wedding+Cakes%2C+Runda%2C+Rwanda" target="_blank" rel="noopener">Open directions <span aria-hidden="true">↗</span></a>
+          <a class="text-link dark-link" href="https://www.google.com/maps/search/?api=1&query=Step+Town+Catering+and+Wedding+Cakes%2C+Runda%2C+Rwanda" target="_blank" rel="noopener">Open directions <span aria-hidden="true"></span></a>
         </div>
         <div class="map-card">
           <iframe title="Map showing Step Town in Runda, Rwanda" src="https://maps.google.com/maps?q=Step%20Town%20Catering%20and%20Wedding%20Cakes%2C%20Runda%2C%20Rwanda&t=&z=13&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-          <div class="map-caption"><span class="map-pin" aria-hidden="true">⌖</span><div><strong>STEP TOWN</strong><small>Runda · Rwanda</small></div><a href="https://www.google.com/maps/search/?api=1&query=Step+Town+Catering+and+Wedding+Cakes%2C+Runda%2C+Rwanda" target="_blank" rel="noopener" aria-label="Get directions">↗</a></div>
+          <div class="map-caption"><span class="map-pin" aria-hidden="true">⌖</span><div><strong>STEP TOWN</strong><small>Runda · Rwanda</small></div><a class="map-directions-link" href="https://www.google.com/maps/search/?api=1&query=Step+Town+Catering+and+Wedding+Cakes%2C+Runda%2C+Rwanda" target="_blank" rel="noopener">Directions</a></div>
         </div>
       </div>
     </section>
@@ -287,7 +295,7 @@
       <div class="page-shell closing-inner">
         <p class="eyebrow light-eyebrow"><span></span> THE NEXT GOOD MEMORY STARTS HERE</p>
         <h2>Bring your people.<br><em>We'll bring the good food.</em></h2>
-        <a class="button button-light" href="#enquiry">Start your enquiry <span aria-hidden="true">↗</span></a>
+        <a class="button button-light" href="#enquiry">Start your enquiry <span aria-hidden="true"></span></a>
       </div>
     </section>
   </main>
@@ -322,7 +330,7 @@
         <label class="checkout-notes-label">Notes or special requests<textarea name="notes" rows="3" maxlength="3000" placeholder="Guest count, cake design, dietary needs or other details…"></textarea></label>
       </div>
       <p class="checkout-status" id="checkout-status" role="status" aria-live="polite"></p>
-      <button class="button button-dark checkout-submit" type="submit" id="checkout-submit">Send order request <span aria-hidden="true">↗</span></button>
+      <button class="button button-dark checkout-submit" type="submit" id="checkout-submit">Send order request <span aria-hidden="true"></span></button>
       <p class="checkout-footnote">Submitting saves your request securely. It does not charge you or confirm a booking. Step Town will contact you to confirm.</p>
     </form>
   </aside>
@@ -335,11 +343,33 @@
       </a>
       <p>Food that brings people together.<br>Moments made to be remembered.</p>
       <div class="footer-links"><a href="#services">Services</a><a href="#gallery">Gallery</a><a href="#location">Location</a><a href="#enquiry">Enquiries</a></div>
-      <div class="footer-contact"><small>START A CONVERSATION</small><a href="https://wa.me/250780382589" target="_blank" rel="noopener">WhatsApp Step Town ↗</a><a href="tel:+250780382589">+250 780 382 589</a></div>
+      <div class="footer-contact"><small>START A CONVERSATION</small><a href="https://wa.me/250780382589" target="_blank" rel="noopener">WhatsApp Step Town </a><a href="tel:+250780382589">+250 780 382 589</a></div>
     </div>
-    <div class="page-shell footer-bottom"><span>© <span id="year"></span> Step Town. All rights reserved.</span><span>Made with care in Rwanda.</span><a href="#top">Back to top ↑</a></div>
+    <div class="page-shell footer-bottom"><span>© <span id="year"></span> Step Town. All rights reserved.</span><span>Made with care in Rwanda.</span><a href="#top">Back to top </a></div>
   </footer>
 
   <script type="module" src="/src/main.js"></script>
-  <nav class="mobile-dock" aria-label="Quick navigation"><a href="#top" class="dock-active"><span>⌂</span><small>Home</small></a><a href="#menu"><span>▦</span><small>Categories</small></a><a href="#gallery"><span>▧</span><small>Gallery</small></a><button type="button" id="mobile-cart-open"><span>♧</span><small>Bag</small></button><a href="/account"><span>◉</span><small>Profile</small></a></nav>\n  <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(err => console.warn("Step Town service worker unavailable", err)));</script>\n</body>
+  <nav class="mobile-dock" aria-label="Quick navigation">
+    <a href="#top" class="dock-active" aria-current="page">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7"></path><path d="M5 9v11h14V9"></path><path d="M9 20v-6h6v6"></path></svg>
+      <small>Home</small>
+    </a>
+    <a href="#menu">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+      <small>Categories</small>
+    </a>
+    <a href="#gallery">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m21 15-5-5L5 20"></path></svg>
+      <small>Gallery</small>
+    </a>
+    <button type="button" id="mobile-cart-open" aria-label="Open cart">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.1 11.1a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H6"></path><circle cx="10" cy="20" r="1.3"></circle><circle cx="18" cy="20" r="1.3"></circle></svg>
+      <small>Cart</small>
+      <span class="dock-count" id="mobile-cart-count" hidden>0</span>
+    </button>
+    <a href="/account">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.6"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+      <small>Profile</small>
+    </a>
+  </nav>\n  <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(err => console.warn("Step Town service worker unavailable", err)));</script>\n</body>
 </html>
