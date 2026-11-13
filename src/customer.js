@@ -165,6 +165,26 @@ if (isAuthRoute) {
       '<p class="customer-error" id="customer-profile-error" role="alert"></p>',
       "MY STEP TOWN PROFILE"
     );
+    const favouritesGrid = app.querySelector(".customer-favourites-grid");
+    favouritesGrid?.addEventListener("scroll", event => {
+      const strip=event.target.closest(".product-image-strip");
+      if(!strip)return;
+      let active=0,min=Infinity;
+      [...strip.querySelectorAll("img")].forEach((img,index)=>{
+        const distance=Math.abs(img.getBoundingClientRect().left-strip.getBoundingClientRect().left);
+        if(distance<min){min=distance;active=index;}
+      });
+      strip.closest(".product-image")?.querySelectorAll("[data-favourite-dot]").forEach((dot,index)=>{
+        dot.classList.toggle("is-active",index===active);
+        dot.setAttribute("aria-pressed",String(index===active));
+      });
+    },true);
+    favouritesGrid?.addEventListener("keydown",event=>{
+      const strip=event.target.closest(".product-image-strip");
+      if(!strip||!["ArrowLeft","ArrowRight"].includes(event.key))return;
+      event.preventDefault();
+      strip.scrollBy({left:(event.key==="ArrowRight"?1:-1)*strip.clientWidth,behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+    });
     app.querySelector(".customer-favourites-grid")?.addEventListener("click", async event => {
       const dot=event.target.closest("[data-favourite-dot]");
       if(dot){
