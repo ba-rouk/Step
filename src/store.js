@@ -133,43 +133,93 @@ import { apiFetch } from "./api.js";
     });
   }
 
+  function slugFor(product) {
+    return String(product.slug || product.name || product.id).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || product.id;
+  }
+  function savedFavourites() {
+    try { const ids = JSON.parse(localStorage.getItem("step-town-favourites-v1") || "[]"); return Array.isArray(ids) ? ids : []; } catch { return []; }
+  }
+  function productCard(product, index, detail = false) {
+    const category = categories.find(item => item.id === product.category_id);
+    const images = (Array.isArray(product.images) && product.images.length ? product.images.map(image => image.url) : (Array.isArray(product.image_urls) ? product.image_urls : [product.image_url])).map(safeImageUrl).filter(Boolean);
+    const uniqueImages = [...new Set(images)];
+    const liked = savedFavourites().includes(product.id);
+    const slug = slugFor(product);
+    const href = "/product/" + encodeURIComponent(slug);
+    const slides = uniqueImages.length ? uniqueImages.map((src, i) =>
+      '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(product.name) + ' — photo ' + (i+1) + '" width="800" height="600" ' + (index === 0 && i === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"') + ' decoding="async">'
+    ).join("") : '<div class="product-image-placeholder" role="img" aria-label="' + escapeHtml(product.name) + ' image unavailable">STEP TOWN</div>';
+    const dots = uniqueImages.length > 1 ? '<div class="product-dots" role="group" aria-label="Choose product photo">' + uniqueImages.map((_,i) => '<button type="button" data-dot="' + i + '" aria-label="Show photo ' + (i+1) + '" aria-pressed="' + (i===0) + '" class="' + (i===0 ? 'is-active' : '') + '"></button>').join("") + '</div>' : "";
+    const description = escapeHtml(product.description || "Prepared with care by Step Town.");
+    const full = detail;
+    return '<article class="product-card' + (full ? ' product-card-detail' : '') + '" data-product-card="' + escapeHtml(product.id) + '">' +
+      '<div class="product-image">' +
+        '<a class="product-open product-image-link" href="' + href + '" aria-label="View ' + escapeHtml(product.name) + '">' +
+          '<div class="product-image-strip" tabindex="0" role="region" aria-label="' + escapeHtml(product.name) + ' photos">' + slides + '</div></a>' +
+        '<button class="product-image-action product-cart-action" type="button" data-add-product="' + escapeHtml(product.id) + '" aria-label="Add to cart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/></svg><span class="product-cart-plus">+</span></button>' +
+        '<button class="product-image-action product-favourite' + (liked ? ' is-saved' : '') + '" type="button" data-favourite="' + escapeHtml(product.id) + '" aria-label="' + (liked ? 'Remove ' : 'Save ') + escapeHtml(product.name) + ' ' + (liked ? 'from' : 'to') + ' favourites" aria-pressed="' + liked + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 8.8c0 5.2-8.8 10.2-8.8 10.2S3.2 14 3.2 8.8A4.7 4.7 0 0 1 12 6.1a4.7 4.7 0 0 1 8.8 2.7Z"/></svg></button>' +
+        '<span class="product-category" title="' + escapeHtml(category?.name || "Menu") + '">' + escapeHtml(category?.name || "Menu") + '</span>' + dots +
+      '</div>' +
+      '<div class="product-card-copy"><a class="product-open product-copy-link" href="' + href + '"><h4>' + escapeHtml(product.name) + '</h4></a>' +
+        '<p class="product-description' + (full ? ' is-expanded' : '') + '">' + description + '</p>' +
+        (!full && product.description && product.description.length > 120 ? '<button type="button" class="product-read-more" data-read-more>Read more</button>' : '') +
+        '<div class="product-card-bottom"><strong>' + escapeHtml(product.price == null ? "Request a quote" : money(product.price)) + '</strong>' +
+        (full ? '<button class="product-detail-add" type="button" data-add-product="' + escapeHtml(product.id) + '">Add to cart</button>' : '') + '</div>' +
+        (full ? '<a class="product-back-link" href="/categories">Back to menu</a>' : '') +
+      '</div></article>';
+  }
   function renderProducts() {
-    const filtered = visibleProducts();
-    const selected = categories.find((category) => category.id === selectedCategory);
-    if (productHeading) productHeading.textContent = selected ? selected.name : "Explore the menu";
-    if (catalogCount) catalogCount.textContent = filtered.length + (filtered.length === 1 ? " item" : " items");
-
+    const productRoute = pathname.startsWith("/product/");
+    const productSlug = productRoute ? pathname.split("/").filter(Boolean).at(-1) : "";
+    let filtered = visibleProducts();
+    if (productRoute) filtered = products.filter(product => slugFor(product) === productSlug || product.id === productSlug);
+    const selected = categories.find(category => category.id === selectedCategory);
+    if (productHeading) productHeading.textContent = productRoute ? (filtered[0]?.name || "Product not found") : (selected ? selected.name : "Explore the menu");
+    if (catalogCount) catalogCount.textContent = productRoute ? "" : filtered.length + (filtered.length === 1 ? " item" : " items");
     if (!filtered.length) {
       productGrid.innerHTML = "";
-      if (products.length === 0) {
-        catalogStatus.innerHTML = 'Our menu is being prepared. Contact Step Town for today’s catering options, barbecue selection and cake designs. <a href="https://wa.me/250780382589" target="_blank" rel="noopener">Ask us on WhatsApp </a>';
-      } else {
-        catalogStatus.textContent = searchInput && searchInput.value.trim()
-          ? "No menu items match that search. Try another word or choose a different category."
-          : "There are no items in this category at the moment. Contact us for a tailored quote.";
-      }
+      catalogStatus.textContent = productRoute ? "This product could not be found." : (products.length ? "No menu items match your search or category." : "Our menu is being prepared. Contact Step Town for today’s catering options.");
       catalogStatus.hidden = false;
       return;
     }
-
     catalogStatus.hidden = true;
-    productGrid.innerHTML = filtered.map((product) => {
-      const category = categories.find((item) => item.id === product.category_id);
-      const images = (Array.isArray(product.image_urls) ? product.image_urls : []).map(safeImageUrl).filter(Boolean);
-      const primaryImage = safeImageUrl(product.image_url) || safeImageUrl(category && category.cover_image_url);
-      if (!images.length && primaryImage) images.push(primaryImage);
-      const description = product.description ? '<p class="product-description">' + escapeHtml(product.description) + '</p>' : '<p class="product-description">Prepared with care by Step Town.</p>';
-      const price = product.price == null ? "Request a quote" : money(product.price);
-      const imageStrip = images.length ? '<div class="product-image-strip">' + images.map((src,index) => '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(product.name) + ' photo ' + (index+1) + '" loading="lazy">').join("") + '</div>' : '<span class="product-image-placeholder">STEP TOWN</span>';
-      return '<article class="product-card">' +
-        '<div class="product-image">' + imageStrip +
-        '<button class="product-favourite" type="button" data-favourite="' + escapeHtml(product.id) + '" aria-label="Save ' + escapeHtml(product.name) + ' to favourites">♡</button>' +
-        '<span class="product-category">' + escapeHtml(category ? category.name : "Menu") + '</span></div>' +
-        '<div class="product-card-copy"><h4>' + escapeHtml(product.name) + '</h4>' + description +
-        '<div class="product-card-bottom"><strong>' + escapeHtml(price) + '</strong><button class="add-to-bag" type="button" data-add-product="' + escapeHtml(product.id) + '">＋ add to cart</button></div></div></article>';
-    }).join("");
+    productGrid.classList.toggle("product-detail-grid", productRoute);
+    productGrid.innerHTML = filtered.map((product,index) => productCard(product,index,productRoute)).join("");
+    if (productRoute) {
+      const product = filtered[0];
+      const title = product.name + " | Step Town";
+      document.title = title;
+      const description = document.querySelector('meta[name="description"]');
+      if (description) description.content = product.description || title;
+    }
   }
-
+  function updateCarousel(card) {
+    const strip = card.querySelector(".product-image-strip");
+    if (!strip) return;
+    const images = [...strip.querySelectorAll("img")];
+    if (!images.length) return;
+    let nearest = 0, min = Infinity;
+    images.forEach((img,index) => { const distance = Math.abs(img.getBoundingClientRect().left - strip.getBoundingClientRect().left); if (distance < min) { min=distance; nearest=index; } });
+    card.querySelectorAll("[data-dot]").forEach((dot,index) => {
+      dot.classList.toggle("is-active",index===nearest);
+      dot.setAttribute("aria-pressed",String(index===nearest));
+    });
+  }
+  function showCartToast(message) {
+    let toast = document.querySelector(".store-toast");
+    if (!toast) { toast=document.createElement("div"); toast.className="store-toast"; toast.setAttribute("role","status"); document.body.append(toast); }
+    toast.textContent=message; toast.classList.add("is-visible");
+    window.clearTimeout(showCartToast.timer);
+    showCartToast.timer=window.setTimeout(()=>toast.classList.remove("is-visible"),1500);
+  }
+  async function syncFavouriteAccount(ids) {
+    try {
+      const sessionResponse = await fetch("/api/session", { credentials: "same-origin" });
+      const session = await sessionResponse.json();
+      if (!session.authenticated) return;
+      await apiFetch("/api/profile/favourites", { method: "PUT", body: { product_ids: ids } });
+    } catch (error) { console.warn("Favourite sync deferred:", error.message); }
+  }
   function renderCart() {
     const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
     if (cartCount) {
@@ -241,7 +291,7 @@ import { apiFetch } from "./api.js";
     }
     saveCart();
     renderCart();
-    openCart();
+    showCartToast("Added to your cart");
   }
 
   async function loadCatalog() {
@@ -254,7 +304,7 @@ import { apiFetch } from "./api.js";
     catalogStatus.textContent = "Loading the Step Town menu…";
     const [categoryResult, productResult] = await Promise.all([
       supabase.from("store_categories").select("id,name,slug,description,cover_image_url,sort_order").eq("is_active", true).order("sort_order"),
-      supabase.from("store_products").select("id,category_id,name,description,price,image_url,image_urls,sort_order").eq("is_available", true).order("sort_order")
+      supabase.from("store_products").select("id,category_id,name,description,price,image_url,image_urls,sort_order,is_visible").eq("is_available", true).eq("is_visible", true).order("sort_order")
     ]);
 
     if (categoryResult.error || productResult.error) {
@@ -265,6 +315,15 @@ import { apiFetch } from "./api.js";
 
     categories = categoryResult.data || [];
     products = productResult.data || [];
+    const ids = products.map(product => product.id);
+    if (ids.length) {
+      const { data: galleryRows, error: galleryError } = await supabase.from("product_images").select("id,product_id,url,position,alt_text").in("product_id", ids).order("position");
+      if (!galleryError && galleryRows?.length) {
+        const byProduct = new Map();
+        for (const image of galleryRows) { if (!byProduct.has(image.product_id)) byProduct.set(image.product_id, []); byProduct.get(image.product_id).push(image); }
+        products = products.map(product => ({ ...product, images: byProduct.get(product.id) || [] }));
+      }
+    }
     if (categorySlug) {
       const requestedCategory = categories.find((item) =>
         item.slug === categorySlug ||
@@ -293,7 +352,31 @@ import { apiFetch } from "./api.js";
 
   // Category cards and filter chips navigate to real /categories/:slug routes.
 
+  productGrid.addEventListener("scroll", event => {
+    const strip = event.target.closest(".product-image-strip");
+    if (strip) updateCarousel(strip.closest(".product-card"));
+  }, true);
+  productGrid.addEventListener("keydown", event => {
+    const strip = event.target.closest(".product-image-strip");
+    if (!strip || !["ArrowLeft","ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    strip.scrollBy({ left: (event.key === "ArrowRight" ? 1 : -1) * strip.clientWidth, behavior: "smooth" });
+  });
   productGrid.addEventListener("click", (event) => {
+    const dot = event.target.closest("[data-dot]");
+    if (dot) {
+      const strip = dot.closest(".product-image").querySelector(".product-image-strip");
+      const image = strip?.querySelectorAll("img")[Number(dot.dataset.dot)];
+      image?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest", inline: "center" });
+      return;
+    }
+    const more = event.target.closest("[data-read-more]");
+    if (more) {
+      const description = more.previousElementSibling;
+      description.classList.toggle("is-expanded");
+      more.textContent = description.classList.contains("is-expanded") ? "Read less" : "Read more";
+      return;
+    }
     const favourite = event.target.closest("[data-favourite]");
     if (favourite) {
       const key = "step-town-favourites-v1";
@@ -303,11 +386,20 @@ import { apiFetch } from "./api.js";
       saved = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id];
       localStorage.setItem(key, JSON.stringify(saved));
       favourite.classList.toggle("is-saved", saved.includes(id));
-      favourite.textContent = saved.includes(id) ? "♥" : "♡";
+      favourite.classList.toggle("is-saved", saved.includes(id));
+      favourite.setAttribute("aria-pressed", String(saved.includes(id)));
+      favourite.setAttribute("aria-label", (saved.includes(id) ? "Remove " : "Save ") + "product " + (saved.includes(id) ? "from" : "to") + " favourites");
+      void syncFavouriteAccount(saved);
       return;
     }
     const button = event.target.closest("[data-add-product]");
-    if (button) addProduct(button.dataset.addProduct);
+    if (button) {
+      addProduct(button.dataset.addProduct);
+      button.classList.add("is-added");
+      const svg = button.querySelector("svg");
+      if (svg) svg.innerHTML = '<path d="m5 12 4 4L19 6"/>';
+      window.setTimeout(() => { if (button.isConnected) { button.classList.remove("is-added"); if (svg) svg.innerHTML = '<path d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/>'; } },1000);
+    }
   });
 
   if (searchInput) searchInput.addEventListener("input", renderProducts);
