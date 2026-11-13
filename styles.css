@@ -1293,3 +1293,12 @@ body.route-cart .checkout-form textarea::placeholder { color: rgba(255,255,255,.
   .mobile-dock .dock-icon { width: 20px; height: 20px; }
   .mobile-dock small { font-size: 9.5px; }
 }
+
+.route-catalog-heading .menu-search {
+  min-height: 48px; padding: 0 15px; display: flex; align-items: center; gap: 10px;
+  color: #fff; border: 1px solid rgba(255,255,255,.42); border-radius: 999px;
+  background: rgba(255,255,255,.13); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.route-catalog-heading .menu-search input { min-width: 0; width: 100%; padding: 9px 0; color: #fff; font: 600 13px var(--body); background: transparent; border: 0; outline: 0; }
+.route-catalog-heading .menu-search input::placeholder { color: rgba(255,255,255,.85); opacity: 1; font-weight: 600; }
+body.route-cart .cart-drawer[hidden] { display: none !important; }
