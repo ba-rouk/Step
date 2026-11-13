@@ -17,7 +17,8 @@ if (!path.startsWith("/staff")) {
   let profile = null;
   let activeOrder = null;
 
-  function decodeVapidKey(value){const padding="=".repeat((4-value.length%4)%4);const base64=(value+padding).replace(/-/g,"+").replace(/_/g,"/");const raw=atob(base64);return Uint8Array.from(raw,c=>c.charCodeAt(0));}\n  function shell(title, body) {
+  function decodeVapidKey(value){const padding="=".repeat((4-value.length%4)%4);const base64=(value+padding).replace(/-/g,"+").replace(/_/g,"/");const raw=atob(base64);return Uint8Array.from(raw,c=>c.charCodeAt(0));}
+  function shell(title, body) {
     app.innerHTML = '<header class="staff-top"><a class="staff-brand" href="/"><span class="staff-mark">ST</span><span><b>STEP TOWN</b><small>STAFF WORKSPACE</small></span></a><div class="staff-user"><span>'+esc(profile?.full_name || "Staff")+' · '+esc(roleTitle(profile?.role))+'</span><button id="staff-enable-push" class="staff-quiet" type="button">Enable alerts</button><button id="staff-logout" class="staff-quiet">Sign out</button></div></header><main class="staff-main"><div class="staff-title-row"><div><p class="staff-eyebrow">STEP TOWN · RUNDA, RWANDA</p><h1>'+esc(title)+'</h1></div><a class="staff-home" href="/">↗ Public website</a></div><nav class="staff-nav">'+navLinks()+'</nav>'+body+'</main>';
     document.querySelector("#staff-logout")?.addEventListener("click", async()=>{await supabase.auth.signOut(); location.assign("/staff/login");});
     document.querySelector("#staff-enable-push")?.addEventListener("click", async (event)=>{
