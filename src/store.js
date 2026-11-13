@@ -386,7 +386,6 @@ import { apiFetch } from "./api.js";
       saved = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id];
       localStorage.setItem(key, JSON.stringify(saved));
       favourite.classList.toggle("is-saved", saved.includes(id));
-      favourite.classList.toggle("is-saved", saved.includes(id));
       favourite.setAttribute("aria-pressed", String(saved.includes(id)));
       favourite.setAttribute("aria-label", (saved.includes(id) ? "Remove " : "Save ") + "product " + (saved.includes(id) ? "from" : "to") + " favourites");
       void syncFavouriteAccount(saved);
