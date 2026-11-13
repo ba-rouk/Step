@@ -658,7 +658,7 @@ async function productsPage() {
     const imageList = $("#product-image-list");
     const renderImageList = () => {
       imageList.innerHTML = currentImages.map((image,index) =>
-        '<article class="staff-product-image" draggable="true" data-image-index="' + index + '"><img src="' + esc(image.url) + '" alt="' + esc(image.alt_text || "Product photo") + '"><div><b>' + (index === 0 ? "Cover image" : "Image " + (index+1)) + '</b><small>' + esc(image.alt_text || "") + '</small><div class="staff-row-actions"><button type="button" data-image-cover="' + index + '"' + (index===0 ? " disabled" : "") + '>Set cover</button><button type="button" data-image-left="' + index + '"' + (index===0 ? " disabled" : "") + '>Move left</button><button type="button" data-image-right="' + index + '"' + (index===currentImages.length-1 ? " disabled" : "") + '>Move right</button><button type="button" data-image-remove="' + index + '">Remove</button></div></div></article>'
+        '<article class="staff-product-image" draggable="true" data-image-index="' + index + '"><img src="' + esc(image.url) + '" alt="' + esc(image.alt_text || "Product photo") + '"><div><b>' + (index === 0 ? "Cover image" : "Image " + (index+1)) + '</b><small>' + esc(image.alt_text || "") + '</small><div class="staff-upload-progress"><i style="width:' + (image.file ? (image.progress || 0) : 100) + '%"></i></div><div class="staff-row-actions"><button type="button" data-image-cover="' + index + '"' + (index===0 ? " disabled" : "") + '>Set cover</button><button type="button" data-image-left="' + index + '"' + (index===0 ? " disabled" : "") + '>Move left</button><button type="button" data-image-right="' + index + '"' + (index===currentImages.length-1 ? " disabled" : "") + '>Move right</button><button type="button" data-image-remove="' + index + '">Remove</button></div></div></article>'
       ).join("");
     };
     renderImageList();
@@ -668,11 +668,6 @@ async function productsPage() {
       const index = Number(button.dataset.imageCover ?? button.dataset.imageLeft ?? button.dataset.imageRight ?? button.dataset.imageRemove);
       if (button.hasAttribute("data-image-remove")) {
         const image = currentImages[index];
-        if (image?.id) {
-          const { error } = await supabase.from("product_images").delete().eq("id", image.id);
-          if (error) { notify(error.message,"error"); return; }
-          if (image.public_id) await supabase.storage.from("step-town-media").remove([image.public_id]);
-        }
         if (image?.file) URL.revokeObjectURL(image.url);
         currentImages.splice(index,1);
       } else if (button.hasAttribute("data-image-left")) [currentImages[index-1],currentImages[index]]=[currentImages[index],currentImages[index-1]];
@@ -692,14 +687,21 @@ async function productsPage() {
       const from=Number(event.dataTransfer.getData("text/plain")),to=Number(card.dataset.imageIndex);
       if (Number.isInteger(from) && from!==to) { currentImages.splice(to,0,currentImages.splice(from,1)[0]); renderImageList(); }
     });
-    $('input[name="images"]', $("#product-form")).addEventListener("change", event => {
-      const files=Array.from(event.target.files||[]);
-      const invalid=files.find(file=>!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>5*1024*1024);
-      if(invalid){$("#product-message").textContent=invalid.size>5*1024*1024?invalid.name+" exceeds 5 MB.":"Use JPG, PNG or WEBP images.";event.target.value="";return;}
-      if(currentImages.length+files.length>10){$("#product-message").textContent="A product can have at most 10 images.";event.target.value="";return;}
-      files.forEach(file=>currentImages.push({id:null,url:URL.createObjectURL(file),public_id:null,alt_text:file.name,file}));
-      event.target.value="";
+    const addProductFiles = files => {
+      const incoming=Array.from(files||[]);
+      const invalid=incoming.find(file=>!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>5*1024*1024);
+      if(invalid){$("#product-message").textContent=invalid.size>5*1024*1024?invalid.name+" exceeds 5 MB.":"Only JPG, PNG and WEBP images are accepted.";return;}
+      if(currentImages.length+incoming.length>10){$("#product-message").textContent="A product can have at most 10 images. Remove an image before adding more.";return;}
+      incoming.forEach(file=>currentImages.push({id:null,url:URL.createObjectURL(file),public_id:null,alt_text:file.name,file,progress:0}));
+      $("#product-message").textContent=incoming.length+" image"+(incoming.length===1?"":"s")+" ready to upload.";
       renderImageList();
+    };
+    $('input[name="images"]', $("#product-form")).addEventListener("change", event => { addProductFiles(event.target.files); event.target.value=""; });
+    imageList.addEventListener("dragover", event => { if(event.dataTransfer?.files?.length) event.preventDefault(); });
+    imageList.addEventListener("drop", event => {
+      if(!event.dataTransfer?.files?.length) return;
+      event.preventDefault();
+      addProductFiles(event.dataTransfer.files);
     });
     $("#product-form").addEventListener("submit", async event => {
       event.preventDefault();
@@ -724,6 +726,8 @@ async function productsPage() {
         for(let i=0;i<pendingImages.length;i++){
           $("#product-message").textContent="Compressing and uploading image "+(i+1)+" of "+pendingImages.length+"…";
           uploaded.set(pendingImages[i],await uploadImage(pendingImages[i].file,"products"));
+          pendingImages[i].progress=100;
+          renderImageList();
         }
         const orderedImages=currentImages.map(image=>{
           const saved=uploaded.get(image);
