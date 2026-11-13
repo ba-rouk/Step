@@ -2188,12 +2188,18 @@ body.route-customer-page .customer-error {
   .customer-favourites-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
 @media (max-width: 639px) {
-  .product-grid {
+  .product-grid:not(.customer-favourites-grid) {
     grid-template-columns: minmax(0,1fr) !important;
-    width: calc(100% - 30px) !important;
+    width: min(calc(100vw - 30px), 520px) !important;
     max-width: 520px;
-    margin: 0 auto !important;
+    margin-left: calc(50% - 50vw + 15px) !important;
+    margin-right: calc(50% - 50vw + 15px) !important;
     gap: 15px;
+  }
+  .product-grid.customer-favourites-grid {
+    grid-template-columns: minmax(0,1fr) !important;
+    width: 100% !important;
+    margin: 0 !important;
   }
   .customer-favourites-grid {
     grid-template-columns: minmax(0,1fr) !important;
