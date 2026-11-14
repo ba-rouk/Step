@@ -106,10 +106,26 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
       try {
         const sessionResponse=await fetch("/api/session",{credentials:"same-origin"});
         const session=await sessionResponse.json().catch(()=>({}));
-        if(!session.authenticated||!session.user?.id)return;
         const ownerKey="step-town-cart-owner-v1";
         const previousOwner=localStorage.getItem(ownerKey)||"";
-        const isGuestSnapshot=previousOwner!==session.user.id;
+        if(!session.authenticated||!session.user?.id){
+          // Never expose one customer's cached account cart to another browser user.
+          if(previousOwner){
+            localStorage.removeItem(ownerKey);
+            localStorage.removeItem("step-town-cart-v1");
+            cart=[];
+            renderCart();
+          }
+          return;
+        }
+        // A cart tagged to a different account is not a guest cart. Clear it
+        // instead of ever merging one customer's items into another account.
+        if(previousOwner&&previousOwner!==session.user.id){
+          localStorage.removeItem("step-town-cart-v1");
+          localStorage.removeItem(ownerKey);
+          cart=[];
+        }
+        const isGuestSnapshot=!previousOwner;
         if(isGuestSnapshot&&cart.length){
           const mergeResponse=await apiFetch("/api/profile/cart/merge",{
             method:"POST",
