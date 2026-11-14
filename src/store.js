@@ -80,9 +80,11 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
         .slice(0, 50)
         .map((item) => ({
           product_id: item.product_id,
+          slug: String(item.slug || "").slice(0, 160),
           name: String(item.name || "Menu item").slice(0, 120),
+          description: String(item.description || "").slice(0, 1200),
           category_name: String(item.category_name || "").slice(0, 80),
-          price: item.price == null ? null : Number(item.price),
+          price: item.price == null || item.price === "" ? null : Number(item.price),
           price_unit: String(item.price_unit || "unit"),
           price_unit_label: String(item.price_unit_label || item.price_unit || "unit"),
           image_url: safeImageUrl(item.image_url),
@@ -96,8 +98,10 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   function saveCart() {
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(cart));
+      return true;
     } catch {
       if (cartPricingNote) cartPricingNote.textContent = "Your browser could not save this cart between visits.";
+      return false;
     }
   }
 
@@ -249,10 +253,51 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   }
 
   function addProduct(productId) {
-    const product = products.find((item) => item.id === productId);
-    if (!product) return;
-    const reference = product.id || product.slug;
-    window.location.assign("/cart?product=" + encodeURIComponent(reference));
+    const product = products.find((item) => String(item.id) === String(productId));
+    if (!product?.id) {
+      showProductToast("This menu item is unavailable. Refresh the menu and try again.");
+      return;
+    }
+
+    const previousCart = cart.map(item => ({ ...item }));
+    const id = String(product.id);
+    const existing = cart.find(item => item.product_id === id);
+    if (existing) {
+      existing.quantity = Math.min(20, Math.max(1, Number(existing.quantity) || 1) + 1);
+    } else {
+      if (cart.length >= 50) {
+        showProductToast("Your cart can contain up to 50 different products.");
+        return;
+      }
+      const productImages = Array.isArray(product.images) ? product.images : [];
+      const firstImage = productImages[0];
+      const image = (typeof firstImage === "string" ? firstImage : firstImage?.url) ||
+        (Array.isArray(product.image_urls) ? product.image_urls[0] : "") ||
+        product.image_url || "";
+      const rawPrice = product.price;
+      const price = rawPrice === null || rawPrice === undefined || rawPrice === ""
+        ? null : Number(rawPrice);
+      cart.push({
+        product_id: id,
+        slug: String(product.slug || ""),
+        name: String(product.name || "Menu item"),
+        description: String(product.description || ""),
+        category_name: categoryName(product.category_id),
+        price: Number.isFinite(price) ? price : null,
+        price_unit: String(product.price_unit || "unit"),
+        price_unit_label: String(product.price_unit_label || product.price_unit || "unit"),
+        image_url: String(image || ""),
+        quantity: 1
+      });
+    }
+
+    if (!saveCart()) {
+      cart = previousCart;
+      showProductToast("Your cart could not be saved. Check browser storage and try again.");
+      return;
+    }
+    renderCart();
+    window.location.assign("/cart");
   }
 
   const menuPageSize = 12;
