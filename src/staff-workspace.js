@@ -945,7 +945,7 @@ async function productsPage() {
     $("#products-table").innerHTML = visible.length ?
       '<div class="staff-table-wrap"><table><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Menu status</th><th>Actions</th></tr></thead><tbody>' +
       visible.map(item =>
-        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(item.store_categories?.name || "—") + "</td><td>" + money(item.price) + (item.price != null && item.price_unit && item.price_unit !== "unit" ? " per " + esc(item.price_unit_label || item.price_unit) : "") + "</td>" +
+        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(normalizeCategoryLabel(item.store_categories?.name || "—")) + "</td><td>" + money(item.price) + (item.price != null && item.price_unit && item.price_unit !== "unit" ? " per " + esc(item.price_unit_label || item.price_unit) : "") + "</td>" +
         "<td>" + (item.stock_quantity == null ? (item.has_stock ? "In stock" : "Sold out") : item.stock_quantity) + "</td>" +
         "<td>" + ((item.is_visible && item.is_available && item.has_stock) ? "Published" : "Hidden / unavailable") + "</td>" +
         '<td><details class="staff-action-menu"><summary aria-label="Product actions">•••</summary><div class="staff-action-menu-pop"><a href="/staff/products/' + item.id + '/edit">Edit</a><button type="button" data-product-stock="' + item.id + '">' + (item.has_stock ? "Mark as sold" : "Mark in stock") + '</button><button type="button" data-product-visibility="' + item.id + '">' + (item.is_visible ? "Hide" : "Publish") + '</button><button type="button" data-product-delete="' + item.id + '">Delete</button></div></details></td></tr>'
@@ -1224,7 +1224,7 @@ async function reportsPage() {
         const name = String(item.name || "Item");
         const quantity = Number(item.quantity || 0);
         sellers[name] = (sellers[name] || 0) + quantity;
-        const category = String(item.category || "Other");
+        const category = normalizeCategoryLabel(item.category || "Other");
         categories[category] = (categories[category] || 0) + Number(item.line_total || 0);
       }));
       const dayKeys = [];
