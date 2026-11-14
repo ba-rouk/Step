@@ -71,7 +71,7 @@ export function renderProductCard(product, options = {}) {
         return '<img src="' + escapeHtml(src) + '"' +
           (srcset
             ? ' srcset="' + escapeHtml(srcset) + '"' +
-              ' sizes="(max-width:639px) calc(100vw - 60px), (max-width:1023px) 50vw, 33vw"'
+              ' sizes="(max-width:639px) calc(100vw - 30px), (max-width:1023px) calc(50vw - 24px), 33vw"'
             : "") +
           ' alt="' + escapeHtml(alt) + '"' +
           ' width="800" height="1000" ' + loading +
