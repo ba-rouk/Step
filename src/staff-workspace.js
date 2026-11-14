@@ -955,7 +955,9 @@ async function galleryPage() {
       for (const file of files) {
         count++;
         $("#gallery-progress").textContent = "Compressing " + count + " of " + files.length + " before upload…";
-        const imageUrl = await uploadImage(file, "gallery", percent => {\n          $("#gallery-progress").textContent = "Compressing and uploading " + count + " of " + files.length + " · " + percent + "%";\n        });
+        const imageUrl = await uploadImage(file, "gallery", percent => {
+          $("#gallery-progress").textContent = "Compressing and uploading " + count + " of " + files.length + " · " + percent + "%";
+        });
         const { error } = await supabase.from("gallery_items").insert({
           title: file.name.replace(/\.[^.]+$/, "").slice(0, 120),
           category: fields.get("category"),
