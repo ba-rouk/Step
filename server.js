@@ -10,6 +10,7 @@ const PORT = Number(process.env.PORT || 10000);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
 const APP_URL = String(process.env.APP_URL || "https://steptown.onrender.com").replace(/\/+$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
 const KEY = SESSION_SECRET ? createHash("sha256").update(SESSION_SECRET).digest() : null;
 const SESSION_COOKIE = "step_customer_session";
@@ -408,12 +409,12 @@ async function api(req,res,url) {
         delivery_location:location||null,order_description:description||null,notes:notes||null,
         items:clean,estimated_total:priced?total:null,price_needs_confirmation:!priced
       };
-      const rows=await sb("/rest/v1/store_orders?select=id,order_number,estimated_total,created_at",{method:"POST",...(current?.session?.access_token?{access:current.session.access_token}:{}),body:order,headers:{Prefer:"return=representation"}});
+      if(!SUPABASE_SERVICE_ROLE_KEY)throw Object.assign(new Error("SUPABASE_SERVICE_ROLE_KEY is not configured on the Render server."),{status:503});
+      const rows=await sb("/rest/v1/store_orders?select=id,order_number,estimated_total,created_at",{method:"POST",access:SUPABASE_SERVICE_ROLE_KEY,body:order,headers:{Prefer:"return=representation"}});
       const saved=rows[0];
       if(saved?.id){
         try{
-          const headers={apikey:SUPABASE_KEY,"Content-Type":"application/json"};
-          if(current?.session?.access_token)headers.Authorization="Bearer "+current.session.access_token;
+          const headers={apikey:SUPABASE_KEY,"Content-Type":"application/json",Authorization:"Bearer "+SUPABASE_SERVICE_ROLE_KEY};
           await fetch(SUPABASE_URL+"/functions/v1/send-order-push",{method:"POST",headers,body:JSON.stringify({order_id:saved.id})});
         }catch(e){console.warn("Order saved; staff notification failed:",e.message);}
       }
