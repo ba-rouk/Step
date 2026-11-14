@@ -201,6 +201,53 @@ async function getPublicMenu(options={}) {
   return refresh();
 }
 function invalidatePublicMenu(){publicMenuCache.clear();}
+
+function slugToken(value){
+  return String(value||"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+}
+async function resolveQuickOrderProduct(reference){
+  const value=String(reference||"").trim().slice(0,160);
+  if(!value)return null;
+  const isId=/^[0-9a-f-]{36}$/i.test(value);
+  const exact=await getPublicMenu({limit:1,offset:0,slug:isId?"":value,productId:isId?value:""});
+  const direct=(exact.products||[]).find(item=>String(item.id)===value||String(item.slug||"")===value);
+  if(direct)return direct;
+
+  // Older product links used a generated name/id suffix instead of the current
+  // database slug. Search by the readable name part, then verify a unique match.
+  const suffix=value.match(/-([0-9a-f]{8})$/i);
+  const readable=suffix?value.slice(0,-9):value;
+  const search=readable.replace(/-/g," ").trim();
+  if(!search)return null;
+  const candidates=await getPublicMenu({limit:36,offset:0,search});
+  const matches=(candidates.products||[]).filter(item=>{
+    const currentSlug=slugToken(item.slug||"");
+    const nameSlug=slugToken(item.name||"");
+    return currentSlug===value || nameSlug===readable ||
+      currentSlug.replace(/-[0-9a-f]{8}$/i,"")===readable ||
+      (suffix&&String(item.id||"").toLowerCase().endsWith(suffix[1].toLowerCase()));
+  });
+  return matches.length===1?matches[0]:null;
+}
+function escapeHtml(value){
+  return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+}
+function serverQuickOrderMarkup(product){
+  const first=Array.isArray(product.images)?product.images[0]:null;
+  const image=(typeof first==="string"?first:first?.url)||(Array.isArray(product.image_urls)?product.image_urls[0]:"")||product.image_url||"";
+  let safeImage="";
+  try{const parsed=new URL(String(image||""));if(["https:","http:"].includes(parsed.protocol))safeImage=parsed.href;}catch{}
+  const name=escapeHtml(product.name||"Menu item");
+  const category=escapeHtml(product.category_name||product.category?.name||"Menu");
+  const price=product.price==null||product.price===""?"Price to be confirmed":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(product.price))+" per "+escapeHtml(product.price_unit_label||product.price_unit||"unit");
+  const line=product.price==null||product.price===""?"Quote required":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(product.price));
+  return '<p class="eyebrow">ORDER THIS ITEM</p><article class="cart-selected-item" data-cart-product="'+escapeHtml(product.id)+'" data-cart-kind="quick">'+
+    '<div class="cart-selected-image">'+(safeImage?'<img src="'+escapeHtml(safeImage)+'" alt="'+name+'">':'<div class="product-image-placeholder">STEP TOWN</div>')+'</div>'+
+    '<div class="cart-selected-copy"><span class="cart-selected-category">'+category+'</span><h2>'+name+'</h2>'+
+    '<div class="cart-unit-price"><span>'+price+'</span><strong>'+line+'</strong></div>'+
+    '<div class="cart-item-footer"><div class="order-quantity"><span>Quantity</span><output>1</output></div><div class="cart-line-total"><span>Line total</span><strong>'+line+'</strong></div></div>'+
+    '</div></article>';
+}
 function publicMenuHeaders(){
   return {
     "Cache-Control":"public, max-age=20, stale-while-revalidate=180",
@@ -640,21 +687,46 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     const titleStart=lowerHtml.indexOf("<title>");
     const titleEnd=lowerHtml.indexOf("</title>",titleStart);
     if(titleStart>=0&&titleEnd>titleStart)html=html.slice(0,titleStart)+"<title>Step Town | "+pageTitle(pathname)+"</title>"+html.slice(titleEnd+8);
+    if(decoded==="/cart"){
+      html=html.replace(/<body(\\s[^>]*)?>/i,(tag,attrs="")=>{
+        const next=String(attrs).replace(/\\sclass=["']([^"']*)["']/i,(_,value)=>' class="'+(value+" route-cart").trim()+'"');
+        return '<body'+(next===attrs?next+' class="route-cart"':next)+'>';
+      });
+      html=html.replace('id="cart-page" class="cart-page" hidden','id="cart-page" class="cart-page"');
+    }
     if(menuPage){
       try{
         const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
         const productReference=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
-        const isProductId=/^[0-9a-f-]{36}$/i.test(productReference);
-        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:isProductId?"":productReference,productId:isProductId?productReference:""});
+        let quickProduct=null;
+        if(productReference)quickProduct=await resolveQuickOrderProduct(productReference);
+        let menu;
+        if(decoded==="/cart"&&productReference){
+          menu=quickProduct
+            ? await getPublicMenu({limit:1,offset:0,productId:quickProduct.id})
+            : {categories:[],products:[],total:0,limit:1,offset:0,hasMore:false};
+          if(quickProduct)menu.products=[quickProduct];
+        }else{
+          menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category});
+        }
         const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
           .replace(/</g,"\\u003c")
           .replace(/\u2028/g,"\\u2028")
           .replace(/\u2029/g,"\\u2029");
         const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
-        // Inject before </head> so this works with Vite's hashed production bundle
-        // as well as the development /src/main.js entry.
-        html=html.replace(/<\/head>/i,initial+'</head>');
-      }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
+        html=html.replace(/<\\/head>/i,initial+'</head>');
+        if(decoded==="/cart"&&productReference){
+          if(quickProduct){
+            const productPayload=JSON.stringify(quickProduct).replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
+            const quickMarkup='<div id="quick-order-summary" class="cart-product-summary" aria-live="polite">'+serverQuickOrderMarkup(quickProduct)+'</div><script id="step-cart-product-data" type="application/json">'+productPayload+'</script>';
+            html=html.replace(/<div id="quick-order-summary" class="cart-product-summary" aria-live="polite" hidden><\\/div>/,quickMarkup);
+          }else{
+            const notFound='<div id="quick-order-summary" class="cart-product-summary" aria-live="polite"><div class="cart-empty"><strong>Product not found.</strong><p>This menu item may have been renamed or is no longer available.</p><a class="button button-dark" href="/categories">Browse the menu</a></div></div><script id="step-cart-product-error" type="application/json">true</script>';
+            html=html.replace(/<div id="quick-order-summary" class="cart-product-summary" aria-live="polite" hidden><\\/div>/,notFound);
+            html=html.replace('<form id="product-order-form" class="product-order-form" novalidate>','<form id="product-order-form" class="product-order-form" novalidate hidden>');
+          }
+        }
+      }catch(error){console.warn("Initial menu/cart product embedding was skipped:",error.message);}
     }
     data=Buffer.from(html);
   }
