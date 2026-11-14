@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#211d1a">
+  <meta name="description" content="Review your Step Town order and send an order request.">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <title>Step Town | Place an order</title>
+</head>
+<body class="route-cart">
+  <header class="site-header" id="top">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="Step Town home">
+        <img class="brand-logo" src="/step-town-logo.png" alt="Step Town logo">
+        <span class="brand-copy"><strong>STEP TOWN</strong><small>FOOD · CELEBRATIONS · CAKES</small></span>
+      </a>
+      <nav class="desktop-primary-nav" aria-label="Main navigation">
+        <a href="/">Home</a>
+        <a href="/categories">Categories</a>
+        <a href="/gallery">Gallery</a>
+        <a href="/cart" aria-current="page">Cart</a>
+        <a href="/profile">Profile</a>
+      </nav>
+      <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="primary-nav">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="primary-nav" id="primary-nav" aria-label="More menu options">
+        <a href="/#story">Our approach</a>
+        <a href="/categories">Order online</a>
+        <a href="/gallery">The good stuff</a>
+        <a href="/#location">Find us</a>
+        <a class="nav-cta" href="/#enquiry">Plan your event</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="cart-main">
+    <section id="cart-page" class="cart-page" aria-labelledby="cart-page-title">
+      <div class="cart-page-shell">
+        <div class="cart-page-heading">
+          <p class="eyebrow"><span class="eyebrow-line"></span> STEP TOWN ORDER</p>
+          <h1 id="cart-page-title">Your cart.</h1>
+          <p>Review your items, adjust quantities and send one order request. You can check out without an account.</p>
+          <p class="cart-history-access">Returning customer? <a href="/profile/orders">View your order history</a> (sign-in required).</p>
+        </div>
+        <div id="quick-order-summary" class="cart-product-summary" aria-live="polite" hidden></div>
+        <div id="cart-product-summary" class="cart-product-summary" aria-live="polite"><p>Loading your saved cart…</p></div>
+        <form id="product-order-form" class="product-order-form" novalidate>
+          <p class="eyebrow"><span class="eyebrow-line"></span> ORDER DETAILS</p>
+          <div class="checkout-fields">
+            <label>Your name <span>*</span><input name="customer_name" type="text" minlength="2" maxlength="120" autocomplete="name" required placeholder="Your full name"></label>
+            <label>Phone / WhatsApp <span>*</span><input name="customer_phone" type="tel" inputmode="tel" minlength="7" maxlength="40" autocomplete="tel" required value="+250" placeholder="+250 780 382 589"></label>
+            <label>Email <span>*</span><input name="customer_email" type="email" inputmode="email" minlength="5" maxlength="254" autocomplete="email" required placeholder="you@example.com"><small>We’ll send your order confirmation here, and you can use this email to see your orders later</small></label>
+            <label class="wide">Describe your order<textarea name="order_description" rows="5" maxlength="5000" placeholder="Flavours, message on the cake, number of guests, serving details and anything else we should know…"></textarea></label>
+            <label>Preferred date<input name="requested_date" id="order-preferred-date" type="date"></label>
+            <label>Preferred time<input name="requested_time" type="time"></label>
+            <label>Pickup or delivery <span>*</span><select name="fulfillment" id="order-fulfillment" required><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select></label>
+            <label id="order-location-label" hidden>Delivery location <span>*</span><input name="delivery_location" id="order-delivery-location" type="text" maxlength="180" placeholder="Area, venue or address"></label>
+            <label class="wide">Notes<textarea name="notes" rows="3" maxlength="3000" placeholder="Optional notes for Step Town…"></textarea></label>
+            <label class="cart-honeypot" aria-hidden="true">Website<input name="website" type="text" tabindex="-1" autocomplete="off"></label>
+          </div>
+          <p id="product-order-error" class="checkout-status" role="alert" aria-live="polite"></p>
+          <button id="product-order-submit" class="button button-dark checkout-submit" type="submit">Send order</button>
+          <p class="checkout-footnote">Final pricing is confirmed by Step Town before your order is accepted.</p>
+        </form>
+        <section id="saved-cart-summary" class="cart-product-summary" aria-live="polite" hidden></section>
+      </div>
+    </section>
+    <section id="order-confirmation-page" class="order-confirmation-page" hidden aria-labelledby="order-confirmation-title">
+      <div class="order-confirmation-card">
+        <p class="eyebrow">STEP TOWN ORDER</p>
+        <h1 id="order-confirmation-title">Thank you. We have your request.</h1>
+        <p>Your order number is</p>
+        <strong id="confirmed-order-number" class="confirmed-order-number"></strong>
+        <p id="confirmation-details">Step Town will contact you to confirm your order.</p>
+        <div id="confirmation-order-summary" class="confirmation-order-summary"></div>
+        <a id="confirmation-tracking-link" class="text-link dark-link" href="#" hidden>Track your order</a>
+        <a id="confirmation-create-account" class="text-link dark-link" href="/login?next=%2Fprofile%2Forders">Create an account to see all your orders</a>
+        <a id="confirmation-whatsapp" class="button button-dark" href="#" target="_blank" rel="noopener" hidden>Chat on WhatsApp</a>
+        <a class="text-link dark-link" href="/categories">Explore the menu</a>
+      </div>
+    </section>
+  </main>
+
+  <nav class="mobile-dock" aria-label="Quick navigation">
+    <a href="/" data-dock-route="home"><span aria-hidden="true">⌂</span><small>Home</small></a>
+    <a href="/categories" data-dock-route="categories"><span aria-hidden="true">▦</span><small>Categories</small></a>
+    <a href="/gallery" data-dock-route="gallery"><span aria-hidden="true">▧</span><small>Gallery</small></a>
+    <a href="/cart" class="mobile-dock-cart" data-dock-route="cart" aria-label="Open cart"><span aria-hidden="true">🛒</span><small>Cart</small><span class="dock-count" id="mobile-cart-count" hidden>0</span></a>
+    <a href="/profile" data-dock-route="profile"><span aria-hidden="true">◯</span><small>Profile</small></a>
+  </nav>
+  <script type="module" src="/src/cart-page-entry.js"></script>
+  <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(err => console.warn("Step Town service worker unavailable", err)));</script>
+</body>
+</html>
