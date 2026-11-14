@@ -719,13 +719,13 @@ async function productsPage() {
     $('input[name="images"]', $("#product-form")).addEventListener("change", event => { addProductFiles(event.target.files); event.target.value=""; });
     const syncPriceUnit = () => {
       const category = categories.find(item => item.id === $("#product-form").elements.category_id.value);
-      const enabled = ["barbecue","cakes"].includes(String(category?.name || "").toLowerCase());
+      const enabled = (String(category?.name || "").toLowerCase().includes("barbecue") || String(category?.name || "").toLowerCase().includes("cake"));
       $("#price-unit-wrap").hidden = !enabled;
-      if (!enabled) { $("#product-form").elements.price_unit.value = "each"; $("#product-form").elements.price_unit_label.value = ""; }
+      if (!enabled) { $("#product-form").elements.price_unit.value = "unit"; $("#product-form").elements.price_unit_label.value = ""; }
       $("#price-unit-custom-wrap").hidden = !enabled || $("#product-form").elements.price_unit.value !== "other";
     };
     $("#product-form").elements.category_id.addEventListener("change", syncPriceUnit);
-    $("#product-form").elements.price_unit.addEventListener("change", () => { $("#price-unit-custom-wrap").hidden = $("#product-form").elements.price_unit.value !== "custom"; });
+    $("#product-form").elements.price_unit.addEventListener("change", () => { $("#price-unit-custom-wrap").hidden = $("#product-form").elements.price_unit.value !== "other"; });
     if (product?.price_unit) $("#product-form").elements.price_unit.value = product.price_unit;
     syncPriceUnit();
     imageList.addEventListener("dragover", event => { if(event.dataTransfer?.files?.length) event.preventDefault(); });
@@ -834,7 +834,7 @@ async function productsPage() {
     $("#products-table").innerHTML = visible.length ?
       '<div class="staff-table-wrap"><table><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Menu status</th><th>Actions</th></tr></thead><tbody>' +
       visible.map(item =>
-        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(item.store_categories?.name || "—") + "</td><td>" + money(item.price) + (item.price != null && item.price_unit && item.price_unit !== "each" ? " per " + esc(item.price_unit_label || item.price_unit) : "") + "</td>" +
+        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(item.store_categories?.name || "—") + "</td><td>" + money(item.price) + (item.price != null && item.price_unit && item.price_unit !== "unit" ? " per " + esc(item.price_unit_label || item.price_unit) : "") + "</td>" +
         "<td>" + (item.stock_quantity == null ? (item.has_stock ? "In stock" : "Sold out") : item.stock_quantity) + "</td>" +
         "<td>" + ((item.is_visible && item.is_available && item.has_stock) ? "Published" : "Hidden / unavailable") + "</td>" +
         '<td><details class="staff-action-menu"><summary aria-label="Product actions">•••</summary><div class="staff-action-menu-pop"><a href="/staff/products/' + item.id + '/edit">Edit</a><button type="button" data-product-stock="' + item.id + '">' + (item.has_stock ? "Mark as sold" : "Mark in stock") + '</button><button type="button" data-product-visibility="' + item.id + '">' + (item.is_visible ? "Hide" : "Publish") + '</button><button type="button" data-product-delete="' + item.id + '">Delete</button></div></details></td></tr>'
