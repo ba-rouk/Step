@@ -28,7 +28,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   const fulfillmentInput = document.querySelector("#checkout-fulfillment");
   const locationInput = document.querySelector("#checkout-location");
   const checkoutDate = document.querySelector("#checkout-date");
-  const storageKey = "step-town-cart-v1";
+  const cartHandoffKey = "step-town-cart-handoff-v1";
 
   if (!categoryShowcase || !productGrid || !cartDrawer || !checkoutForm) return;
 
@@ -47,7 +47,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   const routeSearchMount = document.querySelector(".route-search-mount");
   const routeSearch = document.querySelector(".storefront-hero .menu-search");
   if (categoryRoute && routeSearchMount && routeSearch) routeSearchMount.append(routeSearch);
-  let cart = loadCart();
+  let cart = [];
   let lastCartTrigger = mobileCartOpen || cartOpen;
 
   function escapeHtml(value) {
@@ -73,36 +73,14 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   }
 
   function loadCart() {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
-      if (!Array.isArray(saved)) return [];
-      return saved.filter((item) => item && typeof item.product_id === "string" && Number(item.quantity) > 0)
-        .slice(0, 50)
-        .map((item) => ({
-          product_id: item.product_id,
-          slug: String(item.slug || "").slice(0, 160),
-          name: String(item.name || "Menu item").slice(0, 120),
-          description: String(item.description || "").slice(0, 1200),
-          category_name: String(item.category_name || "").slice(0, 80),
-          price: item.price == null || item.price === "" ? null : Number(item.price),
-          price_unit: String(item.price_unit || "unit"),
-          price_unit_label: String(item.price_unit_label || item.price_unit || "unit"),
-          image_url: safeImageUrl(item.image_url),
-          quantity: Math.min(20, Math.max(1, Math.floor(Number(item.quantity))))
-        }));
-    } catch {
-      return [];
-    }
+    // Guest carts are one-time page handoffs, never persistent browser storage.
+    try { window.localStorage.removeItem("step-town-cart-v1"); } catch {}
+    return [];
   }
 
   function saveCart() {
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(cart));
-      return true;
-    } catch {
-      if (cartPricingNote) cartPricingNote.textContent = "Your browser could not save this cart between visits.";
-      return false;
-    }
+    // This page keeps cart UI state in memory only. /cart owns authenticated persistence.
+    return true;
   }
 
   function categoryName(categoryId) {
@@ -259,44 +237,33 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
       return;
     }
 
-    const previousCart = cart.map(item => ({ ...item }));
-    const id = String(product.id);
-    const existing = cart.find(item => item.product_id === id);
-    if (existing) {
-      existing.quantity = Math.min(20, Math.max(1, Number(existing.quantity) || 1) + 1);
-    } else {
-      if (cart.length >= 50) {
-        showProductToast("Your cart can contain up to 50 different products.");
-        return;
-      }
-      const productImages = Array.isArray(product.images) ? product.images : [];
-      const firstImage = productImages[0];
-      const image = (typeof firstImage === "string" ? firstImage : firstImage?.url) ||
-        (Array.isArray(product.image_urls) ? product.image_urls[0] : "") ||
-        product.image_url || "";
-      const rawPrice = product.price;
-      const price = rawPrice === null || rawPrice === undefined || rawPrice === ""
-        ? null : Number(rawPrice);
-      cart.push({
-        product_id: id,
-        slug: String(product.slug || ""),
-        name: String(product.name || "Menu item"),
-        description: String(product.description || ""),
-        category_name: categoryName(product.category_id),
-        price: Number.isFinite(price) ? price : null,
-        price_unit: String(product.price_unit || "unit"),
-        price_unit_label: String(product.price_unit_label || product.price_unit || "unit"),
-        image_url: safeImageUrl(image),
-        quantity: 1
-      });
-    }
+    const productImages = Array.isArray(product.images) ? product.images : [];
+    const firstImage = productImages[0];
+    const image = (typeof firstImage === "string" ? firstImage : firstImage?.url) ||
+      (Array.isArray(product.image_urls) ? product.image_urls[0] : "") ||
+      product.image_url || "";
+    const rawPrice = product.price;
+    const price = rawPrice === null || rawPrice === undefined || rawPrice === ""
+      ? null : Number(rawPrice);
+    const item = {
+      product_id: String(product.id),
+      slug: String(product.slug || ""),
+      name: String(product.name || "Menu item"),
+      description: String(product.description || ""),
+      category_name: categoryName(product.category_id),
+      price: Number.isFinite(price) ? price : null,
+      price_unit: String(product.price_unit || "unit"),
+      price_unit_label: String(product.price_unit_label || product.price_unit || "unit"),
+      image_url: safeImageUrl(image),
+      quantity: 1
+    };
 
-    if (!saveCart()) {
-      cart = previousCart;
-      showProductToast("Your cart could not be saved. Check browser storage and try again.");
+    try {
+      window.sessionStorage.setItem(cartHandoffKey, JSON.stringify([item]));
+    } catch {
+      showProductToast("Your browser could not open the cart. Please try again.");
       return;
     }
-    renderCart();
     window.location.assign("/cart");
   }
 
