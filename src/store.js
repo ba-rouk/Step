@@ -251,8 +251,8 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   function addProduct(productId) {
     const product = products.find((item) => item.id === productId);
     if (!product) return;
-    const slug = product.slug || product.id;
-    window.location.assign("/cart?product=" + encodeURIComponent(slug));
+    const reference = product.id || product.slug;
+    window.location.assign("/cart?product=" + encodeURIComponent(reference));
   }
 
   const menuPageSize = 12;
