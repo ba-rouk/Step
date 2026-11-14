@@ -15,7 +15,7 @@ if (isAuthRoute) {
     !nextParam.includes("\\") &&
     !nextParam.startsWith("/staff")
       ? nextParam
-      : "/profile";
+      : (route.startsWith("/profile") ? route : "/profile");
 
   const app = document.createElement("main");
   app.id = "customer-account";
@@ -331,7 +331,8 @@ if (isAuthRoute) {
       const total = order.estimated_total == null
         ? "Quote to be confirmed"
         : money(order.estimated_total);
-      return '<article class="customer-order-card"><div class="customer-order-top"><strong>' +
+      const detailHref=order.tracking_token?"/order/"+encodeURIComponent(order.tracking_token):"#";
+      return '<a class="customer-order-card customer-order-card-link" href="' + detailHref + '"><div class="customer-order-top"><strong>' +
         escapeHtml(order.order_number || "Step Town order") + '</strong><span>' +
         escapeHtml(order.status || "new") + '</span></div><small>' +
         escapeHtml(order.created_at ? new Date(order.created_at).toLocaleDateString() : "") +
@@ -341,7 +342,7 @@ if (isAuthRoute) {
         (order.notes ? '<p>' + escapeHtml(order.notes) + '</p>' : '') +
         '<b>' + escapeHtml(total) + '</b>' +
         (order.tracking_token ? '<a class="text-link dark-link" href="/order/' + encodeURIComponent(order.tracking_token) + '">Track this order</a>' : '') +
-        '</article>';
+        '</a>';
     }).join("") : '<div class="customer-empty-orders"><strong>No orders yet.</strong><p>Your submitted order requests will appear here.</p><a href="/categories">Explore the menu</a></div>';
     shell(
       '<h1>Your orders.</h1><p class="customer-intro">Your submitted Step Town orders, including requests made as a guest using this account email.</p>' +
