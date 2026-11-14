@@ -56,3 +56,88 @@ body.route-cart #cart-page,body.route-confirmation #order-confirmation-page{disp
  .saved-cart-item img{width:60px;height:60px}
  .saved-cart-actions{grid-column:1/-1;justify-content:flex-end}
 }
+
+/* Product-specific order summary: make the chosen item and its price explicit
+   before the customer completes the same guest-capable checkout form. */
+.cart-product-summary {
+  align-items: center;
+}
+.cart-product-summary .cart-selected-product-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  max-height: 340px;
+  object-fit: cover;
+  border-radius: 16px;
+  background: rgba(255,255,255,.06);
+}
+.cart-product-summary-copy {
+  min-width: 0;
+}
+.cart-product-summary-copy > .eyebrow {
+  margin: 0 0 8px;
+  color: rgba(255,239,228,.66);
+  font-size: 10px;
+  letter-spacing: .12em;
+  line-height: 1.5;
+}
+.cart-product-summary-copy h2 {
+  margin: 0;
+}
+.cart-product-summary-copy .cart-summary-description {
+  margin: 10px 0 0;
+  color: rgba(255,239,228,.78);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.cart-summary-price-row,
+.cart-summary-line-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+.cart-summary-price-row {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,.2);
+  color: rgba(255,239,228,.74);
+  font-size: 12px;
+}
+.cart-summary-price-row strong {
+  color: #ffbd8d;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: right;
+}
+.cart-summary-line-total {
+  margin-top: 9px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,189,141,.22);
+  border-radius: 13px;
+  color: rgba(255,239,228,.78);
+  background: rgba(255,189,141,.07);
+  font-size: 12px;
+}
+.cart-summary-line-total strong {
+  color: #ffbd8d;
+  font-size: 16px;
+  font-weight: 850;
+  text-align: right;
+}
+.cart-product-summary .order-quantity {
+  margin-top: 13px;
+}
+@media(max-width:640px) {
+  .cart-product-summary .cart-selected-product-image {
+    height: 210px;
+    min-height: 0;
+    max-height: none;
+  }
+  .cart-summary-price-row,
+  .cart-summary-line-total {
+    align-items: flex-start;
+  }
+}
