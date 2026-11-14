@@ -183,3 +183,14 @@ body.route-customer-page body.route-customer-page body.route-customer-page body.
   .customer-auth-card h1 { font-size: clamp(1.9rem,8vw,2.4rem); line-height: 1.12; }
   .customer-intro { font-size: 16px; }
 }
+
+.customer-email-change{margin:24px 0;padding:18px;border:1px solid rgba(255,255,255,.14);border-radius:18px;background:rgba(255,255,255,.045)}
+.customer-email-change h2{margin:0 0 8px;font:600 22px var(--display,"Source Serif 4",Georgia,serif)}
+.customer-email-change .customer-intro{margin:0 0 14px}
+.customer-email-change form{display:grid;gap:12px}
+.customer-email-change .customer-secondary{min-height:44px;padding:10px 16px;border:1px solid rgba(255,255,255,.2);border-radius:999px;color:#fff4eb;background:rgba(255,255,255,.09);font:700 12px var(--body,Inter,sans-serif);cursor:pointer}
+.customer-order-actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
+.customer-order-actions a{color:#ffbd8d;font-size:11px;font-weight:800;text-decoration:underline;text-underline-offset:3px}
+.customer-order-card .customer-order-top span{text-transform:capitalize}
+.customer-profile-details>div small+small{display:block;margin-top:5px;color:#ffbd8d;font-size:9px}
+@media(max-width:520px){.customer-email-change{padding:14px}.customer-order-actions{gap:10px}}
