@@ -68,7 +68,7 @@ export function renderProductCard(product, options = {}) {
         const loading = eager && index === 0
           ? 'loading="eager" fetchpriority="high"'
           : 'loading="lazy"';
-        const alt = image.alt_text || (product.name + " — photo " + (index + 1));
+        const alt = image.alt_text || (product.name + " — " + categoryName + " photo " + (index + 1));
 
         return '<img src="' + escapeHtml(src) + '"' +
           (srcset
