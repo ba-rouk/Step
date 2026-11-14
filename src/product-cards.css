@@ -606,3 +606,54 @@ body.route-category-detail .product-grid,
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
+
+
+/* Keep price directly beneath the description, left aligned with a short divider.
+   Allow the page itself to scroll vertically while retaining horizontal image swipes. */
+.product-card-copy {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: stretch;
+}
+.product-card-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  justify-content: start;
+  align-content: end;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  margin: 3px 0 0;
+  border: 0;
+}
+.product-card-bottom::before {
+  display: block;
+  width: 34px;
+  height: 1px;
+  content: "";
+  background: rgba(255,255,255,.34);
+}
+.product-card-bottom > strong,
+.product-card-bottom .product-price-link {
+  justify-self: start;
+  text-align: left;
+}
+.product-card-detail .product-card-bottom {
+  width: 100%;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: end;
+}
+.product-card-detail .product-card-bottom::before {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.product-image,
+.product-image-link,
+.product-image-strip {
+  touch-action: pan-x pan-y;
+}
+.product-image-strip {
+  overscroll-behavior-y: auto;
+}
