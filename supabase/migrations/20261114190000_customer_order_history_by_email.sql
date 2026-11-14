@@ -52,7 +52,6 @@ GRANT SELECT ON public.store_orders TO authenticated;
 -- Only a verified account email can unlock guest orders associated with it.
 -- Keep the lookup in a non-exposed schema and scope it to auth.uid().
 CREATE SCHEMA IF NOT EXISTS private;
-REVOKE ALL ON SCHEMA private FROM PUBLIC;
 GRANT USAGE ON SCHEMA private TO authenticated;
 
 CREATE OR REPLACE FUNCTION private.current_verified_customer_email()
