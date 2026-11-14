@@ -85,11 +85,27 @@
   </main>
 
   <nav class="mobile-dock" aria-label="Quick navigation">
-    <a href="/" data-dock-route="home"><span aria-hidden="true">⌂</span><small>Home</small></a>
-    <a href="/categories" data-dock-route="categories"><span aria-hidden="true">▦</span><small>Categories</small></a>
-    <a href="/gallery" data-dock-route="gallery"><span aria-hidden="true">▧</span><small>Gallery</small></a>
-    <a href="/cart" class="mobile-dock-cart" data-dock-route="cart" aria-label="Open cart"><span aria-hidden="true">🛒</span><small>Cart</small><span class="dock-count" id="mobile-cart-count" hidden>0</span></a>
-    <a href="/profile" data-dock-route="profile"><span aria-hidden="true">◯</span><small>Profile</small></a>
+    <a href="/" data-dock-route="home">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7"></path><path d="M5 9v11h14V9"></path><path d="M9 20v-6h6v6"></path></svg>
+      <small>Home</small>
+    </a>
+    <a href="/categories" data-dock-route="categories">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+      <small>Categories</small>
+    </a>
+    <a href="/gallery" data-dock-route="gallery">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m21 15-5-5L5 20"></path></svg>
+      <small>Gallery</small>
+    </a>
+    <a href="/cart" class="mobile-dock-cart" data-dock-route="cart" aria-label="Open cart">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.1 11.1a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 1.9-1.4L22 8H6"></path><circle cx="10" cy="20" r="1.3"></circle><circle cx="18" cy="20" r="1.3"></circle></svg>
+      <small>Cart</small>
+      <span class="dock-count" id="mobile-cart-count" hidden>0</span>
+    </a>
+    <a href="/profile" data-dock-route="profile">
+      <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.6"></circle><path d="M4 21a8 8 0 0 1 16 0"></path></svg>
+      <small>Profile</small>
+    </a>
   </nav>
   <script type="module" src="/src/cart-page-entry.js"></script>
   <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(err => console.warn("Step Town service worker unavailable", err)));</script>
