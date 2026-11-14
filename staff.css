@@ -578,3 +578,33 @@ body.staff-page-body {
   .staff-gallery-lightbox-prev { left:7px; }
   .staff-gallery-lightbox-next { right:7px; }
 }
+
+/* The enabled status keeps the existing button dimensions but is not interactive. */
+.staff-alert-button.is-on.staff-alert-state {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  min-height:34px;
+  padding:8px 10px;
+  border:1px solid rgba(117,190,133,.35);
+  border-radius:10px;
+  color:#c4efce;
+  background:rgba(255,255,255,.055);
+  font-size:11px;
+  line-height:1.2;
+  box-sizing:border-box;
+  cursor:default;
+  user-select:text;
+}
+.staff-alert-button.is-on.staff-alert-state .staff-alert-dot { background:#84c68c; }
+.staff-alert-hint { color:#e9c6a5; }
+.staff-order-description {
+  margin:18px 0;
+  padding:15px 16px;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:14px;
+  background:rgba(255,255,255,.045);
+}
+.staff-order-description small { display:block; margin-bottom:7px; color:#e9c6a5; font-size:10px; letter-spacing:.12em; }
+.staff-order-description p { margin:0; color:#f6eae0; white-space:pre-wrap; overflow-wrap:anywhere; }
