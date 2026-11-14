@@ -203,6 +203,12 @@ async function getOrCreateStaffPushSubscription() {
   if (!publicKey) throw new Error("Push notifications are not configured on this site.");
   const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
   let subscription = await registration.pushManager.getSubscription();
+  if (subscription?.expirationTime && subscription.expirationTime <= Date.now()) {
+    try { await subscription.unsubscribe(); } catch (error) {
+      console.warn("Expired staff push subscription cleanup failed:", error);
+    }
+    subscription = null;
+  }
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
@@ -1456,8 +1462,10 @@ function changePasswordPage() {
   $("#staff-password-signout")?.addEventListener("click", async () => {
     const button = $("#staff-password-signout");
     button.disabled = true;
-    try { await supabase.auth.signOut({ scope: "global" }); }
-    finally { location.replace("/staff/login"); }
+    try {
+      await removeDeviceAlertsForSignout();
+      await supabase.auth.signOut({ scope: "global" });
+    } finally { location.replace("/staff/login"); }
   });
 
   $("#change-password-form")?.addEventListener("submit", async event => {
