@@ -152,7 +152,7 @@ async function fetchPublicMenu(options={}) {
   if(productId)params.set("id","eq."+productId);
   if(search){
     if(search.toLowerCase()===CAKE_CATEGORY_LABEL.toLowerCase())params.set("category.slug","eq.cake");
-    else params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*)");
+    else params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*,slug.ilike.*"+search+"*)");
   }
   params.set("order","sort_order.asc,created_at.desc");
   const productsPromise=(async()=>{
@@ -617,10 +617,65 @@ function pageTitle(pathname){
   if(pathname.startsWith("/staff"))return "Staff workspace";
   return titles[pathname]||"Food · Celebrations · Cakes";
 }
+function htmlEscape(value){
+  return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function productImage(product){
+  const first=Array.isArray(product?.images)?product.images[0]:null;
+  return (typeof first==="string"?first:first?.url)||(Array.isArray(product?.image_urls)?product.image_urls[0]:"")||product?.image_url||"";
+}
+function productPrice(value){
+  if(value===null||value===undefined||value==="")return "Price to be confirmed";
+  return new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(value));
+}
+async function findQuickOrderProduct(reference){
+  const isId=/^[0-9a-f-]{36}$/i.test(reference);
+  const exact=await getPublicMenu({limit:1,slug:isId?"":reference,productId:isId?reference:""});
+  if(exact.products?.length)return exact.products[0];
+  if(isId)return null;
+  const base=reference.replace(/-[0-9a-f]{8}$/i,"").replace(/[-_]+/g,"-").replace(/^-|-$/g,"");
+  if(!base)return null;
+  const variants=[base,base.replace(/^(?:wedding-cakes|cakes|cake|catering|barbecue|events)-/i,"")].filter(Boolean);
+  const normalize=value=>String(value||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+  for(const variant of [...new Set(variants)]){
+    const queries=[variant,variant.replace(/-/g," ")];
+    const candidates=new Map();
+    for(const query of queries){
+      const fallback=await getPublicMenu({limit:50,search:query});
+      for(const product of fallback.products||[])candidates.set(String(product.id),product);
+    }
+    const normalized=normalize(variant);
+    const matches=[...candidates.values()].filter(product=>{
+      const name=normalize(product.name),slug=normalize(product.slug);
+      return name===normalized||slug===normalized||slug.startsWith(normalized+"-")||name.endsWith("-"+normalized);
+    });
+    if(matches.length===1)return matches[0];
+  }
+  return null;
+}
+function quickOrderMarkup(product){
+  const image=productImage(product);
+  const unit=String(product.price_unit_label||product.price_unit||"unit");
+  const unitText=product.price==null?"Price to be confirmed":productPrice(product.price)+" per "+unit;
+  const lineText=product.price==null?"Quote required":productPrice(Number(product.price));
+  return '<p class="eyebrow">ORDER THIS ITEM</p><article class="cart-selected-item" data-cart-product="'+htmlEscape(product.id)+'" data-cart-kind="quick">'+
+    '<div class="cart-selected-image">'+(image?'<img src="'+htmlEscape(image)+'" alt="'+htmlEscape(product.name)+'" loading="eager">':'<div class="product-image-placeholder">STEP TOWN</div>')+'</div>'+
+    '<div class="cart-selected-copy"><div class="cart-selected-head"><span class="cart-selected-category">'+htmlEscape(product.category_name||"Menu")+'</span></div>'+
+    '<h2>'+htmlEscape(product.name)+'</h2>'+(product.description?'<p class="cart-summary-description">'+htmlEscape(product.description)+'</p>':'')+
+    '<div class="cart-unit-price"><span>'+htmlEscape(unitText)+'</span><strong>'+htmlEscape(lineText)+'</strong></div>'+
+    '<div class="cart-item-footer"><div class="order-quantity"><button type="button" data-action="decrease" aria-label="Decrease quantity">−</button><output>1</output><button type="button" data-action="increase" aria-label="Increase quantity">+</button></div>'+
+    '<div class="cart-line-total"><span>Line total</span><strong>'+htmlEscape(lineText)+'</strong></div></div></div></article>';
+}
+function cartNotFoundPage(res,reference,status=404){
+  const title=status===503?"Menu temporarily unavailable.":"Product not found.";
+  const message=status===503?"We could not verify this menu item right now. Please retry in a moment.":"We could not find an available menu item matching “"+htmlEscape(reference)+"”. The item may have been renamed or is no longer available.";
+  const html='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#211d1a"><title>Step Town | '+title+'</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f5f1ea;color:#211d1a;font:16px Inter,Arial,sans-serif}.card{max-width:560px;margin:24px;padding:36px;border-radius:28px;background:#fff;box-shadow:0 18px 60px #211d1a18}h1{font:600 38px Georgia,serif}a{display:inline-block;margin-top:12px;color:#211d1a;font-weight:700}</style></head><body><main class="card"><p>STEP TOWN ORDER</p><h1>'+title+'</h1><p>'+message+'</p><a href="/categories">Explore the menu</a></main></body></html>';
+  res.writeHead(status,{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});res.end(html);
+}
 async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   const decoded=decodeURIComponent(pathname);
   const staffRoute=decoded==="/staff"||decoded.startsWith("/staff/");
-  let file=staffRoute?path.join(DIST,"staff.html"):(decoded==="/" ? path.join(DIST,"index.html") : path.resolve(DIST,"."+decoded));
+  let file=staffRoute?path.join(DIST,"staff.html"):(decoded==="/cart"?path.join(DIST,"cart.html"):(decoded==="/" ? path.join(DIST,"index.html") : path.resolve(DIST,"."+decoded)));
   if(!staffRoute&&file!==DIST&&!file.startsWith(DIST+path.sep))return sendJson(res,400,{error:"Invalid path."});
   const requestedExt=path.extname(file).toLowerCase();
   try{const stat=await fs.stat(file);if(stat.isDirectory())file=path.join(file,"index.html");}
@@ -633,27 +688,36 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   try{data=await fs.readFile(file);}
   catch{return sendJson(res,staffRoute?503:404,{error:staffRoute?"The staff workspace is building. Refresh shortly.":"Static asset not found."});}
   const ext=path.extname(file).toLowerCase();
-  const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/")||decoded==="/cart");
-  if(ext===".html"&&path.basename(file)==="index.html"){
+  const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/"));
+  if(ext===".html"&&(path.basename(file)==="index.html"||path.basename(file)==="cart.html")){
     let html=data.toString("utf8");
     const lowerHtml=html.toLowerCase();
     const titleStart=lowerHtml.indexOf("<title>");
     const titleEnd=lowerHtml.indexOf("</title>",titleStart);
     if(titleStart>=0&&titleEnd>titleStart)html=html.slice(0,titleStart)+"<title>Step Town | "+pageTitle(pathname)+"</title>"+html.slice(titleEnd+8);
-    if(menuPage){
+    if(decoded==="/cart"){
+      const reference=String(url.searchParams.get("product")||"").trim().slice(0,180);
+      if(reference){
+        let product=null;
+        try{product=await findQuickOrderProduct(reference);}
+        catch(error){console.warn("Quick-order lookup failed:",error.message);return cartNotFoundPage(res,reference,503);}
+        if(!product)return cartNotFoundPage(res,reference,404);
+        const payload=JSON.stringify({products:[product],categories:[],embeddedAt:Date.now()})
+          .replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
+        const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
+        html=html.replace("<!--SERVER_QUICK_ORDER_PANEL-->",quickOrderMarkup(product));
+        html=html.replace(/<\\/head>/i,initial+"</head>");
+      }else{
+        html=html.replace("<!--SERVER_QUICK_ORDER_PANEL-->","");
+      }
+    }else if(menuPage){
       try{
         const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
-        const productReference=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
-        const isProductId=/^[0-9a-f-]{36}$/i.test(productReference);
-        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:isProductId?"":productReference,productId:isProductId?productReference:""});
+        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category});
         const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
-          .replace(/</g,"\\u003c")
-          .replace(/\u2028/g,"\\u2028")
-          .replace(/\u2029/g,"\\u2029");
+          .replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
         const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
-        // Inject before </head> so this works with Vite's hashed production bundle
-        // as well as the development /src/main.js entry.
-        html=html.replace(/<\/head>/i,initial+'</head>');
+        html=html.replace(/<\\/head>/i,initial+"</head>");
       }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
     }
     data=Buffer.from(html);
@@ -663,13 +727,38 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     "X-Content-Type-Options":"nosniff",
     "Referrer-Policy":"strict-origin-when-cross-origin",
     "X-Frame-Options":"SAMEORIGIN",
-    "Cache-Control":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
+    "Cache-Control":decoded==="/cart"?"no-store":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
     ...(menuPage&&ext===".html"?{"CDN-Cache-Control":"public, s-maxage=30, stale-while-revalidate=240"}:{})
   };
   res.writeHead(200,headers);res.end(data);
 }
+function cartDebugPage(res){
+  const html='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Step Town cart diagnostics</title><style>body{margin:0;padding:20px;background:#fff;color:#111;font:14px/1.5 ui-monospace,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><pre id="output">Reading cart diagnostics…</pre><script>
+(async()=>{
+ const keys=["step-town-cart-v2","step-town-cart-v1","step-town-cart-handoff-v1","step-town-bag-v1","step-town-bag","shopping-bag","cart","bag"];
+ const raw={};for(const key of keys){const value=localStorage.getItem(key);if(value!==null)raw[key]=value;}
+ const parse=value=>{try{return JSON.parse(value||"[]")}catch{return []}};
+ const items=parse(raw["step-town-cart-v2"]).filter(item=>item&&item.product_id);
+ const ids=[...new Set(items.map(item=>String(item.product_id)))];
+ let products=[];let lookupError=null;
+ if(ids.length){try{const response=await fetch("/api/catalog?limit=50&ids="+encodeURIComponent(ids.join(",")),{credentials:"same-origin",cache:"no-store"});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||"Catalogue lookup failed");products=Array.isArray(data.products)?data.products:[];}catch(error){lookupError=error.message;}}
+ const byId=new Map(products.map(product=>[String(product.id),product]));
+ const resolved=items.filter(item=>byId.has(String(item.product_id))).map(item=>{const product=byId.get(String(item.product_id));return {product_id:item.product_id,slug:product.slug||item.slug||"",quantity:item.quantity,name:product.name,unit_price:product.price,image:product.image_url||product.image_urls?.[0]||""};});
+ const badge=resolved.reduce((sum,item)=>sum+Math.max(1,Math.min(20,Number(item.quantity)||1)),0);
+ const cacheNames=typeof caches!=="undefined"?await caches.keys():[];
+ const registration=await navigator.serviceWorker?.getRegistration();
+ const result={raw_cart_storage:raw,resolved_items:resolved,badge_calculation:{sum_of_resolved_quantities:badge,resolved_product_count:resolved.length,unresolved_ids:items.filter(item=>!byId.has(String(item.product_id))).map(item=>String(item.product_id))},cart_version:localStorage.getItem("cart_version"),service_worker:{script:registration?.active?.scriptURL||null,cache_version:"step-town-static-v2026-11-14-cart2",cache_names:cacheNames},catalogue_lookup_error:lookupError};
+ document.getElementById("output").textContent=JSON.stringify(result,null,2);
+})().catch(error=>{document.getElementById("output").textContent="Diagnostics failed: "+error.message;});
+})();</script></body></html>';
+  res.writeHead(200,{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});res.end(html);
+}
 async function handle(req,res){
   const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname).replace(/\/+$/,"")||"/";
+  if(req.method==="GET"&&route==="/cart-debug"){
+    if(process.env.CART_DEBUG_ENABLED!=="true")return sendJson(res,404,{error:"Not found."});
+    return cartDebugPage(res);
+  }
   if(req.method==="GET"&&route==="/api/auth/google")return oauthStart(req,res,url);
   if(req.method==="GET"&&route==="/auth/callback")return oauthCallback(req,res,url);
   if(req.method==="GET"&&route==="/categories/wedding-cakes"){

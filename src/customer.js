@@ -2,12 +2,13 @@ import "../customer.css";
 import { apiFetch } from "./api.js";
 import { renderProductCard } from "./product-card.js";
 import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
-import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
+import { addCartItem, bindCartBadge, syncCartToAccount } from "./cart-store.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const isAuthRoute = ["/login","/register","/profile","/profile/orders","/profile/cart-history"].includes(route);
 
 if (isAuthRoute) {
+  void syncCartToAccount().catch(error => console.warn("Account cart merge deferred:", error.message));
   document.body.classList.add("route-customer-page");
   const nextParam = new URLSearchParams(window.location.search).get("next");
   const safeNext = typeof nextParam === "string" &&
@@ -244,30 +245,26 @@ if (isAuthRoute) {
       event.stopPropagation();
       const product = favouriteProducts.find(item => item.id === add.dataset.addProduct);
       if (!product) return;
-      const firstImage = Array.isArray(product.images) ? product.images[0] : null;
-      const image = (typeof firstImage === "string" ? firstImage : firstImage?.url) ||
-        (Array.isArray(product.image_urls) ? product.image_urls[0] : "") || product.image_url || "";
-      const rawPrice = product.price;
-      const price = rawPrice == null || rawPrice === "" ? null : Number(rawPrice);
-      const item = {product_id:String(product.id),slug:String(product.slug||""),name:String(product.name||"Menu item"),
-        description:String(product.description||""),category_name:product.category_name||product.category?.name||"Menu",
-        price:Number.isFinite(price)?price:null,price_unit:String(product.price_unit||"unit"),
-        price_unit_label:String(product.price_unit_label||product.price_unit||"unit"),image_url:image,quantity:1};
-      let cart=[];
-      try{const rows=JSON.parse(localStorage.getItem(GUEST_CART_STORAGE_KEY)||"[]");cart=Array.isArray(rows)?rows:[];}catch{}
-      const existing=cart.find(row=>String(row.product_id||row.id)===item.product_id);
-      if(existing)existing.quantity=Math.min(20,(Number(existing.quantity)||1)+1);else cart.push(item);
-      try{localStorage.setItem(GUEST_CART_STORAGE_KEY,JSON.stringify(cart.slice(0,50)));}catch{showProductToast("Your cart could not be saved. Check your browser storage.");return;}
-      const badge=document.querySelector("#mobile-cart-count");
-      if(badge){const count=cart.reduce((n,row)=>n+(Number(row.quantity)||1),0);badge.textContent=count>99?"99+":String(count);badge.hidden=count===0;}
+      const added = addCartItem({ product_id: String(product.id), slug: String(product.slug || "") });
+      if (!added) {
+        showProductToast("Your cart could not be updated. Check your browser storage.");
+        return;
+      }
+      bindCartBadge();
       flashCartButton(add);
-      let toast=document.querySelector(".store-toast");
-      if(!toast){toast=document.createElement("div");toast.className="store-toast";toast.setAttribute("role","status");toast.setAttribute("aria-live","polite");document.body.append(toast);}
-      toast.innerHTML='Added to cart <a href="/cart">View cart</a>';toast.classList.add("is-visible");
-      clearTimeout(toast._stepTimer);toast._stepTimer=setTimeout(()=>toast.classList.remove("is-visible"),2400);
-      void apiFetch("/api/session").then(r=>r.json()).then(session=>{
-        if(session.authenticated)return apiFetch("/api/profile/cart",{method:"PUT",body:{items:cart.map(row=>({product_id:row.product_id||row.id,quantity:row.quantity}))}}).then(response=>{if(response.ok)try{localStorage.removeItem(GUEST_CART_STORAGE_KEY);}catch{};return response;});
-      }).catch(error=>console.warn("Favourite cart sync deferred:",error.message));
+      let toast = document.querySelector(".store-toast");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.className = "store-toast";
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+        document.body.append(toast);
+      }
+      toast.innerHTML = 'Added to cart <a href="/cart">View cart</a>';
+      toast.classList.add("is-visible");
+      clearTimeout(toast._stepTimer);
+      toast._stepTimer = setTimeout(() => toast.classList.remove("is-visible"), 2400);
+      void syncCartToAccount().catch(error => console.warn("Favourite cart sync deferred:", error.message));
     });
     app.querySelector("#customer-signout").addEventListener("click", async () => {
       const button = app.querySelector("#customer-signout");
