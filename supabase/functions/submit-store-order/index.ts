@@ -40,11 +40,14 @@ Deno.serve(async req => {
   }
 
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-  let user: { id: string } | null = null;
+  let user: { id: string; email: string } | null = null;
   if (token) {
     const auth = await db.auth.getUser(token);
     if (auth.error || !auth.data?.user) return json({ error: "Your sign-in session expired. Refresh and try again." }, 401);
-    user = { id: auth.data.user.id };
+    user = {
+      id: auth.data.user.id,
+      email: String(auth.data.user.email || "").trim().toLowerCase()
+    };
   }
 
   const name = String(body.customer_name || "").trim();
@@ -53,13 +56,13 @@ Deno.serve(async req => {
   const description = String(body.order_description || "").trim();
   const notes = String(body.notes || "").trim();
   const location = String(body.delivery_location || "").trim();
-  const email = String(body.customer_email || "").trim();
+  const email = String(user?.email || body.customer_email || "").trim().toLowerCase();
   const date = body.requested_date ? String(body.requested_date) : null;
   const time = body.requested_time ? String(body.requested_time) : null;
 
   if (name.length < 2 || name.length > 120) return json({ error: "Enter your name (2–120 characters)." }, 400);
   if (!phone) return json({ error: "Enter a valid phone number, including the +250 country code." }, 400);
-  if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return json({ error: "Enter a valid email address or leave it blank." }, 400);
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address so you can find this order when you sign in." }, 400);
   if (!["pickup", "delivery", "event"].includes(fulfillment)) return json({ error: "Choose pickup, delivery or event service for this order." }, 400);
   if ((fulfillment === "delivery" || fulfillment === "event") && location.length < 3) return json({ error: "Add the delivery or event location before sending." }, 400);
   if (location.length > 180 || description.length > 5000 || notes.length > 3000) return json({ error: "One of your order details is too long. Shorten it and try again." }, 400);
@@ -94,7 +97,7 @@ Deno.serve(async req => {
   const ids = [...quantitiesById.keys()];
   const slugs = [...quantitiesBySlug.keys()];
   let query = db.from("store_products")
-    .select("id,slug,name,category_id,price,price_unit,price_unit_label,category:store_categories!store_products_category_id_fkey(name)")
+    .select("id,slug,name,category_id,price,price_unit,price_unit_label,image_url,image_urls,category:store_categories!store_products_category_id_fkey(name)")
     .eq("is_available", true).eq("is_visible", true);
   if (ids.length && slugs.length) query = query.or("id.in.(" + ids.join(",") + "),slug.in.(" + slugs.join(",") + ")");
   else if (ids.length) query = query.in("id", ids);
@@ -114,6 +117,7 @@ Deno.serve(async req => {
     return {
       product_id: product.id, slug: product.slug, name: product.name,
       category: product.category?.name || "Menu", quantity,
+      image_url: product.image_url || product.image_urls?.[0] || null,
       price_unit: product.price_unit || "unit",
       price_unit_label: product.price_unit_label || product.price_unit || "unit",
       unit_price: unitPrice,
