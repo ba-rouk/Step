@@ -240,8 +240,8 @@
         <form class="enquiry-form" id="enquiry-form">
           <div class="form-topline"><span>YOUR EVENT ENQUIRY</span><span>01 — 04</span></div>
           <div class="form-row">
-            <label for="name">Your name <span>*</span><input id="name" name="name" type="text" maxlength="120" placeholder="How should we address you?" autocomplete="name" required></label>
-            <label for="phone">Your phone <span>*</span><input id="phone" name="phone" type="tel" maxlength="40" placeholder="+250 ..." autocomplete="tel" required></label>
+            <label for="name">Your name <span>*</span><input id="name" name="name" type="text" minlength="2" maxlength="120" placeholder="How should we address you?" autocomplete="name" required></label>
+            <label for="phone">Your phone <span>*</span><input id="phone" name="phone" type="tel" minlength="5" maxlength="40" placeholder="+250 ..." autocomplete="tel" required></label>
           </div>
           <div class="form-row">
             <label for="service">What do you need? <span>*</span>
@@ -308,7 +308,7 @@
           <p class="eyebrow"><span class="eyebrow-line"></span> STEP TOWN ORDER</p>
           <h1 id="cart-page-title">Your cart.</h1>
           <p>Review your items, adjust quantities and send one order request. You can check out without an account.</p>
-          <p class="cart-history-access">Returning customer? <a href="/profile/orders">View your cart history</a> (sign-in required).</p>
+          <p class="cart-history-access">Returning customer? <a href="/profile/cart-history">View your cart history</a> (sign-in required).</p>
         </div>
         <div id="cart-product-summary" class="cart-product-summary" aria-live="polite"></div>
         <form id="product-order-form" class="product-order-form" novalidate>
