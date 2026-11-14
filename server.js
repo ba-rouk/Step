@@ -256,7 +256,7 @@ async function profileUpsert(session,user,name,phone) {
     await sb("/rest/v1/customer_profiles?on_conflict=user_id",{
       method:"POST",access:session.access_token,
       headers:{Prefer:"resolution=merge-duplicates,return=minimal"},
-      body:{user_id:user.id,full_name:String(name||user.user_metadata?.full_name||user.user_metadata?.name||"").trim(),phone:phone||user.phone||null}
+      body:{user_id:user.id,full_name:String(name||user.user_metadata?.full_name||user.user_metadata?.name||"").trim(),phone:phone||user.phone||null,...(user.email_confirmed_at?{email_verified_at:user.email_confirmed_at}:{})}
     });
   } catch(e) { console.warn("Customer profile sync:",e.message); }
 }
@@ -341,6 +341,122 @@ async function oauthCallback(req,res,url) {
     res.writeHead(303,{Location:"/login?error="+encodeURIComponent(e.message||"oauth")}).end();
   }
 }
+async function emailCodeRoutes(req,res,url) {
+  const route=url.pathname;
+  const generic={ok:true,message:"If this email address can receive a sign-in code, we have sent one."};
+  if(!SUPABASE_SERVICE_ROLE_KEY||!KEY)return sendJson(res,503,{error:"Email sign-in is temporarily unavailable. Please try again later."});
+
+  if(route==="/api/auth/email-code"){
+    const b=await body(req,4096);
+    const email=String(b.email||"").trim().toLowerCase();
+    if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return sendJson(res,400,{error:"Enter a valid email address."});
+    const ipHash=createHash("sha256").update("ip:"+requestIp(req)).digest("hex");
+    const emailHash=createHash("sha256").update("email:"+email).digest("hex");
+    try{
+      const [ipLimit,emailLimit]=await Promise.all([
+        serviceRequest("/rest/v1/rpc/consume_step_order_rate_limit",{method:"POST",body:{p_bucket_key:"email-code-ip:"+ipHash,p_max_hits:3,p_window_seconds:3600}}),
+        serviceRequest("/rest/v1/rpc/consume_step_order_rate_limit",{method:"POST",body:{p_bucket_key:"email-code:"+emailHash,p_max_hits:3,p_window_seconds:3600}})
+      ]);
+      if(!ipLimit||!emailLimit){
+        await verificationEvent(email,"rate_limited",req);
+        return sendJson(res,202,generic);
+      }
+      await verificationEvent(email,"code_requested",req);
+
+      let userId=null;
+      try{
+        const created=await adminAuth("users",{method:"POST",body:{
+          email,email_confirm:false,
+          user_metadata:{full_name:String(b.name||"").trim().slice(0,120)}
+        }});
+        userId=created?.id||null;
+      }catch(error){
+        const duplicate=error.status===422||/already registered|already exists|user exists/i.test(error.message);
+        if(!duplicate)throw error;
+      }
+
+      const generated=await adminAuth("generate_link",{method:"POST",body:{type:"magiclink",email}});
+      const code=String(generated?.properties?.email_otp||generated?.email_otp||"").trim();
+      userId=userId||generated?.user?.id||generated?.id||null;
+      if(!/^\d{6}$/.test(code))throw new Error("Supabase did not return a six-digit email OTP.");
+
+      await serviceRequest("/rest/v1/login_codes?email=eq."+encodeURIComponent(email)+"&purpose=eq.login&consumed_at=is.null",{
+        method:"PATCH",body:{consumed_at:new Date().toISOString()},headers:{Prefer:"return=minimal"}
+      });
+      await serviceRequest("/rest/v1/login_codes",{method:"POST",body:{
+        email,code_hash:emailCodeHash(email,code),purpose:"login",user_id:userId,
+        expires_at:new Date(Date.now()+10*60*1000).toISOString(),attempts:0
+      },headers:{Prefer:"return=minimal"}});
+      await serviceRequest("/rest/v1/email_jobs",{method:"POST",body:{
+        job_type:"login_code",recipient:email,
+        payload:{encrypted_code:seal({code,email})}
+      },headers:{Prefer:"return=minimal"}});
+      await verificationEvent(email,"code_sent",req,userId);
+      void processEmailOutbox();
+    }catch(error){
+      console.error("Email login code request:",error.status||502,error.message);
+      await verificationEvent(email,"code_send_failed",req);
+      // Deliberately identical response for existing and non-existing addresses.
+    }
+    return sendJson(res,202,generic);
+  }
+
+  if(route==="/api/auth/verify-email-code"){
+    const b=await body(req,4096);
+    const email=String(b.email||"").trim().toLowerCase();
+    const code=String(b.code||"").trim();
+    if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!/^\d{6}$/.test(code))
+      return sendJson(res,400,{error:"Enter the email address and the six-digit code."});
+    let consumed="missing";
+    try{
+      consumed=await serviceRequest("/rest/v1/rpc/consume_step_login_code",{
+        method:"POST",body:{p_email:email,p_code_hash:emailCodeHash(email,code),p_purpose:"login"}
+      });
+    }catch(error){
+      console.error("Email code verification storage:",error.message);
+      return sendJson(res,503,{error:"We could not verify the code right now. Please try again."});
+    }
+    if(consumed!=="ok"){
+      const event=consumed==="expired"?"code_expired":consumed==="locked"?"code_locked":"code_invalid";
+      await verificationEvent(email,event,req);
+      const message=consumed==="expired"?"That code has expired. Request a new code.":consumed==="locked"?"Too many incorrect attempts. Request a new code.":"That code is incorrect or has already been used.";
+      return sendJson(res,400,{error:message,locked:consumed==="locked"});
+    }
+    try{
+      const response=await fetch(SUPABASE_URL+"/auth/v1/verify",{
+        method:"POST",
+        headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({type:"magiclink",email,token:code})
+      });
+      const session=await response.json().catch(()=>({}));
+      if(!response.ok||!session.access_token||!session.user){
+        console.error("Supabase email OTP verification failed:",response.status,session.msg||session.message||"");
+        await verificationEvent(email,"code_invalid",req);
+        return sendJson(res,400,{error:"That code could not be verified. Request a new code and try again."});
+      }
+      setSession(res,req,session);
+      await profileUpsert(session,session.user,session.user.user_metadata?.full_name,session.user.phone);
+      await serviceRequest("/rest/v1/customer_profiles?on_conflict=user_id",{
+        method:"POST",
+        body:{user_id:session.user.id,email_verified_at:new Date().toISOString()},
+        headers:{Prefer:"resolution=merge-duplicates,return=minimal"}
+      });
+      // Claim only genuinely unclaimed guest requests. Orders already linked to
+      // another customer are never reassigned, even if an email was later reused.
+      await serviceRequest("/rest/v1/store_orders?customer_email_normalized=eq."+encodeURIComponent(email)+"&user_id=is.null&customer_id=is.null",{
+        method:"PATCH",body:{user_id:session.user.id,customer_id:session.user.id},
+        headers:{Prefer:"return=minimal"}
+      });
+      await verificationEvent(email,"code_verified",req,session.user.id);
+      return sendJson(res,200,{authenticated:true,next:safeNext(b.next||"/profile/orders")});
+    }catch(error){
+      console.error("Email code session creation:",error.status||502,error.message);
+      return sendJson(res,502,{error:"The code was accepted but sign-in could not be completed. Request a new code and try again."});
+    }
+  }
+  return sendJson(res,404,{error:"Email verification endpoint not found."});
+}
+
 async function api(req,res,url) {
   const route=url.pathname;
   if(req.method==="GET"&&route==="/api/csrf"){
