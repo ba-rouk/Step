@@ -30,7 +30,7 @@ if (isAuthRoute) {
 
   const errorFromQuery = new URLSearchParams(window.location.search).get("error");
   const authError = errorFromQuery
-    ? "Google sign-in could not be completed. Please try again or use your phone number."
+    ? "Google sign-in could not be completed. Please try again or use email verification."
     : "";
 
   const passwordField = (label, autocomplete = "current-password", minLength = 8) =>
@@ -206,6 +206,30 @@ if (isAuthRoute) {
     });
   }
 
+  function emailChangeVerificationForm(email) {
+    shell(
+      '<h1>Verify your new email.</h1><p class="customer-intro">Enter the six-digit code sent to <strong>' + escapeHtml(email) + '</strong>. Your account email changes only after this code is verified.</p>' +
+      '<form id="customer-email-change-verify" novalidate><label class="customer-field"><span>Six-digit code</span><input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="000000"></label>' +
+      '<p class="customer-error" role="alert" aria-live="polite"></p><button class="customer-submit" type="submit">Verify new email</button></form>',
+      "EMAIL CHANGE VERIFICATION"
+    );
+    app.querySelector("#customer-email-change-verify").addEventListener("submit",async event=>{
+      event.preventDefault();
+      const form=event.currentTarget,error=form.querySelector(".customer-error");
+      error.textContent="";
+      if(!form.reportValidity())return;
+      const button=form.querySelector('button[type="submit"]');
+      button.disabled=true;button.textContent="Verifying…";
+      try{
+        const response=await apiFetch("/api/profile/email/change-verify",{method:"POST",body:{email,code:new FormData(form).get("code"),next:"/profile/orders"}});
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok){error.textContent=payload.error||"The new email could not be verified.";return;}
+        window.location.assign(payload.next||"/profile/orders");
+      }catch(cause){error.textContent=cause.message||"The new email could not be verified.";}
+      finally{if(button.isConnected){button.disabled=false;button.textContent="Verify new email";}}
+    });
+  }
+
   function renderProfile(payload, favouriteProducts = []) {
     const profile = payload.profile || {};
     const user = payload.user || {};
@@ -221,12 +245,29 @@ if (isAuthRoute) {
       : '<p class="customer-empty-favourites">You have not saved any menu items yet. Tap the heart on a product to add it here.</p>';
     shell(
       '<h1>Your profile.</h1><p class="customer-intro">Your Step Town account and order details.</p>' +
-      '<div class="customer-profile-details"><div><small>FULL NAME</small><strong>' + escapeHtml(name) + '</strong></div><div><small>PHONE NUMBER</small><strong>' + escapeHtml(phone) + '</strong></div></div>' +
+      '<div class="customer-profile-details"><div><small>FULL NAME</small><strong>' + escapeHtml(name) + '</strong></div><div><small>PHONE NUMBER</small><strong>' + escapeHtml(phone) + '</strong></div><div><small>ACCOUNT EMAIL</small><strong>' + escapeHtml(user.email || "Not provided") + '</strong><small>' + (payload.email_verified ? "Verified" : "Email not verified") + '</small></div></div>' +
+      '<section class="customer-email-change"><h2>Change account email</h2><p class="customer-intro">We’ll send a code to the new address. Your account email changes only after you verify it.</p><form id="customer-email-change-form" novalidate><label class="customer-field"><span>New email address</span><input name="email" type="email" maxlength="254" autocomplete="email" required placeholder="new-address@example.com"></label><p class="customer-error" id="customer-email-change-error" role="alert"></p><button class="customer-secondary" type="submit">Send verification code</button></form></section>' +
       '<section class="customer-favourites"><h2>Your favourites</h2><div class="product-grid customer-favourites-grid" data-product-list="shared" data-product-view="favourites">' + favouritesMarkup + '</div></section>' +
       '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/orders">View order history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
       '<p class="customer-error" id="customer-profile-error" role="alert"></p>',
       "MY STEP TOWN PROFILE"
     );
+    app.querySelector("#customer-email-change-form")?.addEventListener("submit",async event=>{
+      event.preventDefault();
+      const form=event.currentTarget,error=app.querySelector("#customer-email-change-error");
+      error.textContent="";
+      if(!form.reportValidity())return;
+      const email=String(new FormData(form).get("email")||"").trim().toLowerCase();
+      const button=form.querySelector('button[type="submit"]');
+      button.disabled=true;button.textContent="Sending code…";
+      try{
+        const response=await apiFetch("/api/profile/email/change-request",{method:"POST",body:{email}});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(result.error||"A verification code could not be sent.");
+        emailChangeVerificationForm(email);
+      }catch(cause){error.textContent=cause.message||"A verification code could not be sent.";}
+      finally{if(button.isConnected){button.disabled=false;button.textContent="Send verification code";}}
+    });
     const favouritesGrid = app.querySelector(".customer-favourites-grid");
     bindProductGallery(favouritesGrid);
     favouritesGrid?.addEventListener("click", async (event) => {
