@@ -2356,3 +2356,32 @@ body.route-customer-page .customer-error {
 @media (min-width:1024px) {
   .header-inner > .menu-toggle { transform:translateX(20px); }
 }
+
+
+/* Desktop header alignment: use more of the screen width so the brand sits
+   nearer the left edge and the hamburger sits nearer the right edge. */
+@media (min-width:1024px) {
+  .header-inner {
+    width: min(1600px, calc(100% - 40px));
+  }
+  .header-inner > .menu-toggle {
+    transform: none;
+    margin-right: 0;
+  }
+}
+
+/* Keep the desktop menu control as a clear three-line hamburger. */
+@media (min-width:721px) {
+  .header-inner > .menu-toggle {
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px;
+  }
+  .header-inner > .menu-toggle span {
+    display: block;
+    flex: 0 0 2px;
+    width: 20px;
+    height: 2px;
+    border-radius: 2px;
+  }
+}
