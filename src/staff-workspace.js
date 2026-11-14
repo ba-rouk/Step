@@ -1582,7 +1582,15 @@ async function start() {
   if (route === "orders") return ordersPage();
   if (route === "order-detail") return orderDetailPage(decodeURIComponent(PATH.split("/").pop()));
   if (route === "products") return productsPage();
-  if (route === "gallery") return galleryPage();
+  if (route === "gallery") {
+    try {
+      return await galleryPage();
+    } catch (error) {
+      console.error("Staff Gallery page failed:", error);
+      shell("Gallery", '<section class="staff-panel">' + panelError(error) + '</section>');
+      return;
+    }
+  }
   if (route === "enquiries") return enquiriesPage();
   if (route === "enquiry-detail") return enquiryDetailPage(decodeURIComponent(PATH.split("/").pop()));
   if (route === "reports") return reportsPage();
