@@ -47,6 +47,21 @@ export function bindProductGallery(root) {
   }, true);
 
   root.addEventListener("click", event => {
+    const arrow = event.target.closest?.("[data-photo-prev], [data-photo-next]");
+    if (arrow && root.contains(arrow)) {
+      const strip = arrow.closest(".product-image")?.querySelector(".product-image-strip");
+      if (!strip || strip.children.length < 2) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const step = arrow.hasAttribute("data-photo-next") ? 1 : -1;
+      const next = (activeSlideIndex(strip) + step + strip.children.length) % strip.children.length;
+      strip.scrollTo({
+        left: strip.children[next].offsetLeft,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+      });
+      return;
+    }
+
     const dot = event.target.closest?.("[data-dot]");
     if (!dot || !root.contains(dot)) return;
     const strip = dot.closest(".product-image")?.querySelector(".product-image-strip");

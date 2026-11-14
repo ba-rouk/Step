@@ -134,7 +134,7 @@ function shell(title, body, subtitle = "") {
   app.innerHTML =
     '<header class="staff-top">' +
       '<a class="staff-brand" href="/" aria-label="Step Town home">' +
-        '<img class="staff-logo" src="/step-town-logo.png" alt="Step Town">' +
+        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Step Town logo">' +
         '<span><b>STEP TOWN</b><small>STAFF WORKSPACE</small></span>' +
       "</a>" +
       '<div class="staff-top-meta"><span>' + name + "</span><small>" + role + "</small></div>" +
