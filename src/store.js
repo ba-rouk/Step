@@ -286,7 +286,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
         price: Number.isFinite(price) ? price : null,
         price_unit: String(product.price_unit || "unit"),
         price_unit_label: String(product.price_unit_label || product.price_unit || "unit"),
-        image_url: String(image || ""),
+        image_url: safeImageUrl(image),
         quantity: 1
       });
     }
