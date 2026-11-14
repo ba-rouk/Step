@@ -57,7 +57,7 @@ Deno.serve(async req=>{
   if(req.method!=="POST")return json({error:"Method not allowed"},405);
   if(!supabaseUrl||!serviceKey||!secret||req.headers.get("Authorization")!=="Bearer "+secret)return json({error:"Not authorized"},401);
   const db=createClient(supabaseUrl,serviceKey,{auth:{autoRefreshToken:false,persistSession:false}});
-  const {data:jobs,error}=await db.from("email_outbox").select("*").in("status",["pending","failed"]).lte("next_attempt_at",new Date().toISOString()).order("created_at").limit(10);
+  const {data:jobs,error}=await db.from("email_outbox").select("*").in("status",["pending","failed"]).lte("next_attempt_at",new Date().toISOString()).lt("attempts",8).order("created_at").limit(10);
   if(error)return json({error:"Outbox could not be read"},500);
   let sent=0,failed=0;
   for(const job of jobs||[]){
