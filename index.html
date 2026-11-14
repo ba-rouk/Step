@@ -308,35 +308,48 @@
   <div class="cart-backdrop" id="cart-backdrop" hidden></div>
   <aside class="cart-drawer" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" aria-hidden="true" hidden>
     <header class="cart-header">
-      <div><p class="eyebrow">YOUR STEP TOWN ORDER</p><h2 id="cart-title">Your cart</h2><p class="cart-header-note">We’ll confirm availability and final pricing with you.</p></div>
+      <div><p class="eyebrow">STEP TOWN · ORDER REQUEST</p><h2 id="cart-title">Place your order</h2><p class="cart-header-note">Send your request directly to Step Town. No account is needed to order.</p></div>
       <button class="cart-close" id="cart-close" type="button" aria-label="Close cart">×</button>
     </header>
-    <div class="cart-items" id="cart-items"><p class="cart-empty">Your cart is empty. Explore the menu and add something you love.</p></div>
-    <div class="cart-summary">
-      <div><span>Estimated total</span><strong id="cart-total">RWF —</strong></div>
-      <p id="cart-pricing-note">Final pricing is confirmed by Step Town before your order is accepted.</p>
-    </div>
+
     <form class="checkout-form" id="checkout-form">
-      <p class="eyebrow"><span class="eyebrow-line"></span> ORDER DETAILS</p>
+      <p class="eyebrow"><span class="eyebrow-line"></span> YOUR ORDER</p>
+      <div id="order-product-summary" class="order-product-summary-host"><p class="order-summary-empty">Choose a menu item to begin your order.</p></div>
       <div class="checkout-fields">
-        <label>Full name <span>*</span><input name="customer_name" type="text" minlength="2" maxlength="120" autocomplete="name" required placeholder="Your name"></label>
-        <label>Phone / WhatsApp <span>*</span><input name="customer_phone" type="tel" minlength="7" maxlength="40" autocomplete="tel" required placeholder="+250 …"></label>
-        <label>Email <small>OPTIONAL</small><input name="customer_email" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com"></label>
-        <label>How would you like your order? <span>*</span>
+        <label>Your name <span>*</span><input name="customer_name" type="text" minlength="2" maxlength="120" autocomplete="name" required placeholder="Your name"></label>
+        <label>Phone <span>*</span><input name="customer_phone" type="tel" minlength="8" maxlength="40" autocomplete="tel" inputmode="tel" value="+250" required placeholder="+250 7…" pattern="\+?[0-9 ()-]{8,40}" title="Enter a valid phone number, including +250"></label>
+        <label class="checkout-description-label">Describe your order<textarea name="order_description" rows="5" maxlength="4000" placeholder="Flavours, writing or message on the cake, number of guests, colours, serving size and any other details…"></textarea></label>
+        <label>Preferred date<input name="requested_date" type="date" id="checkout-date"></label>
+        <label>Preferred time<input name="requested_time" type="time"></label>
+        <label>Pickup or delivery <span>*</span>
           <select name="fulfillment" id="checkout-fulfillment" required>
-            <option value="pickup">I’ll collect it</option>
+            <option value="pickup">Pickup</option>
             <option value="delivery">Delivery</option>
-            <option value="event">Event catering / on-site service</option>
           </select>
         </label>
-        <label>Preferred date <input name="requested_date" type="date" id="checkout-date"></label>
-        <label id="checkout-location-label">Delivery / event location <small>REQUIRED FOR DELIVERY OR EVENTS</small><input name="delivery_location" id="checkout-location" type="text" maxlength="180" placeholder="Area, venue or address"></label>
-        <label class="checkout-notes-label">Notes or special requests<textarea name="notes" rows="3" maxlength="3000" placeholder="Guest count, cake design, dietary needs or other details…"></textarea></label>
+        <label id="checkout-location-label" hidden>Delivery location <span>*</span><input name="delivery_location" id="checkout-location" type="text" maxlength="180" placeholder="Area, venue or address"></label>
+        <label class="checkout-notes-label">Notes<textarea name="notes" rows="3" maxlength="1500" placeholder="Anything else we should know?"></textarea></label>
+        <label class="checkout-email-label">Email <small>OPTIONAL</small><input name="customer_email" type="email" maxlength="254" autocomplete="email" placeholder="you@example.com"></label>
+        <label class="checkout-honeypot" aria-hidden="true" tabindex="-1">Leave this field empty<input name="website" type="text" tabindex="-1" autocomplete="off"></label>
       </div>
-      <p class="checkout-status" id="checkout-status" role="status" aria-live="polite"></p>
-      <button class="button button-dark checkout-submit" type="submit" id="checkout-submit">Send order request</button>
-      <p class="checkout-footnote">Submitting saves your request securely. It does not charge you or confirm a booking. Step Town will contact you to confirm.</p>
+      <p class="checkout-status" id="checkout-status" role="alert" aria-live="polite"></p>
+      <button class="button button-dark checkout-submit" type="submit" id="checkout-submit">Send order</button>
+      <p class="checkout-footnote">Your request is saved for the Step Town team. Prices and availability are confirmed with you before the order is accepted.</p>
     </form>
+
+    <section class="cart-list-lock" id="cart-list-lock" hidden>
+      <div><p class="eyebrow">SAVED CART</p><h3>Log in to view your cart list</h3><p>Your order form above remains available without signing in.</p></div>
+      <a class="button button-light" href="/login?next=%2Fcart">Log in</a>
+    </section>
+
+    <section class="cart-list-section" id="cart-list-section" hidden>
+      <p class="eyebrow"><span class="eyebrow-line"></span> SAVED CART LIST</p>
+      <div class="cart-items" id="cart-items"><p class="cart-empty">Your cart is empty. Add items using the cart icon on a product.</p></div>
+      <div class="cart-summary">
+        <div><span>Estimated cart total</span><strong id="cart-total">RWF —</strong></div>
+        <p id="cart-pricing-note">Final pricing is confirmed by Step Town before your order is accepted.</p>
+      </div>
+    </section>
   </aside>
 
   <footer class="site-footer">
