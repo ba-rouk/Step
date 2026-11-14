@@ -690,8 +690,12 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     if(titleStart>=0&&titleEnd>titleStart)html=html.slice(0,titleStart)+"<title>Step Town | "+pageTitle(pathname)+"</title>"+html.slice(titleEnd+8);
     if(decoded==="/cart"){
       html=html.replace(/<body(\s[^>]*)?>/i,(tag,attrs="")=>{
-        const next=String(attrs).replace(/\sclass=["']([^"']*)["']/i,(_,value)=>' class="'+(value+" route-cart").trim()+'"');
-        return '<body'+(next===attrs?next+' class="route-cart"':next)+'>';
+        const classes=String(attrs).match(/\sclass=["']([^"']*)["']/i);
+        if(classes&&classes[1].split(/\s+/).includes("route-cart"))return tag;
+        const next=classes
+          ? String(attrs).replace(/\sclass=["']([^"']*)["']/i,(_,value)=>' class="'+(value+" route-cart").trim()+'"')
+          : String(attrs)+' class="route-cart"';
+        return '<body'+next+'>';
       });
       html=html.replace('id="cart-page" class="cart-page" hidden','id="cart-page" class="cart-page"');
     }
@@ -736,8 +740,8 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     "X-Content-Type-Options":"nosniff",
     "Referrer-Policy":"strict-origin-when-cross-origin",
     "X-Frame-Options":"SAMEORIGIN",
-    "Cache-Control":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
-    ...(menuPage&&ext===".html"?{"CDN-Cache-Control":"public, s-maxage=30, stale-while-revalidate=240"}:{})
+    "Cache-Control":decoded==="/cart"&&ext===".html"?"no-store":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
+    ...(menuPage&&decoded!=="/cart"&&ext===".html"?{"CDN-Cache-Control":"public, s-maxage=30, stale-while-revalidate=240"}:{})
   };
   res.writeHead(200,headers);res.end(data);
 }
