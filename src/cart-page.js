@@ -2,7 +2,7 @@ import "./cart-page.css";
 import { apiFetch } from "./api.js";
 import { REQUIRE_LOGIN_FOR_CART_LIST, GUEST_CART_STORAGE_KEY } from "./cart-config.js";
 
-const route = window.location.pathname.replace(/\\/+$/, "") || "/";
+const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const params = new URLSearchParams(window.location.search);
 const html = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money = value => new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(value));
