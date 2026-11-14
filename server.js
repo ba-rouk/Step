@@ -245,7 +245,7 @@ function serverQuickOrderMarkup(product){
     '<div class="cart-selected-image">'+(safeImage?'<img src="'+escapeHtml(safeImage)+'" alt="'+name+'">':'<div class="product-image-placeholder">STEP TOWN</div>')+'</div>'+
     '<div class="cart-selected-copy"><span class="cart-selected-category">'+category+'</span><h2>'+name+'</h2>'+
     '<div class="cart-unit-price"><span>'+price+'</span><strong>'+line+'</strong></div>'+
-    '<div class="cart-item-footer"><div class="order-quantity"><span>Quantity</span><output>1</output></div><div class="cart-line-total"><span>Line total</span><strong>'+line+'</strong></div></div>'+
+    '<div class="cart-item-footer"><div class="order-quantity"><button type="button" data-action="decrease" aria-label="Decrease quantity" disabled>−</button><output>1</output><button type="button" data-action="increase" aria-label="Increase quantity">+</button></div><div class="cart-line-total"><span>Line total</span><strong>'+line+'</strong></div></div>'+
     '</div></article>';
 }
 function publicMenuHeaders(){
