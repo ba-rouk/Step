@@ -1,3 +1,5 @@
+import { apiFetch } from "./api.js";
+import { normalizeCategoryLabel } from "./category-config.js";
 import { supabase, supabaseConfigured } from "./supabase.js";
 import "../staff.css";
 
@@ -25,6 +27,23 @@ const money = value => value == null
   ? "To confirm"
   : new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(Number(value));
 const fmtDate = value => value ? new Date(value).toLocaleString("en-RW", { dateStyle: "medium", timeStyle: "short" }) : "—";
+async function invalidatePublicCatalog() {
+  try {
+    const response = await apiFetch("/api/catalog/invalidate", { method: "POST", body: {} });
+    if (!response.ok) throw new Error("Menu cache invalidation returned " + response.status);
+  } catch (error) {
+    console.warn("Public menu cache invalidation deferred:", error.message);
+  }
+}
+async function removeCurrentDevicePushSubscription() {
+  const registration = await navigator.serviceWorker?.getRegistration("/");
+  const subscription = await registration?.pushManager?.getSubscription();
+  if (!subscription) return;
+  const { error } = await supabase.from("push_subscriptions").delete()
+    .eq("user_id", profile.user_id).eq("endpoint", subscription.endpoint);
+  if (error) throw error;
+  await subscription.unsubscribe();
+}
 const dateKey = value => {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
@@ -164,14 +183,7 @@ function shell(title, body, subtitle = "") {
     const button = $("#staff-logout");
     if (button) { button.disabled = true; button.textContent = "Signing out…"; }
     try {
-      const registration = await navigator.serviceWorker.getRegistration("/");
-      const subscription = await registration?.pushManager.getSubscription();
-      if (subscription) {
-        const { error } = await supabase.from("push_subscriptions").delete()
-          .eq("user_id", profile.user_id).eq("endpoint", subscription.endpoint);
-        if (error) throw error;
-        await subscription.unsubscribe();
-      }
+      await removeCurrentDevicePushSubscription();
     } catch (error) {
       console.error("Could not remove this device's staff push subscription:", error);
       notify("This device's alert subscription could not be removed. Please retry sign out.", "error");
@@ -760,7 +772,7 @@ async function productsPage() {
     shell(title,
       '<section class="staff-panel"><form id="product-form" class="staff-form-grid">' +
         '<label>Product name<input name="name" maxlength="120" required value="' + esc(product?.name || "") + '"></label>' +
-        '<label>Category<select name="category_id" required>' + categories.map(category => '<option value="' + category.id + '" ' + (product?.category_id === category.id ? "selected" : "") + ">" + esc(category.name) + "</option>").join("") + "</select></label>" +
+        '<label>Category<select name="category_id" required>' + categories.map(category => '<option value="' + category.id + '" ' + (product?.category_id === category.id ? "selected" : "") + ">" + esc(normalizeCategoryLabel(category.name)) + "</option>").join("") + "</select></label>" +
         '<label>Price (RWF)<input name="price" type="number" min="0" step="1" value="' + (product?.price ?? "") + '" placeholder="Leave blank for quote"></label>' +
         '<label id="price-unit-wrap" hidden>Price measured per<select name="price_unit"><option value="unit">Each / unit</option><option value="kg">Kilogram (kg)</option><option value="g">Gram (g)</option><option value="litre">Litre</option><option value="dozen">Dozen</option><option value="serving">Serving</option><option value="tray">Tray</option><option value="other">Other measure</option></select></label><label id="price-unit-custom-wrap" hidden>Custom measure<input name="price_unit_label" maxlength="24" value="' + esc(product?.price_unit_label || "") + '" placeholder="e.g. tray, metre"></label>' +
         '<label>Stock quantity<input name="stock_quantity" type="number" min="0" step="1" value="' + (product?.stock_quantity ?? "") + '" placeholder="Blank means not tracked"></label>' +
@@ -910,6 +922,7 @@ async function productsPage() {
         }
         await writeAudit("product_gallery_changed","store_product",savedId,{image_count:orderedImages.length,removed_count:removed.length});
         await writeAudit(isEdit?"product_updated":"product_created","store_product",savedId,{name:payload.name});
+        await invalidatePublicCatalog();
         location.assign("/staff/products");
       } catch (error) {
         $("#product-message").textContent = error.message || "Product could not be saved.";
@@ -921,7 +934,7 @@ async function productsPage() {
   }
   shell("Products",
     '<section class="staff-panel"><div class="staff-panel-head"><div><p class="staff-eyebrow">PUBLIC MENU</p><h2>Menu catalogue</h2></div><a class="staff-primary" href="/staff/products/new">Add product</a></div>' +
-      '<div class="staff-filters"><label>Search products<input id="product-search" type="search" placeholder="Product name"></label><label>Category<select id="product-category-filter"><option value="all">All categories</option>' + categories.map(category => '<option value="' + category.id + '">' + esc(category.name) + '</option>').join("") + '</select></label></div><div id="products-table"></div></section>');
+      '<div class="staff-filters"><label>Search products<input id="product-search" type="search" placeholder="Product name"></label><label>Category<select id="product-category-filter"><option value="all">All categories</option>' + categories.map(category => '<option value="' + category.id + '">' + esc(normalizeCategoryLabel(category.name)) + '</option>').join("") + '</select></label></div><div id="products-table"></div></section>');
   const render = () => {
     const term = ($("#product-search").value || "").toLowerCase();
     const categoryId = $("#product-category-filter").value;
@@ -942,21 +955,21 @@ async function productsPage() {
       const hasStock = !item.has_stock;
       const { error } = await supabase.from("store_products").update({ has_stock: hasStock, updated_by: profile.user_id, updated_at: new Date().toISOString() }).eq("id", item.id);
       if (error) notify(error.message, "error");
-      else { await writeAudit("product_stock_changed", "store_product", item.id, { has_stock: hasStock }); notify("Stock status updated."); await productsPage(); }
+      else { await writeAudit("product_stock_changed", "store_product", item.id, { has_stock: hasStock }); await invalidatePublicCatalog(); notify("Stock status updated."); await productsPage(); }
     }));
     $$("[data-product-visibility]").forEach(button => button.addEventListener("click", async () => {
       const item = products.find(row => row.id === button.dataset.productVisibility);
       const isVisible = !item.is_visible;
       const { error } = await supabase.from("store_products").update({ is_visible: isVisible, updated_by: profile.user_id, updated_at: new Date().toISOString() }).eq("id", item.id);
       if (error) notify(error.message, "error");
-      else { await writeAudit("product_visibility_changed", "store_product", item.id, { is_visible: isVisible }); notify("Menu visibility updated."); await productsPage(); }
+      else { await writeAudit("product_visibility_changed", "store_product", item.id, { is_visible: isVisible }); await invalidatePublicCatalog(); notify("Menu visibility updated."); await productsPage(); }
     }));
     $$("[data-product-delete]").forEach(button => button.addEventListener("click", async () => {
       if (!confirm("Permanently delete this menu item?")) return;
       const id = button.dataset.productDelete;
       const { error } = await supabase.from("store_products").delete().eq("id", id);
       if (error) notify(error.message, "error");
-      else { await writeAudit("product_deleted", "store_product", id, {}); notify("Product deleted."); await productsPage(); }
+      else { await writeAudit("product_deleted", "store_product", id, {}); await invalidatePublicCatalog(); notify("Product deleted."); await productsPage(); }
     }));
   };
   $("#product-search").addEventListener("input", render);
@@ -1423,8 +1436,14 @@ function changePasswordPage() {
   $("#staff-password-signout")?.addEventListener("click", async () => {
     const button = $("#staff-password-signout");
     button.disabled = true;
-    try { await supabase.auth.signOut({ scope: "global" }); }
-    finally { location.replace("/staff/login"); }
+    try {
+      await removeCurrentDevicePushSubscription();
+      await supabase.auth.signOut({ scope: "global" });
+      location.replace("/staff/login");
+    } catch (error) {
+      notify("Could not safely sign out this device: " + error.message, "error");
+      button.disabled = false;
+    }
   });
 
   $("#change-password-form")?.addEventListener("submit", async event => {
