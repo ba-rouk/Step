@@ -31,7 +31,7 @@ export async function apiFetch(url, options = {}) {
     method,
     headers,
     credentials: "same-origin",
-    cache: "no-store"
+    cache: options.cache ?? (["GET", "HEAD"].includes(method) ? "default" : "no-store")
   };
 
   if (options.body !== undefined && options.body !== null && typeof options.body !== "string" && !(options.body instanceof FormData)) {
