@@ -7,7 +7,6 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
   const productGrid = document.querySelector("#product-grid");
-  const galleryGrid = document.querySelector(".gallery-grid");
   const catalogStatus = document.querySelector("#catalog-status");
   const catalogCount = document.querySelector("#catalog-count");
   const productHeading = document.querySelector("#product-heading");
@@ -291,24 +290,6 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 
     categories = categoryResult.data || [];
     products = productResult.data || [];
-    if (galleryRoute && galleryGrid) {
-      const { data: galleryRows, error: galleryError } = await supabase.from("gallery_items").select("id,title,category,image_url,alt_text,caption,sort_order,created_at").eq("is_published", true).order("sort_order").order("created_at", { ascending: false });
-      if (galleryError) {
-        console.error("Step Town public gallery could not load:", galleryError);
-        galleryGrid.innerHTML = '<p class="gallery-note">The gallery could not load. Please refresh or contact Step Town.</p>';
-      } else if (galleryRows?.length) {
-        galleryGrid.innerHTML = galleryRows.map((item,index) => {
-          const image = safeImageUrl(item.image_url);
-          if (!image) return "";
-          const caption = item.caption || item.title || item.category || "Step Town moments";
-          return '<figure class="gallery-item ' + (index === 0 ? "gallery-large" : index === 1 ? "gallery-tall" : "") + '"><img src="' + escapeHtml(image) + '" alt="' + escapeHtml(item.alt_text || caption) + '" loading="lazy" decoding="async"><figcaption><span>' + String(index + 1).padStart(2,"0") + '</span> ' + escapeHtml(caption) + '</figcaption></figure>';
-        }).join("");
-        const note = document.querySelector(".gallery-note");
-        if (note) note.hidden = true;
-      } else {
-        galleryGrid.innerHTML = '<p class="gallery-note">New Step Town gallery photographs will appear here soon.</p>';
-      }
-    }
     const ids = products.map(product => product.id);
     if (ids.length) {
       const { data: galleryRows, error: galleryError } = await supabase.from("product_images").select("id,product_id,url,position,alt_text,variants").in("product_id", ids).order("position").order("id");
