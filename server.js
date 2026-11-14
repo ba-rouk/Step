@@ -515,13 +515,12 @@ async function api(req,res,url) {
   return sendJson(res,404,{error:"API endpoint not found."});
 }
 function pageTitle(pathname){
-  const titles={"/":"Food · Celebrations · Cakes","/categories":"Categories","/gallery":"Gallery","/cart":"Cart","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
+  const titles={"/":"Food · Celebrations · Cakes","/categories":"Categories","/categories/cake":"Cake","/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
   if(pathname.startsWith("/categories/"))return "Menu category";
   if(pathname.startsWith("/staff"))return "Staff workspace";
   return titles[pathname]||"Food · Celebrations · Cakes";
 }
-// Keep staff URLs on their own HTML entry instead of falling through to the storefront.
-async function staticPage(res,pathname){
+async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   const decoded=decodeURIComponent(pathname);
   const staffRoute=decoded==="/staff"||decoded.startsWith("/staff/");
   let file=staffRoute?path.join(DIST,"staff.html"):(decoded==="/" ? path.join(DIST,"index.html") : path.resolve(DIST,"."+decoded));
@@ -529,8 +528,6 @@ async function staticPage(res,pathname){
   const requestedExt=path.extname(file).toLowerCase();
   try{const stat=await fs.stat(file);if(stat.isDirectory())file=path.join(file,"index.html");}
   catch{
-    // Never turn a missing script, stylesheet, manifest or image into index.html.
-    // That fallback caused /sw.js to be served as text/html, which Chrome rejects.
     if(staffRoute){file=path.join(DIST,"staff.html");}
     else if(decoded==="/"||requestedExt===".html"||!requestedExt){file=path.join(DIST,"index.html");}
     else return sendJson(res,404,{error:"Static asset not found."});
@@ -539,21 +536,50 @@ async function staticPage(res,pathname){
   try{data=await fs.readFile(file);}
   catch{return sendJson(res,staffRoute?503:404,{error:staffRoute?"The staff workspace is building. Refresh shortly.":"Static asset not found."});}
   const ext=path.extname(file).toLowerCase();
-  const headers={"Content-Type":MIME[ext]||"application/octet-stream","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin","X-Frame-Options":"SAMEORIGIN","Cache-Control":ext===".html"?"no-store":"public, max-age=3600"};
+  const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/")||decoded==="/cart");
   if(ext===".html"&&path.basename(file)==="index.html"){
-    data=Buffer.from(data.toString("utf8").replace(/<title>[\s\S]*?<\/title>/i,"<title>Step Town | "+pageTitle(pathname)+"</title>"));
+    let html=data.toString("utf8").replace(/<title>[\\s\\S]*?<\\/title>/i,"<title>Step Town | "+pageTitle(pathname)+"</title>");
+    if(menuPage){
+      try{
+        const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
+        const productSlug=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
+        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:productSlug});
+        const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
+          .replace(/</g,"\\\\u003c")
+          .replace(/\\u2028/g,"\\\\u2028")
+          .replace(/\\u2029/g,"\\\\u2029");
+        const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
+        html=html.replace('<script type="module" src="/src/main.js"></script>',initial+'<script type="module" src="/src/main.js"></script>');
+      }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
+    }
+    data=Buffer.from(html);
   }
+  const headers={
+    "Content-Type":MIME[ext]||"application/octet-stream",
+    "X-Content-Type-Options":"nosniff",
+    "Referrer-Policy":"strict-origin-when-cross-origin",
+    "X-Frame-Options":"SAMEORIGIN",
+    "Cache-Control":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
+    ...(menuPage&&ext===".html"?{"CDN-Cache-Control":"public, s-maxage=30, stale-while-revalidate=240"}:{})
+  };
   res.writeHead(200,headers);res.end(data);
 }
 async function handle(req,res){
   const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname);
   if(req.method==="GET"&&route==="/api/auth/google")return oauthStart(req,res,url);
   if(req.method==="GET"&&route==="/auth/callback")return oauthCallback(req,res,url);
+  if(req.method==="GET"&&route==="/categories/wedding-cakes"){
+    res.writeHead(301,{Location:"/categories/cake","Cache-Control":"public, max-age=31536000, immutable"}).end();return;
+  }
+  if(req.method==="GET"&&route.startsWith("/product/")){
+    const slug=route.split("/").filter(Boolean).at(-1);
+    res.writeHead(301,{Location:"/cart?product="+encodeURIComponent(slug),"Cache-Control":"public, max-age=31536000, immutable"}).end();return;
+  }
   if(route.startsWith("/api/")){
     try{return await api(req,res,url);}
     catch(e){console.error("API:",e);return sendJson(res,e.status||500,{error:e.status===413?e.message:"The request could not be completed."});}
   }
-  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders"||route==="/cart")){
+  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders"||(route==="/cart"&&!url.searchParams.get("product")))){
     const current=await currentUser(req,res);
     if(!current){appendCookie(res,clearCookie(SESSION_COOKIE,req,true));res.writeHead(303,{Location:"/login?next="+encodeURIComponent(route+url.search),"Cache-Control":"no-store"});return res.end();}
   }
@@ -562,7 +588,7 @@ async function handle(req,res){
     if(current){res.writeHead(303,{Location:"/profile","Cache-Control":"no-store"});return res.end();}
   }
   if(req.method!=="GET"&&req.method!=="HEAD")return sendJson(res,405,{error:"Method not allowed."});
-  return staticPage(res,route);
+  return staticPage(res,route,url);
 }
 if(PROD&&!KEY)console.warn("SESSION_SECRET is missing: customer login remains disabled until configured.");
 const server=http.createServer((req,res)=>{res.setHeader("X-Content-Type-Options","nosniff");res.setHeader("Referrer-Policy","strict-origin-when-cross-origin");res.setHeader("X-Frame-Options","SAMEORIGIN");void handle(req,res).catch(e=>{console.error("Unhandled request:",e);if(!res.headersSent)sendJson(res,500,{error:"Unexpected server error."});else res.end();});});
