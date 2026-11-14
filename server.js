@@ -430,6 +430,7 @@ async function api(req,res,url) {
 }
 function pageTitle(pathname){
   const titles={"/":"Food · Celebrations · Cakes","/categories":"Categories","/gallery":"Gallery","/cart":"Cart","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
+  if(pathname==="/categories/cake")return "Cake";
   if(pathname.startsWith("/categories/"))return "Menu category";
   if(pathname.startsWith("/staff"))return "Staff workspace";
   return titles[pathname]||"Food · Celebrations · Cakes";
@@ -470,7 +471,7 @@ async function staticPage(res,pathname,requestUrl=null){
 }
 async function handle(req,res){
   const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname);
-  if(req.method==="GET"&&route==="/categories/wedding-cakes"){res.writeHead(301,{Location:"/categories/cake","Cache-Control":"public, max-age=86400"});return res.end();}
+  if(req.method==="GET"&&route.replace(/\/+$/,"")==="/categories/wedding-cakes"){res.writeHead(301,{Location:"/categories/cake","Cache-Control":"public, max-age=86400"});return res.end();}
   if(req.method==="GET"&&route.startsWith("/product/")){const legacySlug=route.slice("/product/".length).split("/")[0];res.writeHead(301,{Location:"/cart?product="+encodeURIComponent(legacySlug),"Cache-Control":"public, max-age=86400"});return res.end();}
   if(req.method==="GET"&&route==="/api/auth/google")return oauthStart(req,res,url);
   if(req.method==="GET"&&route==="/auth/callback")return oauthCallback(req,res,url);
