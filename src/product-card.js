@@ -30,16 +30,17 @@ function productImages(product) {
     .filter((image) => Boolean(safeImageUrl(image && image.url)));
 }
 
-function formatPrice(value) {
+function formatPrice(value, measure = "unit") {
   if (value == null || value === "") return "Request a quote";
   const amount = Number(value);
-  return Number.isFinite(amount)
-    ? new Intl.NumberFormat("en-RW", {
-        style: "currency",
-        currency: "RWF",
-        maximumFractionDigits: 0
-      }).format(amount)
-    : "Request a quote";
+  if (!Number.isFinite(amount)) return "Request a quote";
+  const formatted = new Intl.NumberFormat("en-RW", {
+    style: "currency",
+    currency: "RWF",
+    maximumFractionDigits: 0
+  }).format(amount);
+  const unit = String(measure || "unit").trim().slice(0, 32) || "unit";
+  return formatted + " per " + unit;
 }
 
 /**
@@ -91,7 +92,8 @@ export function renderProductCard(product, options = {}) {
       '</div>'
     : "";
 
-  const price = formatPrice(product.price);
+  const priceMeasure = product.price_unit_label || product.price_unit || "unit";
+  const price = formatPrice(product.price, priceMeasure);
   const title = escapeHtml(product.name || "Step Town menu item");
   const description = escapeHtml(product.description || "Prepared with care by Step Town.");
 
