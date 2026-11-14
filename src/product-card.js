@@ -178,7 +178,8 @@ export function renderProductCard(product, options = {}) {
             description +
           '</p>' +
         '</a>' +
-        '<div class="product-card-bottom">' +
+        '<hr class="card-divider" aria-hidden="true">' +
+        '<div class="product-card-bottom">';
           (detail
             ? '<strong class="product-price">' + escapeHtml(price) + '</strong>'
             : '<a class="product-open product-price-link" href="' + href + '">' +
