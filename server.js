@@ -475,8 +475,8 @@ async function api(req,res,url) {
       }
       return sendJson(res,201,{
         ok:true,
-        order:{order_number:saved?.order_number||null,estimated_total:saved?.estimated_total??null,created_at:saved?.created_at||null},
-        alert_queued:alertQueued
+        order:result.order||null,
+        alert_queued:Boolean(result.alert_queued)
       });
     }catch(error){
       console.error("Order request:",error.status||502,error.message);
