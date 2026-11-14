@@ -161,11 +161,15 @@ function shell(title, body, subtitle = "") {
     link.addEventListener("click", () => setOpen(false));
   });
   $("#staff-logout")?.addEventListener("click", async () => {
-    $("#staff-logout").disabled = true;
+    const button = $("#staff-logout");
+    if (button) { button.disabled = true; button.textContent = "Signing out…"; }
     try {
-      await disableAlerts({ quiet: true });
+      // Keep the device's push subscription intact; clearing auth is the only
+      // required sign-out work and avoids several slow network operations.
       await supabase.auth.signOut({ scope: "local" });
-    } finally { location.replace("/staff/login"); }
+    } finally {
+      location.replace("/staff/login");
+    }
   });
   renderAlertControl();
 }
@@ -396,15 +400,22 @@ function orderTable(orders, options = {}) {
 }
 async function overviewPage() {
   const start = todayStart();
+  const todayStartTime = new Date(start).getTime();
   const sevenDaysAgo = new Date(Date.now() - 6 * 86400000);
-  const [todayOrders, paymentsToday, todayEnquiries, allRecent, recent] = await Promise.all([
-    queryRows(supabase.from("store_orders").select("id,order_number,status,customer_name,customer_phone,estimated_total,created_at,requested_date,requested_time").gte("created_at", start).order("created_at", { ascending: false })),
+  // One seven-day order query supplies today's totals, recent orders and the
+  // activity chart instead of issuing three overlapping reads.
+  const [weekOrders, paymentsToday, todayEnquiries] = await Promise.all([
+    queryRows(supabase.from("store_orders")
+      .select("id,order_number,status,customer_name,customer_phone,estimated_total,created_at,requested_date,requested_time")
+      .gte("created_at", sevenDaysAgo.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1000)),
     queryRows(supabase.from("store_order_payments").select("amount").gte("recorded_at", start)),
-    queryRows(supabase.from("enquiries").select("id").gte("created_at", start)),
-    queryRows(supabase.from("store_orders").select("id,order_number,status,customer_name,customer_phone,estimated_total,created_at,requested_date,requested_time").order("created_at", { ascending: false }).limit(10)),
-    profile.role === "cashier" ? Promise.resolve([]) : queryRows(supabase.from("store_orders")
-      .select("id,status,created_at,estimated_total").gte("created_at", sevenDaysAgo.toISOString()))
+    queryRows(supabase.from("enquiries").select("id").gte("created_at", start))
   ]);
+  const todayOrders = weekOrders.filter(order => new Date(order.created_at).getTime() >= todayStartTime);
+  const allRecent = weekOrders.slice(0, 10);
+  const recent = profile.role === "cashier" ? [] : weekOrders;
   const pending = todayOrders.filter(o => o.status === "new").length;
   const progress = todayOrders.filter(o => ["confirmed", "preparing", "ready"].includes(o.status)).length;
   const completed = todayOrders.filter(o => o.status === "completed").length;
@@ -1500,7 +1511,7 @@ async function start() {
   if (PATH === "/staff/login") {
     const current = await getProfile();
     if (current) location.replace(current.must_change_password ? "/staff/change-password" : "/staff/overview");
-    else { await supabase.auth.signOut({ scope: "global" }); loginView(); }
+    else { await supabase.auth.signOut({ scope: "local" }); loginView(); }
     return;
   }
   if (PATH === "/staff/change-password") {
