@@ -8,9 +8,7 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
   if (storefrontHero && heroVideo) {
     const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    const dataSaverEnabled = () => Boolean(
-      connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType)
-    );
+    const dataSaverEnabled = () => Boolean(connection?.saveData);
     const showPosterOnly = () => {
       storefrontHero.classList.add("video-poster-only");
       heroVideo.pause?.();

@@ -140,6 +140,7 @@ async function fetchPublicMenu(options={}) {
   const offset=Math.max(0,Number(options.offset)||0);
   const categorySlug=String(options.category||"").trim().slice(0,80);
   const productSlug=String(options.slug||"").trim().slice(0,160);
+  const productId=String(options.productId||"").trim().slice(0,80);
   const search=String(options.search||"").trim().slice(0,80).replace(/[\\%_*(),]/g," ");
   const categoriesPromise=sb("/rest/v1/store_categories?select=id,name,slug,description,cover_image_url,sort_order,is_active&is_active=eq.true&order=sort_order.asc");
   const params=new URLSearchParams();
@@ -148,6 +149,7 @@ async function fetchPublicMenu(options={}) {
   params.set("is_visible","eq.true");
   if(categorySlug)params.set("category.slug","eq."+categorySlug);
   if(productSlug)params.set("slug","eq."+productSlug);
+  if(productId)params.set("id","eq."+productId);
   if(search){
     if(search.toLowerCase()===CAKE_CATEGORY_LABEL.toLowerCase())params.set("category.slug","eq.cake");
     else params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*)");
@@ -178,6 +180,7 @@ async function getPublicMenu(options={}) {
     offset:Math.max(0,Number(options.offset)||0),
     category:String(options.category||""),
     slug:String(options.slug||""),
+    productId:String(options.productId||""),
     search:String(options.search||"").trim().slice(0,80)
   };
   const key=JSON.stringify(normalized),now=Date.now(),cached=publicMenuCache.get(key);
@@ -323,6 +326,7 @@ async function api(req,res,url) {
         offset:url.searchParams.get("offset")||0,
         category:url.searchParams.get("category")||"",
         slug:url.searchParams.get("slug")||"",
+        productId:url.searchParams.get("product_id")||"",
         search:url.searchParams.get("q")||""
       });
       return sendJson(res,200,menu,publicMenuHeaders());
@@ -473,6 +477,20 @@ async function api(req,res,url) {
         const status=[400,401,403,413,429].includes(response.status)?response.status:502;
         return sendJson(res,status,{error:result.error||"We could not save your order just now. Please try again."});
       }
+      if(current?.session?.access_token){
+        const orderedProductIds=[...new Set(normalizedItems.map(item=>item.product_id).filter(Boolean))];
+        if(orderedProductIds.length){
+          try{
+            await sb("/rest/v1/customer_cart_items?user_id=eq."+encodeURIComponent(current.user.id)+"&product_id=in.("+orderedProductIds.map(encodeURIComponent).join(",")+")",{
+              method:"DELETE",
+              access:current.session.access_token,
+              headers:{Prefer:"return=minimal"}
+            });
+          }catch(cartError){
+            console.warn("Could not clear ordered products from the saved cart:",cartError.message);
+          }
+        }
+      }
       return sendJson(res,201,{
         ok:true,
         order:result.order||null,
@@ -563,7 +581,7 @@ async function handle(req,res){
     try{return await api(req,res,url);}
     catch(e){console.error("API:",e);return sendJson(res,e.status||500,{error:e.status===413?e.message:"The request could not be completed."});}
   }
-  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders"||(route==="/cart"&&!url.searchParams.get("product")))){
+  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders")){
     const current=await currentUser(req,res);
     if(!current){appendCookie(res,clearCookie(SESSION_COOKIE,req,true));res.writeHead(303,{Location:"/login?next="+encodeURIComponent(route+url.search),"Cache-Control":"no-store"});return res.end();}
   }

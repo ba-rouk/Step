@@ -322,7 +322,7 @@ async function getProfile() {
 function loginView(message = "") {
   app.innerHTML =
     '<div class="staff-login-wrap">' +
-      '<a class="staff-brand staff-login-brand" href="https://steptown.onrender.com/" aria-label="Step Town home"><img class="staff-logo" src="/step-town-logo.png" alt="Step Town"><span><b>STEP TOWN</b><small>STAFF ACCESS</small></span></a>' +
+      '<a class="staff-brand staff-login-brand" href="https://steptown.onrender.com/" aria-label="Step Town home"><img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Step Town"><span><b>STEP TOWN</b><small>STAFF ACCESS</small></span></a>' +
       '<section class="staff-login-card">' +
         '<p class="staff-eyebrow">PRIVATE TEAM PORTAL</p><h1>Welcome back.</h1>' +
         '<p class="staff-muted">Sign in with the account created by your Manager.</p>' +
@@ -1024,7 +1024,20 @@ async function removeGalleryStorageObject(publicUrl) {
 }
 
 async function galleryPage() {
-  const items = await queryRows(supabase.from("gallery_items").select("id,title,category,image_url,alt_text,caption,sort_order,is_published,created_at").order("sort_order").order("created_at", { ascending: false }));
+  let items = [];
+  let loadError = null;
+  try {
+    items = await queryRows(supabase.from("gallery_items").select("id,title,category,image_url,alt_text,caption,sort_order,is_published,created_at").order("sort_order").order("created_at", { ascending: false }));
+  } catch (primaryError) {
+    try {
+      // Some existing galleries predate the optional caption/alt-text metadata fields.
+      items = await queryRows(supabase.from("gallery_items").select("*"));
+      items.sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+    } catch (fallbackError) {
+      loadError = fallbackError;
+      console.error("Staff gallery records could not be loaded:", primaryError, fallbackError);
+    }
+  }
   shell("Gallery",
     '<section class="staff-panel"><p class="staff-eyebrow">PUBLIC GALLERY</p><h2>Upload images</h2><form id="gallery-form" class="staff-form-grid">' +
       '<label class="wide">Images · compressed to WebP under 5 MB each<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple required></label>' +
@@ -1034,12 +1047,12 @@ async function galleryPage() {
       '<button class="staff-primary" type="submit">Upload selected images</button><p id="gallery-progress" class="staff-muted" role="status"></p>' +
     "</form></section>" +
     '<section class="staff-panel"><div class="staff-panel-head"><h2>Gallery library</h2><span class="staff-muted">' + items.length + " images</span></div>" +
-      (items.length ? '<div class="staff-gallery staff-gallery-manage">' + items.map((item, index) =>
+      (loadError ? panelError({ message: "Gallery records could not be loaded. " + (loadError.message || "Check gallery permissions and schema.") }) : (items.length ? '<div class="staff-gallery staff-gallery-manage">' + items.map((item, index) =>
         '<article class="staff-gallery-card"><div class="staff-gallery-image-wrap"><button class="staff-gallery-preview" type="button" data-gallery-preview="' + index + '" aria-label="View ' + esc(item.title || "gallery image") + '"><img src="' + esc(item.image_url) + '" alt="' + esc(item.alt_text || item.title || "") + '" loading="lazy"></button>' +
           '<details class="staff-action-menu staff-gallery-menu"><summary aria-label="Gallery image actions">•••</summary><div class="staff-action-menu-pop"><button type="button" data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button type="button" data-gallery-delete="' + item.id + '">Delete</button><button type="button" data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + '>Move up</button><button type="button" data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + '>Move down</button></div></details></div>' +
           '<b>' + esc(item.title || "Gallery image") + "</b><small>" + esc(statusLabel(item.category)) + " · " + (item.is_published ? "Published" : "Hidden") + "</small>" +
           '<label class="staff-gallery-caption">Caption<input data-gallery-caption="' + item.id + '" value="' + esc(item.caption || "") + '" maxlength="500"></label></article>'
-      ).join("") + "</div>" : '<p class="staff-empty">No gallery images yet.</p>') + "</section>" +
+      ).join("") + "</div>" : '<p class="staff-empty">No gallery images yet.</p>')) + "</section>" +
     '<dialog id="staff-gallery-lightbox" class="staff-gallery-lightbox"><button type="button" class="staff-gallery-lightbox-close" aria-label="Close image viewer">×</button><button type="button" class="staff-gallery-lightbox-prev" aria-label="Previous image">‹</button><img id="staff-gallery-lightbox-image" alt=""><button type="button" class="staff-gallery-lightbox-next" aria-label="Next image">›</button><p id="staff-gallery-lightbox-count"></p></dialog>');
   const lightbox = $("#staff-gallery-lightbox");
   let lightboxIndex = 0;
@@ -1441,7 +1454,7 @@ function changePasswordPage() {
   app.innerHTML =
     '<div class="staff-login-wrap">' +
       '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Return to Step Town home">' +
-        '<img class="staff-logo" src="/step-town-logo.png" alt="Step Town">' +
+        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Step Town">' +
         '<span><b>STEP TOWN</b><small>STAFF ACCESS</small></span>' +
       '</a>' +
       '<section class="staff-login-card staff-password">' +
@@ -1569,7 +1582,15 @@ async function start() {
   if (route === "orders") return ordersPage();
   if (route === "order-detail") return orderDetailPage(decodeURIComponent(PATH.split("/").pop()));
   if (route === "products") return productsPage();
-  if (route === "gallery") return galleryPage();
+  if (route === "gallery") {
+    try {
+      return await galleryPage();
+    } catch (error) {
+      console.error("Staff Gallery page failed:", error);
+      shell("Gallery", '<section class="staff-panel">' + panelError(error) + '</section>');
+      return;
+    }
+  }
   if (route === "enquiries") return enquiriesPage();
   if (route === "enquiry-detail") return enquiryDetailPage(decodeURIComponent(PATH.split("/").pop()));
   if (route === "reports") return reportsPage();

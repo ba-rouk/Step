@@ -3,7 +3,7 @@ import { apiFetch } from "./api.js";
 import { renderProductCard } from "./product-card.js";
 import { renderProductPage } from "./product-page.js";
 import { normalizeCategoryLabel } from "./catalog-config.js";
-import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
+import { bindProductGallery, showProductToast } from "./product-gallery.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -251,24 +251,8 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
   function addProduct(productId) {
     const product = products.find((item) => item.id === productId);
     if (!product) return;
-    const existing = cart.find((item) => item.product_id === productId);
-    if (existing) {
-      existing.quantity = Math.min(20, existing.quantity + 1);
-    } else {
-      cart.push({
-        product_id: product.id,
-        name: product.name,
-        category_name: categoryName(product.category_id),
-        price: product.price == null ? null : Number(product.price),
-        price_unit: String(product.price_unit || "unit"),
-        price_unit_label: String(product.price_unit_label || product.price_unit || "unit"),
-        image_url: safeImageUrl(product.images?.[0]?.url) || safeImageUrl(product.image_urls?.[0]) || safeImageUrl(product.image_url) || safeImageUrl((categories.find((item) => item.id === product.category_id) || {}).cover_image_url),
-        quantity: 1
-      });
-    }
-    saveCart();
-    renderCart();
-    showProductToast("Added to your cart");
+    const reference = product.id || product.slug;
+    window.location.assign("/cart?product=" + encodeURIComponent(reference));
   }
 
   const menuPageSize = 12;
@@ -432,8 +416,9 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     }
     const button = event.target.closest("[data-add-product]");
     if (button) {
+      event.preventDefault();
+      event.stopPropagation();
       addProduct(button.dataset.addProduct);
-      flashCartButton(button);
     }
   });
   if (searchInput) searchInput.addEventListener("input", () => {

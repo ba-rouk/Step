@@ -84,9 +84,9 @@
 
     <section class="storefront section-space" id="menu">
       <div class="storefront-hero">
-      <!-- Pexels free stock footage: elegant buffet setup for a wedding celebration, video 31974227. -->
-      <video class="storefront-hero-video" autoplay muted loop playsinline preload="metadata" poster="https://images.pexels.com/videos/31974227/wedding-decoration-31974227.jpeg?auto=compress&dpr=1&h=750&w=1260" aria-hidden="true">
-        <source data-src="https://videos.pexels.com/video-files/31974227/13624678_1920_1080_25fps.mp4" type="video/mp4">
+      <!-- Pexels free stock footage: guests lining up at a buffet, suitable for Step Town's event and wedding catering hero (video 4170293). -->
+      <video class="storefront-hero-video" autoplay muted loop playsinline preload="metadata" poster="https://images.pexels.com/videos/4170293/pexels-photo-4170293.jpeg?auto=compress&amp;dpr=1&amp;h=750&amp;w=1260" aria-hidden="true">
+        <source data-src="https://videos.pexels.com/video-files/4170293/4170293-hd_1920_1080_24fps.mp4" type="video/mp4">
       </video>
       <div class="storefront-hero-overlay" aria-hidden="true"></div>
       <div class="page-shell storefront-hero-content">
@@ -304,9 +304,10 @@
     <section id="cart-page" class="cart-page" hidden aria-labelledby="cart-page-title">
       <div class="cart-page-shell">
         <div class="cart-page-heading">
+          <button class="cart-page-close" id="cart-page-close" type="button" aria-label="Close cart and return to menu">×</button>
           <p class="eyebrow"><span class="eyebrow-line"></span> STEP TOWN ORDER</p>
-          <h1 id="cart-page-title">Make it yours.</h1>
-          <p>Tell us what you have in mind. You can send an order request without creating an account.</p>
+          <h1 id="cart-page-title">Your cart.</h1>
+          <p>Review your items, adjust quantities and send one order request. You can check out without an account.</p>
         </div>
         <div id="cart-product-summary" class="cart-product-summary" aria-live="polite"></div>
         <form id="product-order-form" class="product-order-form" novalidate>
@@ -326,11 +327,6 @@
           <button id="product-order-submit" class="button button-dark checkout-submit" type="submit">Send order</button>
           <p class="checkout-footnote">Your request is saved securely. Step Town will contact you to confirm availability and final pricing.</p>
         </form>
-        <section class="saved-cart-section" aria-labelledby="saved-cart-title">
-          <div class="saved-cart-heading"><div><p class="eyebrow">YOUR SAVED ITEMS</p><h2 id="saved-cart-title">Cart list</h2></div></div>
-          <div id="saved-cart-list"></div>
-          <div id="guest-cart-lock" class="guest-cart-lock" hidden><strong>Log in to view your cart list</strong><p>Your saved cart list is connected to your Step Town account. You can still send the order form above without logging in.</p><a class="button button-dark" href="/login?next=%2Fcart">Log in</a></div>
-        </section>
       </div>
     </section>
     <section id="order-confirmation-page" class="order-confirmation-page" hidden aria-labelledby="order-confirmation-title">

@@ -1,0 +1,23 @@
+name: Step Town build check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate JavaScript and build the production site
+        run: npm run build
