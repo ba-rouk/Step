@@ -314,16 +314,29 @@ async function api(req,res,url) {
     return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
   if(req.method==="GET"&&route==="/api/catalog"){
     try{
-      const products=await sb("/rest/v1/store_products?select=id,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_available,is_visible&is_available=eq.true&is_visible=eq.true&order=sort_order.asc");
-      const ids=(products||[]).map(product=>product.id);
-      const categoryIds=[...new Set((products||[]).map(product=>product.category_id))];
-      let images=[],categories=[];
-      if(ids.length)images=await sb("/rest/v1/product_images?select=id,product_id,url,public_id,position,alt_text,variants&product_id=in.("+ids.join(",")+")&order=position.asc");
-      if(categoryIds.length)categories=await sb("/rest/v1/store_categories?select=id,name&id=in.("+categoryIds.join(",")+")");
-      const grouped=new Map(),categoryNames=new Map((categories||[]).map(category=>[category.id,category.name]));
-      for(const image of images||[]){if(!grouped.has(image.product_id))grouped.set(image.product_id,[]);grouped.get(image.product_id).push(image);}
-      return sendJson(res,200,{products:(products||[]).map(product=>({...product,category_name:categoryNames.get(product.category_id)||"Menu",images:grouped.get(product.id)||[]}))},{ "Cache-Control":"public, max-age=60, stale-while-revalidate=300" });
-    }catch(e){console.error("Public catalogue:",e.message);return sendJson(res,e.status||502,{error:"The menu could not be loaded."});}
+      const menu=await getPublicMenu({
+        limit:url.searchParams.get("limit")||PUBLIC_MENU_PAGE_SIZE,
+        offset:url.searchParams.get("offset")||0,
+        category:url.searchParams.get("category")||"",
+        slug:url.searchParams.get("slug")||"",
+        search:url.searchParams.get("q")||""
+      });
+      return sendJson(res,200,menu,publicMenuHeaders());
+    }catch(error){
+      console.error("Public catalogue:",error.message);
+      return sendJson(res,error.status||502,{error:"The menu could not be loaded."});
+    }
+  }
+  if(req.method==="POST"&&route==="/api/catalog/invalidate"){
+    const token=String(req.headers.authorization||"").replace(/^Bearer\\s+/i,"");
+    if(!token)return sendJson(res,401,{error:"Staff authentication is required."});
+    try{
+      const user=await sb("/auth/v1/user",{access:token});
+      const staff=await sb("/rest/v1/staff_profiles?select=user_id&user_id=eq."+encodeURIComponent(user.id)+"&is_active=eq.true",{access:token});
+      if(!staff?.length)return sendJson(res,403,{error:"Active staff access is required."});
+      invalidatePublicMenu();
+      return sendJson(res,200,{ok:true});
+    }catch(error){return sendJson(res,error.status||401,{error:"The catalogue cache could not be refreshed."});}
   }
   if(req.method==="GET"&&route==="/api/session"){
     if(!configured())return sendJson(res,503,{error:"Customer sign-in is not configured on the server."});
@@ -331,6 +344,32 @@ async function api(req,res,url) {
   }
   if(req.method==="POST"&&route.startsWith("/api/auth/"))return authRoutes(req,res,url);
 
+  if(req.method==="GET"&&route==="/api/profile/cart"){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Sign in to view your saved cart."});
+    try{
+      const rows=await sb("/rest/v1/customer_cart_items?select=product_id,quantity,product:store_products!customer_cart_items_product_id_fkey(id,slug,name,description,price,price_unit,price_unit_label,image_url,image_urls,category:store_categories!store_products_category_id_fkey(name,slug),images:product_images!product_images_product_id_fkey(id,url,position,alt_text,variants))&user_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.asc",{access:current.session.access_token});
+      return sendJson(res,200,{items:(rows||[]).map(row=>({...row.product,quantity:row.quantity,product_id:row.product_id,category_name:row.product?.category?.name||"Menu",images:row.product?.images||[]}))});
+    }catch(error){return sendJson(res,error.status||502,{error:"Your saved cart could not be loaded."});}
+  }
+  if(req.method==="PUT"&&route==="/api/profile/cart"){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Sign in to save your cart list."});
+    const b=await body(req,12000),incoming=Array.isArray(b.items)?b.items:[];
+    if(incoming.length>50)return sendJson(res,400,{error:"Your cart can contain up to 50 different products."});
+    const normalized=new Map();
+    for(const item of incoming){
+      const id=String(item.product_id||item.id||"");
+      const quantity=Number(item.quantity);
+      if(!/^[0-9a-f-]{36}$/i.test(id)||!Number.isInteger(quantity)||quantity<1||quantity>20)return sendJson(res,400,{error:"A cart item is invalid."});
+      normalized.set(id,Math.min(20,(normalized.get(id)||0)+quantity));
+    }
+    try{
+      await sb("/rest/v1/customer_cart_items?user_id=eq."+encodeURIComponent(current.user.id),{method:"DELETE",access:current.session.access_token,headers:{Prefer:"return=minimal"}});
+      if(normalized.size)await sb("/rest/v1/customer_cart_items",{method:"POST",access:current.session.access_token,body:[...normalized].map(([product_id,quantity])=>({user_id:current.user.id,product_id,quantity})),headers:{Prefer:"return=minimal"}});
+      return sendJson(res,200,{ok:true,count:normalized.size});
+    }catch(error){return sendJson(res,error.status||502,{error:"Your saved cart could not be updated."});}
+  }
   if(req.method==="GET"&&route==="/api/profile/favourites"){
     const current=await currentUser(req,res);
     if(!current)return sendJson(res,401,{error:"Please sign in to view favourites."});
@@ -358,7 +397,7 @@ async function api(req,res,url) {
         const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
         return sendJson(res,200,{user:current.user,profile:rows[0]||null});
       }
-      const orders=await sb("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=50",{access:current.session.access_token});
+      const orders=await sb("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=50",{access:current.session.access_token});
       return sendJson(res,200,{orders:orders||[]});
     }catch(e){return sendJson(res,e.status||502,{error:"Your account data could not be loaded."});}
   }
