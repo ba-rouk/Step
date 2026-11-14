@@ -7,6 +7,7 @@ const params = new URLSearchParams(window.location.search);
 const html = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money = value => new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(value));
 let quickItem = null;
+let quickNotFound = false;
 let savedItems = [];
 let account = null;
 let isSignedIn = false;
@@ -76,6 +77,11 @@ async function saveAccountCart() {
 }
 async function loadProduct(reference) {
   if(!reference)return null;
+  const serverResolved=document.querySelector("#step-cart-product-data");
+  if(serverResolved){
+    try{const item=JSON.parse(serverResolved.textContent||"null");if(item&&item.id)return normalize({...item,quantity:1});}
+    catch(error){console.warn("Server-rendered cart product data was invalid:",error);}
+  }
   const embedded=document.querySelector("#step-menu-initial-data");
   if(embedded){try{const data=JSON.parse(embedded.textContent||"{}");const item=(data.products||[]).find(p=>String(p.slug||"")===reference||String(p.id)===reference);if(item)return normalize({...item,quantity:1});}catch{}}
   const isId=/^[0-9a-f-]{36}$/i.test(reference);
@@ -111,6 +117,20 @@ function render() {
   const quickHost=document.querySelector("#quick-order-summary");
   const savedHost=document.querySelector("#saved-cart-summary");
   const submit=document.querySelector("#product-order-submit");
+  const form=document.querySelector("#product-order-form");
+  if(quickNotFound){
+    if(quickHost){
+      quickHost.hidden=false;
+      quickHost.innerHTML='<div class="cart-empty"><strong>Product not found.</strong><p>This menu item may have been renamed or is no longer available.</p><a class="button button-dark" href="/categories">Browse the menu</a></div>';
+    }
+    if(host)host.hidden=true;
+    if(savedHost)savedHost.hidden=true;
+    if(form)form.hidden=true;
+    if(submit)submit.disabled=true;
+    updateCartBadge();
+    return;
+  }
+  if(form)form.hidden=false;
   if(quickHost){
     quickHost.hidden=!quickItem;
     quickHost.innerHTML=quickItem?'<p class="eyebrow">ORDER THIS ITEM</p>'+itemMarkup(quickItem,"quick"):"";
@@ -162,6 +182,7 @@ async function startCart() {
   if(date)date.min=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
   savedItems=readGuestCart();
   const reference=params.get("product");
+  quickNotFound=Boolean(document.querySelector("#step-cart-product-error"));
   try{
     const signed=await loadAccount();
     if(signed){
@@ -173,9 +194,14 @@ async function startCart() {
       window.location.assign("/login?next="+encodeURIComponent("/cart"));return;
     }else writeGuestCart();
   }catch(error){if(status)status.textContent=error.message||"Your cart could not be loaded.";}
-  if(reference){
-    try{quickItem=await loadProduct(reference);if(!quickItem)throw new Error("This product is no longer available. Please return to the menu.");}
-    catch(error){if(status)status.textContent=error.message;}
+  if(reference&&!quickNotFound){
+    try{
+      quickItem=await loadProduct(reference);
+      if(!quickItem)quickNotFound=true;
+    }catch(error){
+      quickNotFound=true;
+      if(status)status.textContent=error.message||"This product could not be loaded.";
+    }
   }
   prefillForm(form);
   render();
