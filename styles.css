@@ -865,7 +865,6 @@ h1,h2,h3,h4,strong{color:inherit} p{color:inherit}
 .image-slot .image-slot-content strong{display:block;font:600 24px var(--font-serif);margin:5px 0}
 .image-slot .image-slot-content em{font-size:11px;font-style:normal;color:#f0d5bd}
 .image-slot--catering{background-image:linear-gradient(0deg,rgba(0,0,0,.2),rgba(0,0,0,.03)),url("https://i.postimg.cc/vTCDBFjX/Whats-App-Image-2026-03-18-at-11-45-32-AM-1.jpg");background-size:cover;background-position:center}
-.image-slot--barbecue{background-image:linear-gradient(0deg,rgba(0,0,0,.22),rgba(0,0,0,.02)),url("https://www.zamarisuites.com/img/banner/ejy.jpg");background-size:cover;background-position:center}
 .image-slot--cake{background-image:linear-gradient(0deg,rgba(0,0,0,.2),rgba(0,0,0,.02)),url("https://jdnyolfagefxsphynzem.supabase.co/storage/v1/object/public/eatery-images/eateries/335a9d6d-8dad-4609-b794-6b58f90f6d53/main.jpg");background-size:cover;background-position:center}
 @media(max-width:720px){.image-slot .image-slot-content{padding:12px}.image-slot .image-slot-content strong{font-size:20px}}
 
@@ -2229,3 +2228,18 @@ body.route-customer-page .customer-error {
   .product-image-strip { scroll-behavior: auto; }
   .product-image-action,.store-toast { transition: none !important; }
 }
+
+.gallery-loading,
+.gallery-empty {
+  grid-column: 1 / -1;
+  align-self: center;
+  margin: 0;
+  padding: 26px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 18px;
+  color: rgba(255,245,237,.82);
+  background: rgba(255,255,255,.055);
+  text-align: center;
+  font: 500 13px/1.55 var(--body, Inter, sans-serif);
+}
+.gallery-grid[aria-busy="true"] { min-height: 180px; }
