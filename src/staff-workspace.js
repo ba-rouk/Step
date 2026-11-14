@@ -621,7 +621,26 @@ async function orderDetailPage(id) {
     if (error) notify(error.message, "error");
     else { notify("Payment deleted."); await orderDetailPage(order.id); }
   }));
-  $("#print-receipt").addEventListener("click", () => window.print());
+  $("#print-receipt").addEventListener("click", () => {
+    const receiptWindow = window.open("", "_blank", "width=720,height=820");
+    if (!receiptWindow) { notify("Allow pop-ups to print the receipt.", "warning"); return; }
+    const receiptItems = items.map(item =>
+      "<tr><td>" + esc(item.name) + "</td><td>" + Number(item.quantity || 1) + "</td><td>" + money(item.line_total) + "</td></tr>"
+    ).join("");
+    const paymentRows = payments.map(payment =>
+      "<tr><td>" + esc(statusLabel(payment.method)) + "</td><td>" + money(payment.amount) + "</td><td>" + esc(payment.reference || "—") + "</td><td>" + esc(fmtDate(payment.recorded_at)) + "</td></tr>"
+    ).join("");
+    const html = "<!doctype html><html><head><meta charset='utf-8'><title>Receipt " + esc(order.order_number) + "</title><style>" +
+      "body{font:14px Arial,sans-serif;color:#171717;margin:32px}h1{font-size:21px;margin:0 0 5px}h2{font-size:14px;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.08em}p{margin:5px 0}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid #ddd}th{font-size:11px;text-transform:uppercase}.total{font-size:18px;font-weight:bold;margin-top:14px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:14px}.cashier{margin-top:24px;padding-top:12px;border-top:1px solid #ccc}@media print{body{margin:12mm}}" +
+      "</style></head><body><h1>STEP TOWN</h1><p>Receipt · " + esc(order.order_number) + "</p><h2>Customer</h2><p><b>" + esc(order.customer_name) + "</b></p><p>" + esc(order.customer_phone) + "</p><p>" + esc(order.customer_email || "") + "</p>" +
+      "<div class='meta'><p><b>Order type:</b> " + esc(statusLabel(order.fulfillment)) + "</p><p><b>Requested:</b> " + esc(order.requested_date || "Not set") + " " + esc(order.requested_time || "") + "</p><p><b>Pickup / delivery:</b> " + esc(order.delivery_location || "Pickup") + "</p><p><b>Order date:</b> " + esc(fmtDate(order.created_at)) + "</p></div>" +
+      "<h2>Order</h2><table><thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead><tbody>" + receiptItems + "</tbody></table><p class='total'>Total: " + money(order.estimated_total) + "</p>" +
+      "<h2>Payment details</h2><table><thead><tr><th>Method</th><th>Amount</th><th>Reference</th><th>Date</th></tr></thead><tbody>" + (paymentRows || "<tr><td colspan='4'>No payment recorded</td></tr>") + "</tbody></table>" +
+      "<p class='cashier'><b>Cashier:</b> " + esc(profile.full_name || "Staff") + "</p><script>window.addEventListener('load',()=>{window.print();});</script></body></html>";
+    receiptWindow.document.open();
+    receiptWindow.document.write(html);
+    receiptWindow.document.close();
+  });
 }
 async function compressImageForUpload(file) {
   const allowed = ["image/jpeg", "image/png", "image/webp", "image/avif"];
@@ -1364,10 +1383,10 @@ async function auditPage() {
     const start = page * pageSize;
     const current = filtered.slice(start, start + pageSize);
     $("#audit-results").innerHTML = current.length ?
-      '<div class="staff-table-wrap"><table><thead><tr><th>Time</th><th>User</th><th>Role</th><th>Action</th><th>Target</th><th>Details</th></tr></thead><tbody>' +
+      '<div class="staff-table-wrap"><table><thead><tr><th>Time</th><th>User</th><th>Role</th><th>Action</th></tr></thead><tbody>' +
       current.map(log => {
         const actor = teamByUser.get(log.actor_id);
-        return "<tr><td>" + esc(fmtDate(log.created_at)) + "</td><td>" + esc(actor?.full_name || "Former staff / system") + "</td><td>" + esc(log.actor_role || "—") + "</td><td>" + esc(log.action) + "</td><td>" + esc(log.entity_type) + " · " + esc(log.entity_id || "—") + "</td><td><code>" + esc(JSON.stringify(log.details || {})) + "</code></td></tr>";
+        return "<tr><td>" + esc(fmtDate(log.created_at)) + "</td><td>" + esc(actor?.full_name || "Former staff / system") + "</td><td>" + esc(log.actor_role || "—") + "</td><td>" + esc(log.action) + "</td></tr>";
       }).join("") + "</tbody></table></div>" : '<p class="staff-empty">No audit records match these filters.</p>';
     $("#audit-page-label").textContent = filtered.length ? "Page " + (page + 1) + " of " + Math.ceil(filtered.length / pageSize) : "No records";
     $("#audit-prev").disabled = page === 0;
@@ -1377,8 +1396,8 @@ async function auditPage() {
   $("#audit-prev").addEventListener("click", () => { page = Math.max(0, page - 1); render(); });
   $("#audit-next").addEventListener("click", () => { if ((page + 1) * pageSize < filtered.length) page++; render(); });
   $("#audit-export").addEventListener("click", () => downloadCsv("step-town-audit-log.csv", [
-    ["Time", "User", "Role", "Action", "Entity", "Entity ID", "Details"],
-    ...filtered.map(log => [log.created_at, teamByUser.get(log.actor_id)?.full_name || "", log.actor_role, log.action, log.entity_type, log.entity_id, JSON.stringify(log.details || {})])
+    ["Time", "User", "Role", "Action"],
+    ...filtered.map(log => [log.created_at, teamByUser.get(log.actor_id)?.full_name || "", log.actor_role, log.action])
   ]));
   render();
 }
