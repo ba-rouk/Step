@@ -516,7 +516,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   const ext=path.extname(file).toLowerCase();
   const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/")||decoded==="/cart");
   if(ext===".html"&&path.basename(file)==="index.html"){
-    let html=data.toString("utf8").replace(/<title>[\\s\\S]*?<\\/title>/i,"<title>Step Town | "+pageTitle(pathname)+"</title>");
+    let html=data.toString("utf8").replace(/<title>[\s\S]*?<\/title>/i,"<title>Step Town | "+pageTitle(pathname)+"</title>");
     if(menuPage){
       try{
         const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
