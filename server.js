@@ -278,7 +278,7 @@ async function api(req,res,url) {
         const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
         return sendJson(res,200,{user:current.user,profile:rows[0]||null});
       }
-      const orders=await sb("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation&user_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=50",{access:current.session.access_token});
+      const orders=await sb("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=50",{access:current.session.access_token});
       return sendJson(res,200,{orders:orders||[]});
     }catch(e){return sendJson(res,e.status||502,{error:"Your account data could not be loaded."});}
   }
@@ -318,7 +318,7 @@ async function api(req,res,url) {
       const date=b.requested_date?String(b.requested_date):null;
       if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid requested date."});
       const order={
-        user_id:current.user.id,customer_name:name,customer_phone:phone,customer_email:email||null,
+        customer_id:current.user.id,customer_name:name,customer_phone:phone,customer_email:email||null,
         fulfillment,requested_date:date,requested_time:b.requested_time?String(b.requested_time).slice(0,5):null,
         delivery_location:b.delivery_location?String(b.delivery_location).trim().slice(0,180):null,
         notes:b.notes?String(b.notes).trim().slice(0,3000):null,
