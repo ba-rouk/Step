@@ -280,6 +280,26 @@ if (isAuthRoute) {
   }
 
   function renderOrders(payload) {
+    if (payload.verified === false) {
+      shell(
+        '<h1>Verify your email.</h1><p class="customer-intro">Verify <strong>' + escapeHtml(payload.email || "your account email") + '</strong> to see your orders, including orders you placed as a guest. We will send a one-time six-digit code to that address.</p>' +
+        '<p class="customer-error" id="order-verification-status" role="status" aria-live="polite"></p>' +
+        '<button class="customer-submit" id="send-order-verification-code" type="button">Send code</button>' +
+        '<p class="customer-note"><a href="/profile">Back to profile</a></p>',
+        "EMAIL VERIFICATION REQUIRED"
+      );
+      app.querySelector("#send-order-verification-code").addEventListener("click", async event => {
+        const button=event.currentTarget,status=app.querySelector("#order-verification-status");
+        button.disabled=true;button.textContent="Sending code…";
+        try{
+          const response=await apiFetch("/api/auth/email-code/request",{method:"POST",body:{email:payload.email}});
+          if(!response.ok)throw new Error("We could not send a code. Please try again.");
+          emailCodeVerificationForm(payload.email,"");
+        }catch(error){status.textContent=error.message||"Please try again.";}
+        finally{if(button.isConnected){button.disabled=false;button.textContent="Send code";}}
+      });
+      return;
+    }
     const orders = Array.isArray(payload.orders) ? payload.orders : [];
     const money = value => new Intl.NumberFormat("en-RW", {
       style: "currency", currency: "RWF", maximumFractionDigits: 0
@@ -319,7 +339,9 @@ if (isAuthRoute) {
         '<div class="customer-order-items">' + itemMarkup + '</div>' +
         (order.order_description ? '<p class="customer-order-description"><strong>Describe your order</strong><br>' + escapeHtml(order.order_description) + '</p>' : '') +
         (order.notes ? '<p>' + escapeHtml(order.notes) + '</p>' : '') +
-        '<b>' + escapeHtml(total) + '</b></article>';
+        '<b>' + escapeHtml(total) + '</b>' +
+        (order.tracking_token ? '<a class="text-link dark-link" href="/order/' + encodeURIComponent(order.tracking_token) + '">Track this order</a>' : '') +
+        '</article>';
     }).join("") : '<div class="customer-empty-orders"><strong>No orders yet.</strong><p>Your submitted order requests will appear here.</p><a href="/categories">Explore the menu</a></div>';
     shell(
       '<h1>Your orders.</h1><p class="customer-intro">Your submitted Step Town orders, including requests made as a guest using this account email.</p>' +
