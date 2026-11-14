@@ -3,9 +3,7 @@ import { apiFetch } from "./api.js";
 
 const path = window.location.pathname.replace(/\/+$/, "") || "/";
 const params = new URLSearchParams(window.location.search);
-const cartKey = "step-town-cart-v1";
-const cartIdKey = "step-town-cart-id-v1";
-const cartHistoryKey = "step-town-cart-history-v1";
+const cartHandoffKey = "step-town-cart-handoff-v1";
 const html = value => String(value ?? "").replace(/[&<>"']/g, c => ({
   "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
 })[c]);
@@ -57,109 +55,23 @@ function normalizeItem(raw) {
   };
 }
 
-function loadGuestCart() {
+function readCartHandoff() {
   try {
-    const saved = JSON.parse(localStorage.getItem(cartKey) || "[]");
+    const saved = JSON.parse(sessionStorage.getItem(cartHandoffKey) || "[]");
     return Array.isArray(saved) ? saved.map(normalizeItem).filter(Boolean).slice(0, 50) : [];
   } catch {
     return [];
   }
 }
 
-function saveGuestCart() {
+function clearCartHandoff() {
+  try { sessionStorage.removeItem(cartHandoffKey); } catch {}
+  // Remove guest cart snapshots created by older versions; they are not order history.
   try {
-    localStorage.setItem(cartKey, JSON.stringify(cartItems.map(item => ({
-      id:item.id,
-      product_id:item.product_id,
-      slug:item.slug,
-      name:item.name,
-      description:item.description,
-      category_name:item.category_name,
-      price:item.price,
-      price_unit:item.price_unit,
-      price_unit_label:item.price_unit_label,
-      image_url:item.image_url,
-      image_urls:item.image_urls,
-      images:item.images,
-      quantity:item.quantity
-    }))));
-    return true;
-  } catch (error) {
-    console.warn("Guest cart could not be saved:", error);
-    return false;
-  }
-}
-
-function currentCartId() {
-  try {
-    let id = localStorage.getItem(cartIdKey);
-    if (!id) {
-      id = crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
-        const r = Math.random() * 16 | 0;
-        return (c === "x" ? r : (r & 3 | 8)).toString(16);
-      });
-      localStorage.setItem(cartIdKey, id);
-    }
-    return id;
-  } catch {
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
-      const r = Math.random() * 16 | 0;
-      return (c === "x" ? r : (r & 3 | 8)).toString(16);
-    });
-  }
-}
-
-function localCartHistory() {
-  try {
-    const rows = JSON.parse(localStorage.getItem(cartHistoryKey) || "[]");
-    return Array.isArray(rows) ? rows : [];
-  } catch { return []; }
-}
-
-function cartHistorySnapshot(status = "saved") {
-  const items = cartItems.map(item => ({
-    product_id:item.product_id,
-    name:item.name,
-    description:item.description,
-    category_name:item.category_name,
-    price:item.price,
-    price_unit:item.price_unit,
-    price_unit_label:item.price_unit_label,
-    image_url:imageFor(item),
-    quantity:item.quantity
-  }));
-  const allPriced = items.length > 0 && items.every(item => item.price !== null && Number.isFinite(Number(item.price)));
-  const estimated_total = allPriced ? items.reduce((sum,item) => sum + Number(item.price) * item.quantity,0) : null;
-  return {
-    cart_id:currentCartId(),
-    items,
-    item_count:items.reduce((sum,item) => sum + item.quantity,0),
-    estimated_total,
-    status,
-    updated_at:new Date().toISOString()
-  };
-}
-
-function saveLocalCartHistory(status = "saved") {
-  if (!cartItems.length) return;
-  const snapshot = cartHistorySnapshot(status);
-  const rows = localCartHistory().filter(row => row.cart_id !== snapshot.cart_id);
-  rows.unshift(snapshot);
-  try { localStorage.setItem(cartHistoryKey, JSON.stringify(rows.slice(0,40))); }
-  catch (error) { console.warn("Local cart history could not be saved:",error); }
-}
-
-async function syncGuestCartHistory() {
-  const rows = localCartHistory();
-  if (!rows.length) return;
-  for (const snapshot of rows) {
-    const response = await apiFetch("/api/profile/cart-history", { method:"POST", body:snapshot });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || "Your previous carts could not be transferred to your account.");
-    }
-  }
-  try { localStorage.removeItem(cartHistoryKey); } catch {}
+    localStorage.removeItem("step-town-cart-v1");
+    localStorage.removeItem("step-town-cart-history-v1");
+    localStorage.removeItem("step-town-cart-id-v1");
+  } catch {}
 }
 
 async function jsonRequest(url, options = {}) {
@@ -207,35 +119,15 @@ function mergeCarts(primary, secondary) {
   return [...merged.values()].slice(0, 50);
 }
 
-async function persistCart(historyStatus = "saved") {
-  saveLocalCartHistory(historyStatus);
-  if (!accountUser) {
-    if (!saveGuestCart()) throw new Error("Your browser could not save this cart. Check available storage and try again.");
-    return;
-  }
-  const operation = async () => {
-    const items = cartItems.map(item => ({
-      product_id:item.product_id || item.id,
-      quantity:item.quantity
-    }));
-    const response = await apiFetch("/api/profile/cart", { method:"PUT", body:{ items } });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      saveGuestCart();
-      throw new Error(data.error || "Your cart could not be saved to your account.");
-    }
-    if (cartItems.length) {
-      const historyResponse = await apiFetch("/api/profile/cart-history", {
-        method:"POST",
-        body:cartHistorySnapshot(historyStatus)
-      });
-      const historyData = await historyResponse.json().catch(() => ({}));
-      if (!historyResponse.ok) throw new Error(historyData.error || "Your cart was saved, but its history could not be updated.");
-    }
-    try { localStorage.removeItem(cartKey); } catch {}
-  };
-  persistQueue = persistQueue.then(operation, operation);
-  return persistQueue;
+async function persistCart() {
+  if (!accountUser) return;
+  const items = cartItems.map(item => ({
+    product_id:item.product_id || item.id,
+    quantity:item.quantity
+  }));
+  const response = await apiFetch("/api/profile/cart", { method:"PUT", body:{ items } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Your account cart could not be saved.");
 }
 
 async function getSelectedProduct(reference) {
@@ -396,36 +288,33 @@ async function startCart() {
     dateInput.min = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   }
 
-  cartItems = loadGuestCart();
+  const handoffItems = readCartHandoff();
+  cartItems = handoffItems.slice();
   const status = document.querySelector("#product-order-error");
 
   try {
     const signedIn = await getAccount();
     if (signedIn) {
-      // Cart-history transfer is best-effort and must never prevent the active cart loading.
-      try {
-        await syncGuestCartHistory();
-      } catch (historyError) {
-        console.warn("Previous cart history could not be transferred yet:", historyError.message);
-        if (status) status.textContent = "Your active cart will still load. Older cart history could not be synced yet.";
-      }
-
       const accountCart = await getAccountCart();
-      cartItems = mergeCarts(accountCart, cartItems);
-      if (cartItems.length) {
+      cartItems = mergeCarts(accountCart, handoffItems);
+      if (handoffItems.length) {
         try {
           await persistCart();
+          clearCartHandoff();
         } catch (saveError) {
-          saveGuestCart();
-          console.warn("The cart was restored but account synchronisation is incomplete:", saveError.message);
-          if (status) status.textContent = "Your cart was restored, but account synchronisation needs another try.";
+          console.warn("The selected product is visible, but account synchronisation is incomplete:", saveError.message);
+          if (status) status.textContent = "Your selected product is visible, but it could not yet be saved to your account. Please retry before leaving this page.";
         }
-      } else {
-        try { localStorage.removeItem(cartKey); } catch {}
       }
+    } else {
+      // A guest gets this one product for the current page only.
+      cartItems = handoffItems;
+      clearCartHandoff();
     }
   } catch (error) {
-    if (status) status.textContent = error.message || "Your account cart could not be loaded. Your local cart is still available.";
+    // Keep an unconsumed handoff available if account verification or loading failed.
+    cartItems = handoffItems;
+    if (status) status.textContent = error.message || "Your account cart could not be loaded.";
   }
 
   const selectedReference = params.get("product");
@@ -435,6 +324,7 @@ async function startCart() {
       if (!product) throw new Error("This product could not be found in the current menu. Please refresh the menu and try again.");
       addProduct(product);
       await persistCart();
+      clearCartHandoff();
       history.replaceState(null, "", "/cart");
       if (status) {
         status.textContent = "Added to your cart.";
@@ -445,7 +335,7 @@ async function startCart() {
         status.textContent = error.message || "The selected product could not be added.";
         status.dataset.clearOnRender = "false";
       }
-      saveGuestCart();
+      // Do not persist guest selections; keep the error visible on this page.
     }
   }
 
@@ -456,8 +346,15 @@ async function startCart() {
       accountData.user?.user_metadata?.full_name ||
       accountData.user?.user_metadata?.name;
     const savedPhone = accountData.profile?.phone || accountData.user?.phone;
+    const email = form.elements.customer_email;
+    const savedEmail = accountData.user?.email;
     if (savedName && name) name.value = savedName;
     if (savedPhone && phone) phone.value = savedPhone;
+    if (savedEmail && email) {
+      email.value = savedEmail;
+      email.readOnly = true;
+      email.setAttribute("aria-readonly", "true");
+    }
   }
 
   renderCart();
@@ -483,9 +380,6 @@ async function startCart() {
     } else if (button.dataset.cartAction === "remove") {
       cartItems = cartItems.filter(entry => entry.product_id !== id);
     }
-    if (!cartItems.length) {
-      try { localStorage.removeItem(cartIdKey); } catch {}
-    }
     renderCart();
     try {
       await persistCart();
@@ -507,6 +401,7 @@ async function startCart() {
     const order = {
       customer_name:String(fields.get("customer_name") || "").trim(),
       customer_phone:String(fields.get("customer_phone") || "").trim(),
+      customer_email:String(fields.get("customer_email") || "").trim(),
       fulfillment:String(fields.get("fulfillment") || "pickup"),
       requested_date:String(fields.get("requested_date") || "") || null,
       requested_time:String(fields.get("requested_time") || "") || null,
@@ -555,17 +450,11 @@ async function startCart() {
         order.notes ? "Notes: " + order.notes : ""
       ].filter(Boolean).join("\n");
       sessionStorage.setItem("step-town-last-order-message", message);
-      try { await persistCart("converted"); } catch (error) {
-        console.warn("The order was sent, but the cart history status could not be updated:", error.message);
-      }
       cartItems = [];
       try { await persistCart(); } catch (error) {
-        console.warn("The order was sent, but the active cart could not be cleared:", error.message);
+        console.warn("The order was sent, but the active account cart could not be cleared:", error.message);
       }
-      try {
-        localStorage.removeItem(cartKey);
-        localStorage.removeItem(cartIdKey);
-      } catch {}
+      clearCartHandoff();
       window.location.assign("/order/confirmation?order=" + encodeURIComponent(data.order?.order_number || ""));
     } catch (error) {
       if (status) status.textContent = error.message || "Connection problem. Check your internet and try again.";
