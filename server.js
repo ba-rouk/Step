@@ -356,6 +356,17 @@ async function api(req,res,url) {
   }
   if(["POST","PUT","PATCH","DELETE"].includes(req.method)&&route.startsWith("/api/")&&!csrfValid(req))
     return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
+  if(req.method==="GET"&&route.startsWith("/api/orders/track/")){
+    const token=route.split("/").filter(Boolean).at(-1)||"";
+    if(!/^[0-9a-f]{32}$/.test(token))return sendJson(res,404,{error:"Order tracking link is invalid."});
+    try{
+      const response=await fetch(SUPABASE_URL+"/functions/v1/track-store-order",{
+        method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({token})
+      });
+      const data=await response.json().catch(()=>({}));
+      return sendJson(res,response.ok?200:(response.status===404?404:502),data);
+    }catch(error){console.error("Order tracking:",error);return sendJson(res,502,{error:"Order tracking is temporarily unavailable."});}
+  }
   if(req.method==="GET"&&route==="/api/catalog"){
     try{
       const menu=await getPublicMenu({
