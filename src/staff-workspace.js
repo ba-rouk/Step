@@ -29,7 +29,13 @@ const money = value => value == null
 const fmtDate = value => value ? new Date(value).toLocaleString("en-RW", { dateStyle: "medium", timeStyle: "short" }) : "—";
 async function invalidatePublicCatalog() {
   try {
-    const response = await apiFetch("/api/catalog/invalidate", { method: "POST", body: {} });
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("The staff session is unavailable.");
+    const response = await apiFetch("/api/catalog/invalidate", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + session.access_token },
+      body: {}
+    });
     if (!response.ok) throw new Error("Menu cache invalidation returned " + response.status);
   } catch (error) {
     console.warn("Public menu cache invalidation deferred:", error.message);
