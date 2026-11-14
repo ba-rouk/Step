@@ -980,12 +980,32 @@ async function galleryPage() {
     "</form></section>" +
     '<section class="staff-panel"><div class="staff-panel-head"><h2>Gallery library</h2><span class="staff-muted">' + items.length + " images</span></div>" +
       (items.length ? '<div class="staff-gallery staff-gallery-manage">' + items.map((item, index) =>
-        '<article><img src="' + esc(item.image_url) + '" alt="' + esc(item.alt_text || item.title || "") + '">' +
+        '<article class="staff-gallery-card"><div class="staff-gallery-image-wrap"><button class="staff-gallery-preview" type="button" data-gallery-preview="' + index + '" aria-label="View ' + esc(item.title || "gallery image") + '"><img src="' + esc(item.image_url) + '" alt="' + esc(item.alt_text || item.title || "") + '" loading="lazy"></button>' +
+          '<details class="staff-action-menu staff-gallery-menu"><summary aria-label="Gallery image actions">•••</summary><div class="staff-action-menu-pop"><button type="button" data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button type="button" data-gallery-delete="' + item.id + '">Delete</button><button type="button" data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + '>Move up</button><button type="button" data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + '>Move down</button></div></details></div>' +
           '<b>' + esc(item.title || "Gallery image") + "</b><small>" + esc(statusLabel(item.category)) + " · " + (item.is_published ? "Published" : "Hidden") + "</small>" +
-          '<label class="staff-gallery-caption">Caption<input data-gallery-caption="' + item.id + '" value="' + esc(item.caption || "") + '" maxlength="500"></label>' +
-          '<details class="staff-action-menu"><summary aria-label="Gallery image actions">•••</summary><div class="staff-action-menu-pop"><button type="button" data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button type="button" data-gallery-delete="' + item.id + '">Delete</button><button type="button" data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + '>Move up</button><button type="button" data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + '>Move down</button></div></details>' +
-        "</article>"
-      ).join("") + "</div>" : '<p class="staff-empty">No gallery images yet.</p>') + "</section>");
+          '<label class="staff-gallery-caption">Caption<input data-gallery-caption="' + item.id + '" value="' + esc(item.caption || "") + '" maxlength="500"></label></article>'
+      ).join("") + "</div>" : '<p class="staff-empty">No gallery images yet.</p>') + "</section>" +
+    '<dialog id="staff-gallery-lightbox" class="staff-gallery-lightbox"><button type="button" class="staff-gallery-lightbox-close" aria-label="Close image viewer">×</button><button type="button" class="staff-gallery-lightbox-prev" aria-label="Previous image">‹</button><img id="staff-gallery-lightbox-image" alt=""><button type="button" class="staff-gallery-lightbox-next" aria-label="Next image">›</button><p id="staff-gallery-lightbox-count"></p></dialog>');
+  const lightbox = $("#staff-gallery-lightbox");
+  let lightboxIndex = 0;
+  const showGalleryImage = index => {
+    if (!items.length || !lightbox) return;
+    lightboxIndex = (index + items.length) % items.length;
+    const item = items[lightboxIndex];
+    $("#staff-gallery-lightbox-image").src = item.image_url;
+    $("#staff-gallery-lightbox-image").alt = item.alt_text || item.title || "Step Town gallery image";
+    $("#staff-gallery-lightbox-count").textContent = (lightboxIndex + 1) + " / " + items.length;
+    if (!lightbox.open) lightbox.showModal();
+  };
+  $("[data-gallery-preview]").forEach(button => button.addEventListener("click", () => showGalleryImage(Number(button.dataset.galleryPreview))));
+  $(".staff-gallery-lightbox-close")?.addEventListener("click", () => lightbox.close());
+  $(".staff-gallery-lightbox-prev")?.addEventListener("click", () => showGalleryImage(lightboxIndex - 1));
+  $(".staff-gallery-lightbox-next")?.addEventListener("click", () => showGalleryImage(lightboxIndex + 1));
+  lightbox?.addEventListener("click", event => { if (event.target === lightbox) lightbox.close(); });
+  lightbox?.addEventListener("keydown", event => {
+    if (event.key === "ArrowLeft") showGalleryImage(lightboxIndex - 1);
+    if (event.key === "ArrowRight") showGalleryImage(lightboxIndex + 1);
+  });
   $("#gallery-form").addEventListener("submit", async event => {
     event.preventDefault();
     const form = event.currentTarget;
