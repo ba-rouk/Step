@@ -13,7 +13,7 @@
   <meta property="og:image:alt" content="Original Step Town Bakery logo">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg">
-  <title>Step Town — Catering, Barbecue & Wedding Cakes</title>
+  <title>Step Town — Catering, Barbecue & Cake</title>
   <link rel="icon" type="image/jpeg" href="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg">
   <link rel="apple-touch-icon" href="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg">
   <link rel="preconnect" href="https://tyuousqmpexrwmnmvxtd.supabase.co" crossorigin>
@@ -26,7 +26,7 @@
   {
     "@context": "https://schema.org",
     "@type": "Caterer",
-    "name": "Step Town Catering and Wedding Cakes",
+    "name": "Step Town Catering, Barbecue and Cake",
     "telephone": "+250780382589",
     "address": {
       "@type": "PostalAddress",
@@ -167,13 +167,13 @@
           </article>
 
           <article class="service-card service-card-tall">
-            <a class="service-image" href="#enquiry" aria-label="Ask about wedding cakes">
-              <div class="image-slot image-slot--cake" role="img" aria-label="Elegant wedding cake with floral decoration"></div>
+            <a class="service-image" href="#enquiry" aria-label="Ask about Cake">
+              <div class="image-slot image-slot--cake" role="img" aria-label="Step Town Cake — elegant celebration cake with floral decoration"></div>
               <span class="image-number">03 / 03</span>
             </a>
             <div class="service-copy">
               <p class="card-kicker">THE SWEET FINALE</p>
-              <h3>Wedding cakes</h3>
+              <h3>Cake</h3>
               <p>A centrepiece that feels like yours. Tell us the occasion, the look you love and the number of guests — then let's shape the idea together.</p>
               <a class="arrow-link" href="#enquiry">Begin your cake enquiry</a>
             </div>
@@ -251,8 +251,8 @@
                 <option value="" disabled selected>Choose a service</option>
                 <option>Event catering</option>
                 <option>Barbecue</option>
-                <option>Wedding cake</option>
-                <option>Catering + wedding cake</option>
+                <option>Cake</option>
+                <option>Catering + Cake</option>
                 <option>I'd like to discuss an idea</option>
               </select>
             </label>
@@ -302,7 +302,51 @@
         <a class="button button-light" href="#enquiry">Start your enquiry</a>
       </div>
     </section>
-  </main>
+  
+    <section id="cart-page" class="cart-page" hidden aria-labelledby="cart-page-title">
+      <div class="cart-page-shell">
+        <div class="cart-page-heading">
+          <p class="eyebrow"><span class="eyebrow-line"></span> STEP TOWN ORDER</p>
+          <h1 id="cart-page-title">Make it yours.</h1>
+          <p>Tell us what you have in mind. You can send an order request without creating an account.</p>
+        </div>
+        <div id="cart-product-summary" class="cart-product-summary" aria-live="polite"></div>
+        <form id="product-order-form" class="product-order-form" novalidate>
+          <p class="eyebrow"><span class="eyebrow-line"></span> ORDER DETAILS</p>
+          <div class="checkout-fields">
+            <label>Your name <span>*</span><input name="customer_name" type="text" minlength="2" maxlength="120" autocomplete="name" required placeholder="Your full name"></label>
+            <label>Phone <span>*</span><input name="customer_phone" type="tel" inputmode="tel" minlength="7" maxlength="40" autocomplete="tel" required value="+250" placeholder="+250 780 382 589"></label>
+            <label class="wide">Describe your order<textarea name="order_description" rows="5" maxlength="5000" placeholder="Flavours, message on the cake, number of guests, serving details and anything else we should know…"></textarea></label>
+            <label>Preferred date<input name="requested_date" id="order-preferred-date" type="date"></label>
+            <label>Preferred time<input name="requested_time" type="time"></label>
+            <label>Pickup or delivery <span>*</span><select name="fulfillment" id="order-fulfillment" required><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select></label>
+            <label id="order-location-label" hidden>Delivery location <span>*</span><input name="delivery_location" id="order-delivery-location" type="text" maxlength="180" placeholder="Area, venue or address"></label>
+            <label class="wide">Notes<textarea name="notes" rows="3" maxlength="3000" placeholder="Optional notes for Step Town…"></textarea></label>
+            <label class="cart-honeypot" aria-hidden="true">Website<input name="website" type="text" tabindex="-1" autocomplete="off"></label>
+          </div>
+          <p id="product-order-error" class="checkout-status" role="alert" aria-live="polite"></p>
+          <button id="product-order-submit" class="button button-dark checkout-submit" type="submit">Send order</button>
+          <p class="checkout-footnote">Your request is saved securely. Step Town will contact you to confirm availability and final pricing.</p>
+        </form>
+        <section class="saved-cart-section" aria-labelledby="saved-cart-title">
+          <div class="saved-cart-heading"><div><p class="eyebrow">YOUR SAVED ITEMS</p><h2 id="saved-cart-title">Cart list</h2></div></div>
+          <div id="saved-cart-list"></div>
+          <div id="guest-cart-lock" class="guest-cart-lock" hidden><strong>Log in to view your cart list</strong><p>Your saved cart list is connected to your Step Town account. You can still send the order form above without logging in.</p><a class="button button-dark" href="/login?next=%2Fcart">Log in</a></div>
+        </section>
+      </div>
+    </section>
+    <section id="order-confirmation-page" class="order-confirmation-page" hidden aria-labelledby="order-confirmation-title">
+      <div class="order-confirmation-card">
+        <p class="eyebrow">STEP TOWN ORDER</p>
+        <h1 id="order-confirmation-title">Thank you. We have your request.</h1>
+        <p>Your order number is</p>
+        <strong id="confirmed-order-number" class="confirmed-order-number"></strong>
+        <p id="confirmation-details">Step Town will contact you to confirm your order.</p>
+        <a id="confirmation-whatsapp" class="button button-dark" href="#" target="_blank" rel="noopener" hidden>Chat on WhatsApp</a>
+        <a class="text-link dark-link" href="/categories">Explore the menu</a>
+      </div>
+    </section>
+</main>
 
 
   <div class="cart-backdrop" id="cart-backdrop" hidden></div>
@@ -353,6 +397,7 @@
   </footer>
 
   <script type="module" src="/src/main.js"></script>
+  <script defer src="https://misma.onrender.com/assets/misma-widget.js?v=20261110-widget-theme-2" data-site-key="bd2e7290-158b-439d-83cd-f6a0d4e2e73f" data-endpoint="https://grlrrmebnthxguluybgb.supabase.co/functions/v1/misma-widget"></script>
   <nav class="mobile-dock" aria-label="Quick navigation">
     <a href="/" data-dock-route="home">
       <svg class="dock-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7"></path><path d="M5 9v11h14V9"></path><path d="M9 20v-6h6v6"></path></svg>
