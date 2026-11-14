@@ -435,74 +435,43 @@ async function api(req,res,url) {
 
     const incoming=Array.isArray(b.items)?b.items:(b.product_slug?[{slug:b.product_slug,quantity:b.quantity||1}]:[]);
     if(!incoming.length||incoming.length>50)return sendJson(res,400,{error:"Choose at least one menu item before sending your order."});
-    const quantitiesById=new Map(),quantitiesBySlug=new Map();
+    const normalizedItems=[];
     for(const item of incoming){
       const quantity=Number(item.quantity||1);
       const id=String(item.product_id||item.id||"");
       const slug=String(item.slug||item.product_slug||"").trim().slice(0,160);
       if(!Number.isInteger(quantity)||quantity<1||quantity>20)return sendJson(res,400,{error:"Each product quantity must be between 1 and 20."});
-      if(id&&/^[0-9a-f-]{36}$/i.test(id))quantitiesById.set(id,Math.min(20,(quantitiesById.get(id)||0)+quantity));
-      else if(slug&&/^[a-z0-9-]+$/i.test(slug))quantitiesBySlug.set(slug,Math.min(20,(quantitiesBySlug.get(slug)||0)+quantity));
+      if(id&&/^[0-9a-f-]{36}$/i.test(id))normalizedItems.push({product_id:id,quantity});
+      else if(slug&&/^[a-z0-9-]+$/i.test(slug))normalizedItems.push({slug,quantity});
       else return sendJson(res,400,{error:"A selected product is invalid. Refresh the menu and try again."});
     }
-    const params=new URLSearchParams();
-    params.set("select","id,category_id,name,description,price,price_unit,price_unit_label,slug,category:store_categories!store_products_category_id_fkey(name,slug)");
-    params.set("is_available","eq.true");
-    params.set("is_visible","eq.true");
-    const filters=[];
-    if(quantitiesById.size)filters.push("id.in.("+[...quantitiesById.keys()].join(",")+")");
-    if(quantitiesBySlug.size)filters.push("slug.in.("+[...quantitiesBySlug.keys()].join(",")+")");
-    if(filters.length===1){
-      const [field,value]=filters[0].split(".in.");
-      params.set(field,"in."+value);
-    }else{
-      params.set("or","("+filters.join(",")+")");
-    }
     try{
-      const products=await sb("/rest/v1/store_products?"+params.toString(),{access:current?.session.access_token});
-      const expected=quantitiesById.size+quantitiesBySlug.size;
-      if(products.length!==expected)return sendJson(res,400,{error:"One or more selected products are no longer available. Refresh the menu and try again."});
-      let priced=true,total=0;
-      const clean=products.map(product=>{
-        const quantity=quantitiesById.get(product.id)||quantitiesBySlug.get(product.slug)||1;
-        const price=product.price==null?null:Number(product.price);
-        if(!Number.isFinite(price))priced=false;else total+=price*quantity;
-        return {
-          product_id:product.id,slug:product.slug,name:product.name,
-          category:product.category?.name||"Menu",quantity,
-          price_unit:product.price_unit||"unit",
-          price_unit_label:product.price_unit_label||product.price_unit||"unit",
-          unit_price:price,line_total:price==null?null:price*quantity
-        };
-      });
-      const order={
-        customer_id:current?.user.id||null,
-        customer_name:name,customer_phone:phone,customer_email:email||null,
-        fulfillment,requested_date:date,requested_time:time,
-        delivery_location:location||null,
-        order_description:description||null,
-        notes:notes||null,
-        items:clean,
-        estimated_total:priced?total:null,
-        price_needs_confirmation:!priced,
-        status:"new"
+      const headers={
+        apikey:SUPABASE_KEY,
+        "Content-Type":"application/json",
+        ...(current?.session?.access_token?{Authorization:"Bearer "+current.session.access_token}:{})
       };
-      const savedRows=await sb("/rest/v1/store_orders?select=id,order_number,estimated_total,created_at",{
-        method:"POST",access:current?.session.access_token,body:order,
-        headers:{Prefer:"return=representation"}
+      const response=await fetch(SUPABASE_URL+"/functions/v1/submit-store-order",{
+        method:"POST",
+        headers,
+        body:JSON.stringify({
+          customer_name:name,
+          customer_phone:phone,
+          customer_email:email||null,
+          fulfillment,
+          requested_date:date,
+          requested_time:time,
+          delivery_location:location||null,
+          order_description:description||null,
+          notes:notes||null,
+          website:String(b.website||b.company_website||""),
+          items:normalizedItems
+        })
       });
-      const saved=savedRows[0];
-      let alertQueued=false;
-      if(saved?.id){
-        try{
-          const response=await fetch(SUPABASE_URL+"/functions/v1/send-order-push",{
-            method:"POST",
-            headers:{apikey:SUPABASE_KEY,...(current?.session?.access_token?{Authorization:"Bearer "+current.session.access_token}:{}),"Content-Type":"application/json"},
-            body:JSON.stringify({order_id:saved.id})
-          });
-          alertQueued=response.ok;
-          if(!response.ok)console.warn("Order saved; push alert returned",response.status);
-        }catch(error){console.warn("Order saved; staff notification failed:",error.message);}
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok){
+        const status=[400,401,403,413,429].includes(response.status)?response.status:502;
+        return sendJson(res,status,{error:result.error||"We could not save your order just now. Please try again."});
       }
       return sendJson(res,201,{
         ok:true,
