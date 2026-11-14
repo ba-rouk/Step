@@ -2349,3 +2349,22 @@ body.route-customer-page .customer-error {
   .menu-toggle { display: flex; }
   .primary-nav { top: 72px; right: 0; left: 0; width: auto; padding: 16px 20px 22px; border-radius: 0 0 20px 20px; }
 }
+
+
+/* Keep the desktop menu toggle on the content edge without moving the brand or nav links. */
+@media (min-width: 1024px) {
+  .header-inner > .menu-toggle {
+    margin-right: -20px;
+    flex: 0 0 42px;
+    align-self: center;
+  }
+  .desktop-primary-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .desktop-primary-nav a { white-space: nowrap; }
+}
