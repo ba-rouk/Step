@@ -234,7 +234,7 @@ async function api(req,res,url) {
     return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
   if(req.method==="GET"&&route==="/api/catalog"){
     try{
-      const products=await sb("/rest/v1/store_products?select=id,category_id,name,description,price,image_url,image_urls,sort_order,is_available,is_visible&is_available=eq.true&is_visible=eq.true&order=sort_order.asc");
+      const products=await sb("/rest/v1/store_products?select=id,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_available,is_visible&is_available=eq.true&is_visible=eq.true&order=sort_order.asc");
       const ids=(products||[]).map(product=>product.id);
       const categoryIds=[...new Set((products||[]).map(product=>product.category_id))];
       let images=[],categories=[];
@@ -304,7 +304,7 @@ async function api(req,res,url) {
     }
     const ids=[...quantities.keys()];
     try{
-      const products=await sb("/rest/v1/store_products?select=id,category_id,name,price&is_available=eq.true&is_visible=eq.true&id=in.("+ids.join(",")+")",{access:current.session.access_token});
+      const products=await sb("/rest/v1/store_products?select=id,category_id,name,price,price_unit,price_unit_label&is_available=eq.true&is_visible=eq.true&id=in.("+ids.join(",")+")",{access:current.session.access_token});
       if(products.length!==ids.length)return sendJson(res,400,{error:"Some items are no longer available. Review your cart."});
       const catIds=[...new Set(products.map(p=>p.category_id))];
       const cats=await sb("/rest/v1/store_categories?select=id,name&id=in.("+catIds.join(",")+")",{access:current.session.access_token});
@@ -313,7 +313,7 @@ async function api(req,res,url) {
       const clean=products.map(p=>{
         const qty=quantities.get(p.id),price=p.price==null?null:Number(p.price);
         if(!Number.isFinite(price))priced=false;else total+=price*qty;
-        return {product_id:p.id,name:p.name,category:names.get(p.category_id)||"Menu",quantity:qty,unit_price:price,line_total:price==null?null:price*qty};
+        return {product_id:p.id,name:p.name,category:names.get(p.category_id)||"Menu",quantity:qty,price_unit:p.price_unit||"unit",price_unit_label:p.price_unit_label||p.price_unit||"unit",unit_price:price,line_total:price==null?null:price*qty};
       });
       const date=b.requested_date?String(b.requested_date):null;
       if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid requested date."});
@@ -335,7 +335,13 @@ async function api(req,res,url) {
         }catch(e){console.warn("Order saved; staff notification failed:",e.message);}
       }
       return sendJson(res,201,{order:saved});
-    }catch(e){console.error("Order request:",e.message);return sendJson(res,e.status&&e.status<500?e.status:502,{error:"We couldn't save the order request. Please try again."});}
+    }catch(e){
+      console.error("Order request:",e.status||502,e.message);
+      const status=e.status&&e.status<500?e.status:502;
+      const cause=String(e.message||"The order database rejected the request.").replace(/[\\r\\n]+/g," ").slice(0,240);
+      const suggestion=status===400?"Check the customer details and make sure every cart item is still available.":status===401?"Sign in again, then submit the order once more.":status===403?"Your account does not have permission to submit this request. Contact Step Town support.":status===429?"Wait 15 minutes before sending another order request.":status===502?"The order service could not complete its database request. Retry shortly; if it persists, staff should inspect the Supabase database logs.":"Check the form details and retry. If the problem continues, contact Step Town with this error.";
+      return sendJson(res,status,{error:"Order request failed: "+cause,suggestion,code:e.code||null});
+    }
   }
   return sendJson(res,404,{error:"API endpoint not found."});
 }
