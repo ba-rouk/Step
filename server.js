@@ -360,7 +360,7 @@ async function api(req,res,url) {
         const rows=await sb("/rest/v1/customer_cart_history?select=id,cart_id,items,item_count,estimated_total,status,created_at,updated_at&user_id=eq."+encodeURIComponent(current.user.id)+"&order=updated_at.desc&limit=50",{access:current.session.access_token});
         return sendJson(res,200,{carts:rows||[]});
       }
-      const b=await body(req,24000);
+      const b=await body(req,100000);
       const cartId=String(b.cart_id||"");
       const incoming=Array.isArray(b.items)?b.items:[];
       const status=String(b.status||"saved");
