@@ -178,6 +178,7 @@ export function renderProductCard(product, options = {}) {
             description +
           '</p>' +
         '</a>' +
+        '<hr class="card-divider" aria-hidden="true">' +
         '<div class="product-card-bottom">' +
           (detail
             ? '<strong class="product-price">' + escapeHtml(price) + '</strong>'
