@@ -493,19 +493,24 @@ body.route-category-detail .product-grid,
   left: 50%;
   bottom: calc(84px + env(safe-area-inset-bottom));
   transform: translate(-50%, 12px);
+  display:flex;
+  align-items:center;
+  gap:14px;
+  max-width:calc(100vw - 28px);
   opacity: 0;
   pointer-events: none;
   padding: 11px 16px;
   border: 1px solid rgba(255, 255, 255, .25);
   border-radius: 999px;
   color: #fff;
-  background: rgba(28, 24, 21, .94);
+  background: rgba(28, 24, 21, .96);
   box-shadow: 0 10px 30px rgba(0, 0, 0, .24);
   font: 600 12px var(--body, Inter, sans-serif);
   transition: opacity .18s ease, transform .18s ease;
 }
-
-.store-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.store-toast.is-visible { opacity: 1; transform: translate(-50%, 0); pointer-events:auto; }
+.store-toast-link{color:#ffbd8d;font-weight:850;text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+.store-toast-link:focus-visible{outline:2px solid #ffbd8d;outline-offset:3px;border-radius:3px}
 
 @media (min-width: 640px) {
   .product-grid,
