@@ -109,8 +109,8 @@ export function bindProductGallery(root) {
   }, true);
 
   root.addEventListener("click", (event) => {
-    const strip = event.target.closest?.(".product-image-strip");
-    if (strip && Date.now() < (suppressClickUntil.get(strip) || 0)) {
+    const guardStrip = event.target.closest?.(".product-image-strip");
+    if (guardStrip && Date.now() < (suppressClickUntil.get(guardStrip) || 0)) {
       event.preventDefault();
       event.stopPropagation();
       return;
