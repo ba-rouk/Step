@@ -126,7 +126,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     const all = '<a href="/categories">All categories</a>';
     const links = categories.map((category) => {
       const active = category.id === selectedCategory;
-      return '<a href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(category.name) + '</a>';
+      return '<a href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(normalizeCategoryLabel(category.name)) + '</a>';
     }).join("");
     categoryFilterRow.innerHTML = all + links;
   }
