@@ -25,9 +25,13 @@ Deno.serve(async req=>{
   }
   await db.from("login_codes").update({consumed_at:new Date().toISOString()}).eq("id",row.id);
   let user:any=null;
-  const {data:list,error:listError}=await db.auth.admin.listUsers({page:1,perPage:1000});
-  if(listError)throw listError;
-  user=(list.users||[]).find((u:any)=>String(u.email||"").toLowerCase()===email)||null;
+  for(let page=1;page<=100&&!user;page++){
+    const {data:list,error:listError}=await db.auth.admin.listUsers({page,perPage:1000});
+    if(listError)throw listError;
+    const users=list.users||[];
+    user=users.find((u:any)=>String(u.email||"").toLowerCase()===email)||null;
+    if(users.length<1000)break;
+  }
   if(!user){
     const created=await db.auth.admin.createUser({email,email_confirm:true,password:Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join(""),user_metadata:{email_verified_via_code:true}});
     if(created.error)throw created.error;
