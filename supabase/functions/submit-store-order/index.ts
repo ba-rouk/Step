@@ -60,8 +60,8 @@ Deno.serve(async req => {
   if (name.length < 2 || name.length > 120) return json({ error: "Enter your name (2–120 characters)." }, 400);
   if (!phone) return json({ error: "Enter a valid phone number, including the +250 country code." }, 400);
   if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return json({ error: "Enter a valid email address or leave it blank." }, 400);
-  if (!["pickup", "delivery"].includes(fulfillment)) return json({ error: "Choose pickup or delivery for this order." }, 400);
-  if (fulfillment === "delivery" && location.length < 3) return json({ error: "Add the delivery location before sending." }, 400);
+  if (!["pickup", "delivery", "event"].includes(fulfillment)) return json({ error: "Choose pickup, delivery or event service for this order." }, 400);
+  if ((fulfillment === "delivery" || fulfillment === "event") && location.length < 3) return json({ error: "Add the delivery or event location before sending." }, 400);
   if (location.length > 180 || description.length > 5000 || notes.length > 3000) return json({ error: "One of your order details is too long. Shorten it and try again." }, 400);
   if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "Choose a valid preferred date." }, 400);
   if (time && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) return json({ error: "Choose a valid preferred time." }, 400);
