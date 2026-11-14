@@ -37,6 +37,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
   const categoryRoute = pathname === "/categories" || pathname.startsWith("/categories/");
   const galleryRoute = pathname === "/gallery";
   const cartRoute = pathname === "/cart";
+  const orderConfirmationRoute = pathname === "/order-confirmation";
   const categorySlug = categoryRoute && pathname.startsWith("/categories/") ? pathname.split("/").filter(Boolean).at(-1) : "";
   let selectedCategory = "all";
   let menuOffset = 0;
@@ -159,7 +160,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     let filtered = visibleProducts();
     if (productRoute) filtered = products.filter(product => slugFor(product) === productSlug || product.id === productSlug);
     const selected = categories.find(category => category.id === selectedCategory);
-    if (productHeading) productHeading.textContent = productRoute ? (filtered[0]?.name || "Product not found") : (selected ? selected.name : "Explore the menu");
+    if (productHeading) productHeading.textContent = productRoute ? (filtered[0]?.name || "Product not found") : (selected ? categoryName(selected.id) : "Explore the menu");
     if (catalogCount) catalogCount.textContent = productRoute ? "" : filtered.length + (filtered.length === 1 ? " item" : " items");
     if (!filtered.length) {
       productGrid.innerHTML = "";
@@ -211,11 +212,18 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
       mobileCartOpen.setAttribute("aria-label", itemCount ? "Cart, " + itemCount + " items" : "Cart");
     }
     if (!cartItems) return;
+    const listLock = document.querySelector("#cart-list-lock");
+    const listSection = document.querySelector("#cart-list-section");
+    if (cartRoute) {
+      if (listLock) listLock.hidden = menuAuthenticated;
+      if (listSection) listSection.hidden = !menuAuthenticated;
+    }
 
     if (!cart.length) {
       cartItems.innerHTML = '<div class="cart-empty"><span aria-hidden="true">✳</span><strong>Your cart is empty.</strong><p>Browse the menu and add something you love.</p><a href="/categories" class="text-link dark-link" id="cart-browse-menu">Explore the menu</a></div>';
       cartTotal.textContent = "RWF —";
       cartPricingNote.textContent = "Your total will appear here when you add menu items.";
+      renderOrderProductSummary();
       return;
     }
 
@@ -234,6 +242,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
         '<div class="cart-item-copy"><span>' + escapeHtml(item.category_name) + '</span><strong>' + escapeHtml(item.name) + '</strong><small>' + escapeHtml(linePrice) + '</small>' +
         '<div class="cart-quantity"><button type="button" data-cart-action="decrease" data-product-id="' + escapeHtml(item.product_id) + '" aria-label="Decrease quantity">−</button><span>' + item.quantity + '</span><button type="button" data-cart-action="increase" data-product-id="' + escapeHtml(item.product_id) + '" aria-label="Increase quantity">+</button><button class="cart-remove" type="button" data-cart-action="remove" data-product-id="' + escapeHtml(item.product_id) + '">Remove</button></div></div></article>';
     }).join("");
+    renderOrderProductSummary();
   }
 
   function openCart() {
@@ -275,6 +284,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     }
     saveCart();
     renderCart();
+    persistAccountCart();
     showProductToast("Added to your cart");
   }
 
@@ -404,6 +414,32 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     catalogStatus.hidden = true;
     ensureMenuPagination();
     return true;
+  }
+
+  function renderOrderConfirmation() {
+    const main = document.querySelector("main");
+    if (!main) return;
+    const params = new URLSearchParams(window.location.search);
+    const orderNumber = params.get("order") || "Submitted";
+    let whatsapp = params.get("whatsapp") || "";
+    try {
+      const url = new URL(whatsapp);
+      if (url.hostname !== "wa.me" || url.protocol !== "https:") whatsapp = "";
+    } catch { whatsapp = ""; }
+    document.body.classList.add("route-order-confirmation");
+    document.title = "Order " + orderNumber + " | Step Town";
+    main.innerHTML =
+      '<section class="order-confirmation page-shell">' +
+        '<p class="eyebrow">STEP TOWN · ORDER RECEIVED</p>' +
+        '<div class="order-confirmation-mark" aria-hidden="true">✓</div>' +
+        '<h1>Thank you. Your order request is on its way.</h1>' +
+        '<p>Step Town has received your request. The team will contact you to confirm availability, details and final pricing.</p>' +
+        '<div class="order-confirmation-number"><small>YOUR ORDER NUMBER</small><strong>' + escapeHtml(orderNumber) + '</strong></div>' +
+        '<div class="order-confirmation-actions">' +
+          (whatsapp ? '<a class="button button-dark" href="' + escapeHtml(whatsapp) + '" target="_blank" rel="noopener noreferrer">Chat on WhatsApp</a>' : "") +
+          '<a class="button button-light" href="/categories">Continue browsing</a>' +
+        '</div>' +
+      '</section>';
   }
 
   function renderOrderProductSummary() {
@@ -540,6 +576,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     }
     saveCart();
     renderCart();
+    persistAccountCart();
   });
 
   if (fulfillmentInput && locationInput) {
@@ -638,7 +675,11 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 
   const hasInitialMenu = hydrateInitialMenu();
   renderCart();
-  loadCatalog({ quiet: hasInitialMenu });
+  if (orderConfirmationRoute) {
+    renderOrderConfirmation();
+  } else {
+    loadCatalog({ quiet: hasInitialMenu });
+  }
   if (cartRoute) {
     openCart();
     void syncAccountCart();
