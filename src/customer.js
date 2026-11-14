@@ -4,7 +4,7 @@ import { renderProductCard } from "./product-card.js";
 import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
-const isAuthRoute = ["/login","/register","/profile","/profile/orders","/profile/cart-history"].includes(route);
+const isAuthRoute = ["/login","/register","/profile","/profile/orders","/profile/cart-history"].includes(route) || route.startsWith("/profile/orders/");
 
 if (isAuthRoute) {
   document.body.classList.add("route-customer-page");
@@ -52,6 +52,74 @@ if (isAuthRoute) {
   function shell(content, kicker = "STEP TOWN ACCOUNT") {
     app.innerHTML = '<section class="customer-auth"><div class="customer-auth-card"><p class="customer-kicker">' + kicker + '</p>' + content + '</div></section>';
     app.focus({ preventScroll: true });
+  }
+
+  function emailLoginForm(message = "") {
+    shell(
+      '<h1>Sign in with your email.</h1>' +
+      '<p class="customer-intro">We’ll email you a six-digit code. No password is needed, and we’ll create your account automatically the first time.</p>' +
+      '<form id="email-code-send-form" novalidate><label class="customer-field"><span>Email address</span><input name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" required placeholder="you@example.com"></label>' +
+      '<p class="customer-error" role="alert" aria-live="polite">' + escapeHtml(message) + '</p>' +
+      '<button class="customer-submit" type="submit">Email me a login code</button></form>' +
+      '<div class="customer-divider"><span>OR</span></div>' +
+      '<a class="customer-google" href="/api/auth/google?next=' + encodeURIComponent(safeNext) + '"><svg class="customer-google-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.3 30.4 0 24 0 14.6 0 6.5 5.4 2.5 13.3l7.9 6.1C12.3 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M47.5 24.5c0-1.6-.2-3.2-.5-4.7H24v9h13.2c-.6 2.9-2.2 5.3-4.6 6.9l7.5 5.8c4.6-4.2 7.4-10.2 7.4-17z"/><path fill="#FBBC05" d="M10.4 28.6A14.5 14.5 0 0 1 9.6 24c0-1.6.3-3.1.8-4.6l-7.9-6.1A23.7 23.7 0 0 0 0 24c0 3.8.9 7.5 2.5 10.7z"/><path fill="#34A853" d="M24 48c6.4 0 11.8-2.1 15.7-5.8l-7.5-5.8c-2.1 1.4-4.8 2.2-8.2 2.2-6.3 0-11.7-4.1-13.6-9.9l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg> Continue with Google</a>' +
+      '<p class="customer-note"><a href="/login?mode=password&next=' + encodeURIComponent(safeNext) + '">Use my existing password</a>.</p>' +
+      '<p class="customer-note">New to Step Town? Your account is created when you verify your email code.</p>' +
+      '<p class="customer-note">Staff use the separate <a href="/staff/login">staff sign-in</a>.</p>',
+      "YOUR STEP TOWN ACCOUNT"
+    );
+    app.querySelector("#email-code-send-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const form=event.currentTarget, error=form.querySelector(".customer-error");
+      error.textContent="";
+      if(!form.reportValidity())return;
+      const email=String(new FormData(form).get("email")||"").trim().toLowerCase();
+      const button=form.querySelector('button[type="submit"]');
+      button.disabled=true;button.textContent="Sending code…";
+      try{
+        const response=await apiFetch("/api/auth/email-code",{method:"POST",body:{email,next:safeNext}});
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(payload.error||"We could not send a code. Please try again.");
+        emailCodeVerificationForm(email,"If this address can receive a code, it has been sent. Check your inbox.");
+      }catch(cause){error.textContent=cause.message||"We could not send a code. Please try again.";}
+      finally{if(button.isConnected){button.disabled=false;button.textContent="Email me a login code";}}
+    });
+  }
+
+  function emailCodeVerificationForm(email, message = "") {
+    shell(
+      '<h1>Check your email.</h1><p class="customer-intro">Enter the six-digit code sent to <strong>' + escapeHtml(email) + '</strong>. It expires in 10 minutes and can only be used once.</p>' +
+      '<form id="email-code-verify-form" novalidate><label class="customer-field"><span>Six-digit code</span><input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="000000"></label>' +
+      '<p class="customer-error" role="alert" aria-live="polite">' + escapeHtml(message) + '</p><button class="customer-submit" type="submit">Verify and sign in</button></form>' +
+      '<p class="customer-note"><a href="/login?next=' + encodeURIComponent(safeNext) + '">Use another email address</a></p>',
+      "EMAIL VERIFICATION"
+    );
+    app.querySelector("#email-code-verify-form").addEventListener("submit",async event=>{
+      event.preventDefault();
+      const form=event.currentTarget,error=form.querySelector(".customer-error");
+      error.textContent="";
+      if(!form.reportValidity())return;
+      const code=String(new FormData(form).get("code")||"").trim();
+      const button=form.querySelector('button[type="submit"]');
+      button.disabled=true;button.textContent="Verifying…";
+      try{
+        const response=await apiFetch("/api/auth/verify-email-code",{method:"POST",body:{email,code,next:safeNext}});
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok){error.textContent=payload.error||"That code could not be verified.";return;}
+        const guestCart=localStorage.getItem("step-town-cart-v1");
+        if(guestCart){
+          try{
+            const items=JSON.parse(guestCart);
+            if(Array.isArray(items)&&items.length){
+              await apiFetch("/api/profile/cart/merge",{method:"POST",body:{items}});
+            }
+          }catch(cartError){console.warn("Guest cart merge deferred:",cartError.message);}
+          localStorage.setItem("step-town-cart-owner-v1", "pending");
+        }
+        window.location.assign(payload.next||safeNext);
+      }catch(cause){error.textContent=cause.message||"We could not verify that code. Please try again.";}
+      finally{if(button.isConnected){button.disabled=false;button.textContent="Verify and sign in";}}
+    });
   }
 
   function authForm(mode, message = "") {
@@ -284,14 +352,21 @@ if (isAuthRoute) {
     shell('<h1>Loading your account…</h1><p class="customer-intro">Checking your secure Step Town session.</p>', "SECURE ACCOUNT");
     try {
       if (route === "/profile/cart-history" || route === "/profile/orders") {
-        const response = await apiFetch("/api/profile/orders");
+        const detailRoute=route.startsWith("/profile/orders/");
+        const endpoint=detailRoute?"/api/profile/orders/"+encodeURIComponent(route.split("/").pop()):"/api/profile/orders";
+        const response = await apiFetch(endpoint);
         const payload = await response.json().catch(() => ({}));
         if (response.status === 401) {
           window.location.replace("/login?next=" + encodeURIComponent(route));
           return;
         }
+        if (response.status === 403 && payload.email_verified === false) {
+          renderEmailVerificationPrompt();
+          return;
+        }
         if (!response.ok) throw new Error(payload.error || "Order history could not be loaded.");
-        renderOrders(payload);
+        if(detailRoute)renderOrderDetail(payload.order);
+        else renderOrders(payload);
       } else {
         const response = await apiFetch("/api/profile");
         const payload = await response.json().catch(() => ({}));
@@ -322,7 +397,8 @@ if (isAuthRoute) {
   }
   if (route === "/login" || route === "/register") {
     document.title = route === "/register" ? "Step Town | Create an account" : "Step Town | Customer login";
-    if (route === "/login") authForm("login", authError);
+    if (route === "/login" && new URLSearchParams(window.location.search).get("mode") !== "password") emailLoginForm(authError);
+    else if (route === "/login") authForm("login", authError);
     else authForm("register", authError);
   } else {
     document.title = route === "/profile/orders" ? "Step Town | Order history" : route === "/profile/cart-history" ? "Step Town | Cart history" : "Step Town | Profile";
