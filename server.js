@@ -152,11 +152,9 @@ function configured(){return Boolean(KEY&&SUPABASE_URL&&SUPABASE_KEY);}
 async function readPublicCatalog({limit=12,offset=0,categorySlug="",productSlug="",search=""}={}) {
   const safeLimit=Math.min(24,Math.max(1,Number(limit)||12));
   const safeOffset=Math.max(0,Number(offset)||0);
-  const term=String(search||"").trim().slice(0,80).replace(/[(),]/g," ").replace(/\s+/g," ").trim();
-  const cacheable=!safeOffset&&!categorySlug&&!productSlug&&!term;
+  const term=String(search||"").trim().slice(0,80).replace(/[(),*]/g," ").replace(/\s+/g," ").trim();
+  const cacheable=!safeOffset&&!productSlug&&!term;
   const cacheKey=[safeLimit,safeOffset,categorySlug,productSlug,term].join("|");
-  const cached=catalogCache.get(cacheKey);
-  if(cacheable&&cached&&cached.expires>Date.now())return cached.value;
   const select="id,slug,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_available,is_visible,category:store_categories(id,name,slug,description,cover_image_url,sort_order),images:product_images(id,product_id,url,position,alt_text,variants)";
   const params=new URLSearchParams({
     select,
@@ -169,19 +167,38 @@ async function readPublicCatalog({limit=12,offset=0,categorySlug="",productSlug=
   if(categorySlug)params.set("category.slug","eq."+categorySlug);
   if(productSlug)params.set("slug","eq."+productSlug);
   if(term)params.set("or","(name.ilike.*"+term+"*,description.ilike.*"+term+"*)");
-  const [rows,categories]=await Promise.all([
-    sb("/rest/v1/store_products?"+params.toString()),
-    sb("/rest/v1/store_categories?select=id,name,slug,description,cover_image_url,sort_order&is_active=eq.true&order=sort_order.asc")
-  ]);
-  const products=(rows||[]).map(product=>{
-    const category=product.category||null;
-    const images=Array.isArray(product.images)?product.images.slice().sort((a,b)=>Number(a.position||0)-Number(b.position||0)):[];
-    return {...product,category_name:category?.name||"Menu",category_slug:category?.slug||"",images};
-  });
-  const value={products,categories:categories||[],offset:safeOffset,nextOffset:safeOffset+products.length,hasMore:products.length===safeLimit};
-  if(cacheable)catalogCache.set(cacheKey,{value,expires:Date.now()+CATALOG_TTL_MS});
+  const fetchCatalogValue=async()=>{
+    const [rows,categories]=await Promise.all([
+      sb("/rest/v1/store_products?"+params.toString()),
+      sb("/rest/v1/store_categories?select=id,name,slug,description,cover_image_url,sort_order&is_active=eq.true&order=sort_order.asc")
+    ]);
+    const products=(rows||[]).map(product=>{
+      const category=product.category||null;
+      const images=Array.isArray(product.images)?product.images.slice().sort((a,b)=>Number(a.position||0)-Number(b.position||0)):[];
+      return {...product,category_name:category?.name||"Menu",category_slug:category?.slug||"",images};
+    });
+    return {products,categories:categories||[],offset:safeOffset,nextOffset:safeOffset+products.length,hasMore:products.length===safeLimit};
+  };
+  const cached=catalogCache.get(cacheKey);
+  if(cacheable&&cached&&cached.expires>Date.now())return cached.value;
+  if(cacheable&&cached&&cached.staleUntil>Date.now()){
+    if(!cached.refreshing){
+      cached.refreshing=fetchCatalogValue().then(value=>{
+        catalogCache.set(cacheKey,{value,expires:Date.now()+CATALOG_TTL_MS,staleUntil:Date.now()+CATALOG_TTL_MS*5,refreshing:null});
+      }).catch(error=>{
+        console.warn("Background menu refresh failed:",error.message);
+      }).finally(()=>{
+        const current=catalogCache.get(cacheKey);
+        if(current)current.refreshing=null;
+      });
+    }
+    return cached.value;
+  }
+  const value=await fetchCatalogValue();
+  if(cacheable)catalogCache.set(cacheKey,{value,expires:Date.now()+CATALOG_TTL_MS,staleUntil:Date.now()+CATALOG_TTL_MS*5,refreshing:null});
   return value;
 }
+
 async function authRoutes(req,res,url) {
   if(!csrfValid(req))return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
   if(!configured())return sendJson(res,503,{error:"Customer sign-in is not configured on the server."});
