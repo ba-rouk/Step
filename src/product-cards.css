@@ -632,3 +632,46 @@ body.route-category-detail .product-grid,
   padding-top: 0 !important;
 }
 .product-detail-add { display: none !important; }
+
+
+/* The separator belongs to the full-width price row, not a short decorative dash. */
+.product-card-copy { min-width: 0; }
+.product-card-bottom {
+  position: relative !important;
+  display: flex;
+  align-items: center;
+  width: 100% !important;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-top: 8px !important;
+  padding: 8px 0 0 !important;
+  min-height: 28px;
+  overflow: visible !important;
+  border: 0 !important;
+}
+.product-card-bottom::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100% !important;
+  height: 1px;
+  background: rgba(255,255,255,.34);
+}
+.product-card-bottom > .product-price-link {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+.product-card-bottom .product-price {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-overflow: clip;
+}
+.product-card-detail .product-card-bottom {
+  margin-top: 8px !important;
+  padding-top: 8px !important;
+}
