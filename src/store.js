@@ -3,7 +3,8 @@ import { apiFetch } from "./api.js";
 import { renderProductCard } from "./product-card.js";
 import { renderProductPage } from "./product-page.js";
 import { normalizeCategoryLabel } from "./catalog-config.js";
-import { bindProductGallery, showProductToast } from "./product-gallery.js";
+import { bindProductGallery, showProductToast, flashCartButton } from "./product-gallery.js";
+import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -47,7 +48,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   const routeSearchMount = document.querySelector(".route-search-mount");
   const routeSearch = document.querySelector(".storefront-hero .menu-search");
   if (categoryRoute && routeSearchMount && routeSearch) routeSearchMount.append(routeSearch);
-  let cart = [];
+  let cart = loadCart();
   let lastCartTrigger = mobileCartOpen || cartOpen;
 
   function escapeHtml(value) {
@@ -73,14 +74,50 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   }
 
   function loadCart() {
-    // Guest carts are one-time page handoffs, never persistent browser storage.
-    try { window.localStorage.removeItem("step-town-cart-v1"); } catch {}
-    return [];
+    try {
+      const value = JSON.parse(localStorage.getItem(GUEST_CART_STORAGE_KEY) || "[]");
+      return Array.isArray(value) ? value.filter(item => item && item.product_id)
+        .map(item => ({...item, quantity:Math.max(1,Math.min(20,Math.floor(Number(item.quantity)||1)))})).slice(0,50) : [];
+    } catch { return []; }
   }
 
   function saveCart() {
-    // This page keeps cart UI state in memory only. /cart owns authenticated persistence.
-    return true;
+    try { localStorage.setItem(GUEST_CART_STORAGE_KEY, JSON.stringify(cart)); return true; }
+    catch (error) { console.warn("Guest cart could not be saved:", error); return false; }
+  }
+
+  async function persistAccountCartOnly() {
+    try {
+      const sessionResponse=await fetch("/api/session",{credentials:"same-origin"});
+      const session=await sessionResponse.json().catch(()=>({}));
+      if(!session.authenticated)return;
+      await apiFetch("/api/profile/cart",{method:"PUT",body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
+      try { localStorage.removeItem(GUEST_CART_STORAGE_KEY); } catch {}
+    } catch(error) { console.warn("Account cart save deferred:",error.message); }
+  }
+
+  async function syncAccountCart() {
+    try {
+      const sessionResponse = await fetch("/api/session", {credentials:"same-origin"});
+      const session = await sessionResponse.json().catch(() => ({}));
+      if (!session.authenticated) return;
+      const response = await fetch("/api/profile/cart", {credentials:"same-origin"});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return;
+      const merged = new Map();
+      for (const item of [...(Array.isArray(data.items) ? data.items : []), ...cart]) {
+        const id = String(item.product_id || item.id || "");
+        if (!id) continue;
+        const previous = merged.get(id);
+        merged.set(id, {...(previous || item), ...item, product_id:id,
+          quantity:Math.min(20,(previous?.quantity || 0)+(Number(item.quantity)||1))});
+      }
+      cart = [...merged.values()].slice(0,50);
+      saveCart();
+      await apiFetch("/api/profile/cart", {method:"PUT",body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
+      try { localStorage.removeItem(GUEST_CART_STORAGE_KEY); } catch {}
+      renderCart();
+    } catch (error) { console.warn("Cart account sync deferred:",error.message); }
   }
 
   function categoryName(categoryId) {
@@ -258,13 +295,14 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
       quantity: 1
     };
 
-    try {
-      window.sessionStorage.setItem(cartHandoffKey, JSON.stringify([item]));
-    } catch {
-      showProductToast("Your browser could not open the cart. Please try again.");
-      return;
-    }
-    window.location.assign("/cart");
+    const existing = cart.find(entry => entry.product_id === item.product_id);
+    if (existing) existing.quantity = Math.min(20, existing.quantity + 1);
+    else if (cart.length < 50) cart.push(item);
+    else { showProductToast("Your cart can contain up to 50 different products."); return; }
+    if (!saveCart()) { showProductToast("Your cart could not be saved. Check your browser storage."); return; }
+    renderCart();
+    void persistAccountCartOnly();
+
   }
 
   const menuPageSize = 12;
@@ -431,6 +469,19 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
       event.preventDefault();
       event.stopPropagation();
       addProduct(button.dataset.addProduct);
+      flashCartButton(button);
+      let toast = document.querySelector(".store-toast");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.className = "store-toast";
+        toast.setAttribute("role","status");
+        toast.setAttribute("aria-live","polite");
+        document.body.append(toast);
+      }
+      toast.innerHTML = 'Added to cart <a href="/cart">View cart</a>';
+      toast.classList.add("is-visible");
+      clearTimeout(toast._stepTimer);
+      toast._stepTimer = setTimeout(() => toast.classList.remove("is-visible"),2400);
     }
   });
   if (searchInput) searchInput.addEventListener("input", () => {
@@ -560,6 +611,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   });
 
   renderCart();
+  void syncAccountCart();
   loadCatalog();
   if (cartRoute) openCart();
 })();

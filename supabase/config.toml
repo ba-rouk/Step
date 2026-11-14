@@ -1,0 +1,11 @@
+[functions.request-login-code]
+verify_jwt = false
+
+[functions.verify-login-code]
+verify_jwt = false
+
+[functions.process-email-outbox]
+verify_jwt = false
+
+[functions.track-store-order]
+verify_jwt = false

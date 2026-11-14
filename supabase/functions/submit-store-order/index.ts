@@ -66,7 +66,7 @@ Deno.serve(async req => {
   if (!["pickup", "delivery", "event"].includes(fulfillment)) return json({ error: "Choose pickup, delivery or event service for this order." }, 400);
   if ((fulfillment === "delivery" || fulfillment === "event") && location.length < 3) return json({ error: "Add the delivery or event location before sending." }, 400);
   if (location.length > 180 || description.length > 5000 || notes.length > 3000) return json({ error: "One of your order details is too long. Shorten it and try again." }, 400);
-  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "Choose a valid preferred date." }, 400);
+  if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + "T00:00:00Z")) || new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date)) return json({ error: "Choose a valid preferred date." }, 400);
   if (time && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) return json({ error: "Choose a valid preferred time." }, 400);
 
   const items = Array.isArray(body.items) ? body.items as Record<string, unknown>[] : [];
@@ -87,12 +87,16 @@ Deno.serve(async req => {
   const ip = String(req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for") || "unknown").split(",").at(-1)!.trim();
   const ipHash = await digest("ip:" + ip);
   const phoneHash = await digest("phone:" + phone);
+  const emailHash = await digest("email:" + email);
   const ipLimit = await db.rpc("consume_step_order_rate_limit", { p_bucket_key: "ip:" + ipHash, p_max_hits: 8, p_window_seconds: 900 });
   if (ipLimit.error) { console.error("IP rate limit:", ipLimit.error); return json({ error: "The order service is busy. Please try again shortly." }, 503); }
   if (!ipLimit.data) return json({ error: "Too many order requests from this connection. Try again in 15 minutes." }, 429);
   const phoneLimit = await db.rpc("consume_step_order_rate_limit", { p_bucket_key: "phone:" + phoneHash, p_max_hits: 5, p_window_seconds: 900 });
   if (phoneLimit.error) { console.error("Phone rate limit:", phoneLimit.error); return json({ error: "The order service is busy. Please try again shortly." }, 503); }
   if (!phoneLimit.data) return json({ error: "Too many orders have been sent from this phone number. Try again in 15 minutes." }, 429);
+  const emailLimit = await db.rpc("consume_step_order_rate_limit", { p_bucket_key: "order-email:" + emailHash, p_max_hits: 5, p_window_seconds: 3600 });
+  if (emailLimit.error) { console.error("Email rate limit:", emailLimit.error); return json({ error: "The order service is busy. Please try again shortly." }, 503); }
+  if (!emailLimit.data) return json({ error: "Too many orders have been sent to this email address. Try again in an hour." }, 429);
 
   const ids = [...quantitiesById.keys()];
   const slugs = [...quantitiesBySlug.keys()];
@@ -130,7 +134,8 @@ Deno.serve(async req => {
 
   const orderPayload = {
     customer_id: user?.id || null,
-    customer_name: name, customer_phone: phone, customer_email: email || null,
+    user_id: user?.id || null,
+    customer_name: name, customer_phone: phone, customer_email: email, customer_email_normalized: email,
     fulfillment, requested_date: date, requested_time: time,
     delivery_location: location || null,
     order_description: description || null,
@@ -145,11 +150,45 @@ Deno.serve(async req => {
   // anonymous customers permission to read private order rows.
   const { data: saved, error: insertError } = await db.from("store_orders")
     .insert(orderPayload)
-    .select("id,order_number,estimated_total,created_at")
+    .select("id,order_number,estimated_total,created_at,tracking_token")
     .single();
   if (insertError || !saved) {
     console.error("Order save failed:", insertError);
     return json({ error: "We could not save your order just now. Please retry or contact Step Town on WhatsApp." }, 502);
+  }
+
+  // Email delivery is durable: queue it independently so an email outage never
+  // rolls back the successfully saved order.
+  const trackingUrl = (Deno.env.get("APP_URL") || "https://steptown.onrender.com").replace(/\\/+$/, "") + "/order/" + saved.tracking_token;
+  const emailJob = await db.from("email_outbox").insert({
+    recipient: email,
+    template_key: "order_confirmation",
+    payload: {
+      order_number: saved.order_number,
+      tracking_url: trackingUrl,
+      items: cleanItems,
+      estimated_total: saved.estimated_total,
+      fulfillment,
+      requested_date: date,
+      requested_time: time,
+      delivery_location: location || null,
+      order_description: description || null
+    }
+  });
+  if (emailJob.error) console.error("Order saved; confirmation email could not be queued:", emailJob.error);
+  else {
+    const outboxSecret = Deno.env.get("EMAIL_OUTBOX_SECRET") || "";
+    if (outboxSecret) {
+      try {
+        await fetch(supabaseUrl + "/functions/v1/process-email-outbox", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + outboxSecret, "Content-Type": "application/json" },
+          body: "{}"
+        });
+      } catch (error) {
+        console.error("Order saved; confirmation email remains queued for retry:", error);
+      }
+    }
   }
 
   // Notification is a separate best-effort step; a push failure never rolls back the order.
@@ -168,7 +207,7 @@ Deno.serve(async req => {
 
   return json({
     ok: true,
-    order: { order_number: saved.order_number, estimated_total: saved.estimated_total, created_at: saved.created_at },
+    order: { order_number: saved.order_number, estimated_total: saved.estimated_total, created_at: saved.created_at, tracking_token: saved.tracking_token, items: cleanItems, fulfillment, requested_date: date, requested_time: time, delivery_location: location || null },
     alert_queued: alertQueued
   }, 201);
 });

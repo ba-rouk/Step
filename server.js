@@ -234,6 +234,43 @@ async function authRoutes(req,res,url) {
   if(!csrfValid(req))return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
   if(!configured())return sendJson(res,503,{error:"Customer sign-in is not configured on the server."});
   const route=url.pathname;
+  if(route==="/api/auth/email-code/request"){
+    const b=await body(req,4000);
+    const email=String(b.email||"").trim().toLowerCase();
+    if(email.length<5||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return sendJson(res,200,{message:"If the address can receive mail, a sign-in code will be sent shortly."});
+    try{
+      const response=await fetch(SUPABASE_URL+"/functions/v1/request-login-code",{
+        method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)console.warn("Email code request returned",response.status,result.error||"");
+      return sendJson(res,200,{message:"If the address can receive mail, a sign-in code will be sent shortly."});
+    }catch(error){
+      console.error("Email code request:",error);
+      return sendJson(res,200,{message:"If the address can receive mail, a sign-in code will be sent shortly."});
+    }
+  }
+  if(route==="/api/auth/email-code/verify"){
+    const b=await body(req,4000);
+    const email=String(b.email||"").trim().toLowerCase(),code=String(b.code||"").trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!/^[0-9]{6}$/.test(code))
+      return sendJson(res,400,{error:"That code is invalid or expired."});
+    try{
+      const response=await fetch(SUPABASE_URL+"/functions/v1/verify-login-code",{
+        method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,code})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.session?.access_token||!result.session?.refresh_token)
+        return sendJson(res,response.status>=500?502:400,{error:result.error||"That code is invalid or expired."});
+      setSession(res,req,result.session);
+      await profileUpsert(result.session,result.user||{id:result.session.user?.id,email},b.name||"",null);
+      return sendJson(res,200,{authenticated:true,next:safeNext(b.next||"/profile/orders")});
+    }catch(error){
+      console.error("Email code verification:",error);
+      return sendJson(res,502,{error:"We could not complete sign-in. Please request a new code and try again."});
+    }
+  }
   if(route==="/api/auth/register"){
     if(!rateLimit(req,"register",5))return sendJson(res,429,{error:"Too many registration attempts. Try again in 15 minutes."});
     const b=await body(req),name=String(b.name||"").trim(),phone=phoneNumber(b.phone),password=String(b.password||"");
@@ -319,6 +356,17 @@ async function api(req,res,url) {
   }
   if(["POST","PUT","PATCH","DELETE"].includes(req.method)&&route.startsWith("/api/")&&!csrfValid(req))
     return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
+  if(req.method==="GET"&&route.startsWith("/api/orders/track/")){
+    const token=route.split("/").filter(Boolean).at(-1)||"";
+    if(!/^[0-9a-f]{32}$/.test(token))return sendJson(res,404,{error:"Order tracking link is invalid."});
+    try{
+      const response=await fetch(SUPABASE_URL+"/functions/v1/track-store-order",{
+        method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({token})
+      });
+      const data=await response.json().catch(()=>({}));
+      return sendJson(res,response.ok?200:(response.status===404?404:502),data);
+    }catch(error){console.error("Order tracking:",error);return sendJson(res,502,{error:"Order tracking is temporarily unavailable."});}
+  }
   if(req.method==="GET"&&route==="/api/catalog"){
     try{
       const menu=await getPublicMenu({
@@ -447,19 +495,19 @@ async function api(req,res,url) {
     if(!current)return sendJson(res,401,{error:"Please sign in to view your account."});
     try{
       if(route==="/api/profile"){
-        const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
-        return sendJson(res,200,{user:current.user,profile:rows[0]||null});
+        const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,email_verified_at,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
+        return sendJson(res,200,{user:current.user,profile:rows[0]||null,email_verified:Boolean(current.user.email_confirmed_at)});
       }
-      const select="id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location";
-      const byAccount=await sb("/rest/v1/store_orders?select="+select+"&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=100",{access:current.session.access_token});
       const email=String(current.user.email||"").trim().toLowerCase();
-      const byEmail=email
-        ? await sb("/rest/v1/store_orders?select="+select+"&customer_email=eq."+encodeURIComponent(email)+"&order=created_at.desc&limit=100",{access:current.session.access_token})
-        : [];
+      if(!current.user.email_confirmed_at)return sendJson(res,200,{verified:false,email,orders:[]});
+      try{await sb("/rest/v1/rpc/claim_verified_guest_orders",{method:"POST",access:current.session.access_token,body:{}});}catch(claimError){console.warn("Guest order claim deferred:",claimError.message);}
+      const select="id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location,tracking_token";
+      const byAccount=await sb("/rest/v1/store_orders?select="+select+"&or=(user_id.eq."+encodeURIComponent(current.user.id)+",customer_id.eq."+encodeURIComponent(current.user.id)+")&order=created_at.desc&limit=100",{access:current.session.access_token});
+      const byEmail=email?await sb("/rest/v1/store_orders?select="+select+"&customer_email_normalized=eq."+encodeURIComponent(email)+"&order=created_at.desc&limit=100",{access:current.session.access_token}):[];
       const unique=new Map();
-      for(const order of [...(byAccount||[]),...(byEmail||[])]) unique.set(order.id,order);
+      for(const order of [...(byAccount||[]),...(byEmail||[])])unique.set(order.id,order);
       const orders=[...unique.values()].sort((a,b)=>Date.parse(b.created_at||0)-Date.parse(a.created_at||0)).slice(0,100);
-      return sendJson(res,200,{orders});
+      return sendJson(res,200,{verified:true,email,orders});
     }catch(e){return sendJson(res,e.status||502,{error:"Your account data could not be loaded."});}
   }
 
@@ -530,7 +578,7 @@ async function api(req,res,url) {
         const status=[400,401,403,413,429].includes(response.status)?response.status:502;
         return sendJson(res,status,{error:result.error||"We could not save your order just now. Please try again."});
       }
-      if(current?.session?.access_token){
+      if(current?.session?.access_token && b.cart_source==="saved_cart"){
         const orderedProductIds=[...new Set(normalizedItems.map(item=>item.product_id).filter(Boolean))];
         if(orderedProductIds.length){
           try{
