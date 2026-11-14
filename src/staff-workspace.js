@@ -41,13 +41,13 @@ let profileGuardChannel = null;
 let teamCache = [];
 let toastTimer;
 
-function notify(message, type = "success") {
+function notify(message, type = "success", duration = 3600) {
   const node = $("#staff-toast");
   if (!node) return;
   node.textContent = message;
   node.className = "staff-toast is-visible " + type;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => node.classList.remove("is-visible"), 3600);
+  toastTimer = setTimeout(() => node.classList.remove("is-visible"), duration);
 }
 function panelError(error) {
   return '<div class="staff-alert" role="alert">' + esc(error?.message || "This information could not be loaded. Refresh and try again.") + "</div>";
@@ -164,127 +164,120 @@ function shell(title, body, subtitle = "") {
     const button = $("#staff-logout");
     if (button) { button.disabled = true; button.textContent = "Signing out…"; }
     try {
-      // Keep the device's push subscription intact; clearing auth is the only
-      // required sign-out work and avoids several slow network operations.
+      await removeDeviceAlertsForSignout();
       await supabase.auth.signOut({ scope: "local" });
-    } finally {
       location.replace("/staff/login");
+    } catch (error) {
+      if (button) { button.disabled = false; button.textContent = "Sign out"; }
+      notify("Could not safely sign out this device. Please try again.", "error");
+      console.warn("Staff push cleanup before sign-out failed:", error);
     }
   });
   renderAlertControl();
 }
-async function renderAlertControl() {
-  const host = $("#staff-alert-area");
-  if (!host) return;
-  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  if (!supported) {
-    host.innerHTML = '<p class="staff-alert-hint">Push alerts are not supported in this browser. On iPhone, install this site to your Home Screen and open it there first.</p>';
-    return;
+async function getOrCreateStaffPushSubscription() {
+  const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+  if (!publicKey) throw new Error("Push notifications are not configured on this site.");
+  const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: decodeVapidKey(publicKey)
+    });
   }
-  if (Notification.permission === "denied") {
-    host.innerHTML = '<button class="staff-alert-button is-blocked" type="button" id="staff-alert-help"><span class="staff-alert-dot"></span><span>Alerts blocked · How to allow</span></button>';
-    $("#staff-alert-help")?.addEventListener("click", () => notify("In Chrome, open the site controls beside the address, choose Permissions → Notifications → Allow, then reload Step Town.", "warning"));
-    return;
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) throw new Error("Chrome returned an incomplete push subscription.");
+  const { data: existing, error: lookupError } = await supabase.from("push_subscriptions")
+    .select("id")
+    .eq("user_id", profile.user_id)
+    .eq("endpoint", json.endpoint)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (!existing) {
+    const { error } = await supabase.from("push_subscriptions").upsert({
+      user_id: profile.user_id,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth_key: json.keys.auth,
+      user_agent: navigator.userAgent,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "endpoint" });
+    if (error) throw error;
+    await writeAudit("push_alerts_enabled", "push_subscription", null, { user_agent: navigator.userAgent });
   }
-  try {
-    const registration = await navigator.serviceWorker.getRegistration("/");
-    const subscription = await registration?.pushManager.getSubscription();
-    if (subscription) {
-      host.innerHTML = '<span class="staff-alert-state is-on"><span class="staff-alert-dot"></span>Alerts on</span><button class="staff-alert-test" type="button" id="staff-alert-test">Send test alert</button><button class="staff-alert-button" type="button" id="staff-alert-off">Turn off alerts on this device</button>';
-      $("#staff-alert-off")?.addEventListener("click", disableAlerts);
-      $("#staff-alert-test")?.addEventListener("click", sendTestAlert);
-    } else {
-      host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on"><span class="staff-alert-dot"></span><span>Enable alerts</span></button>';
-      $("#staff-alert-on")?.addEventListener("click", enableAlerts);
-    }
-  } catch (error) {
-    host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on">Enable alerts</button>';
-    $("#staff-alert-on")?.addEventListener("click", enableAlerts);
-  }
+  return subscription;
 }
 function decodeVapidKey(value) {
   const padded = value + "=".repeat((4 - value.length % 4) % 4);
   const raw = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from(raw, char => char.charCodeAt(0));
 }
-function showAlertsEnabledPopup() {
-  document.querySelector("#staff-alert-enabled-dialog")?.remove();
-  const dialog = document.createElement("div");
-  dialog.id = "staff-alert-enabled-dialog";
-  dialog.className = "staff-alert-dialog-backdrop";
-  dialog.innerHTML = '<section class="staff-alert-dialog" role="dialog" aria-modal="true" aria-labelledby="staff-alert-enabled-title"><button type="button" class="staff-alert-dialog-close" aria-label="Close">×</button><p class="staff-eyebrow">DEVICE READY</p><h2 id="staff-alert-enabled-title">Alerts enabled on this device</h2><p>Step Town can now notify you when a customer places an order.</p><button type="button" class="staff-primary" id="staff-alert-dialog-test">Send test alert</button></section>';
-  document.body.append(dialog);
-  dialog.querySelector(".staff-alert-dialog-close").addEventListener("click", () => dialog.remove());
-  dialog.addEventListener("click", event => { if (event.target === dialog) dialog.remove(); });
-  dialog.querySelector("#staff-alert-dialog-test").addEventListener("click", async () => {
-    dialog.remove();
-    await sendTestAlert();
-  });
+async function renderAlertControl() {
+  const host = $("#staff-alert-area");
+  if (!host) return;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    const note = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+      ? "Install the site to your home screen first"
+      : "Push alerts are not supported in this browser";
+    host.innerHTML = '<p class="staff-alert-hint" role="note">' + esc(note) + '</p>';
+    return;
+  }
+  if (Notification.permission === "denied") {
+    host.innerHTML = '<p class="staff-alert-hint" role="note">Alerts blocked. Allow notifications for this site in Chrome settings</p>';
+    return;
+  }
+  if (Notification.permission === "default") {
+    host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on"><span class="staff-alert-dot"></span><span>Enable alerts</span></button>';
+    $("#staff-alert-on")?.addEventListener("click", () => { void enableAlerts(); });
+    return;
+  }
+  // Permission is already granted: reconcile the real browser subscription with
+  // the current signed-in staff user before showing the static status.
+  host.innerHTML = "";
+  try {
+    await getOrCreateStaffPushSubscription();
+    host.innerHTML = '<span class="staff-alert-state is-on" role="status" aria-live="polite"><span class="staff-alert-dot"></span>Alerts on</span>';
+  } catch (error) {
+    console.warn("Staff alerts could not be restored automatically:", error);
+    host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on"><span class="staff-alert-dot"></span><span>Enable alerts</span></button>';
+    $("#staff-alert-on")?.addEventListener("click", () => { void enableAlerts(); });
+  }
 }
 async function enableAlerts() {
-  if (!("Notification" in window)) { notify("This browser does not support web notifications. On iPhone, install Step Town to your Home Screen first.", "warning"); return; }
-  // Keep this as the first asynchronous operation in the real tap handler.
-  // Chrome will not show its native permission prompt if this is deferred.
+  // This is intentionally the first operation in the direct tap handler:
+  // Chrome must see Notification.requestPermission() during the user gesture.
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
     await renderAlertControl();
-    notify(permission === "denied" ? "Alerts are blocked. Allow notifications in Chrome site settings." : "Notification permission was not granted.", "warning");
+    if (permission === "denied") notify("Alerts blocked. Allow notifications for this site in Chrome settings", "warning", 2000);
     return;
   }
-  const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-  if (!publicKey) { notify("Push notifications are not configured on the site.", "warning"); return; }
   try {
-    const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: decodeVapidKey(publicKey)
-    });
-    const json = subscription.toJSON();
-    const { error } = await supabase.from("push_subscriptions").upsert({
-      user_id: profile.user_id,
-      endpoint: json.endpoint,
-      p256dh: json.keys?.p256dh,
-      auth_key: json.keys?.auth,
-      user_agent: navigator.userAgent,
-      updated_at: new Date().toISOString()
-    }, { onConflict: "endpoint" });
-    if (error) throw error;
-    await writeAudit("push_alerts_enabled", "push_subscription", null, { user_agent: navigator.userAgent });
+    await getOrCreateStaffPushSubscription();
     await renderAlertControl();
-    showAlertsEnabledPopup();
+    notify("Alerts are on", "success", 2000);
   } catch (error) {
-    console.error(error);
-    notify("Could not enable alerts: " + error.message, "error");
-  }
-}
-async function disableAlerts(options = {}) {
-  try {
-    const registration = await navigator.serviceWorker.getRegistration("/");
-    const subscription = await registration?.pushManager.getSubscription();
-    if (subscription) {
-      const endpoint = subscription.endpoint;
-      await supabase.from("push_subscriptions").delete().eq("user_id", profile.user_id).eq("endpoint", endpoint);
-      await subscription.unsubscribe();
+    console.error("Could not enable staff push alerts:", error);
+    const host = $("#staff-alert-area");
+    if (host) {
+      host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on"><span class="staff-alert-dot"></span><span>Enable alerts</span></button>';
+      $("#staff-alert-on")?.addEventListener("click", () => { void enableAlerts(); });
     }
-    await writeAudit("push_alerts_disabled", "push_subscription");
-    await renderAlertControl();
-    if (!options.quiet) notify("Alerts are turned off on this device.");
-  } catch (error) {
-    if (!options.quiet) notify("Could not turn alerts off: " + error.message, "error");
+    notify("Could not enable alerts. Please try again.", "error", 2500);
   }
 }
-async function sendTestAlert() {
-  const button = $("#staff-alert-test");
-  if (button) { button.disabled = true; button.textContent = "Sending…"; }
-  try {
-    const { data, error } = await supabase.functions.invoke("send-staff-test-push", { body: {} });
-    if (error || !data?.ok) throw error || new Error(data?.error || "Test alert could not be sent.");
-    notify("Test alert sent to this device.");
-  } catch (error) {
-    notify("Test alert failed: " + error.message, "error");
-  } finally {
-    await renderAlertControl();
-  }
+async function removeDeviceAlertsForSignout() {
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return;
+  const { error } = await supabase.from("push_subscriptions")
+    .delete()
+    .eq("user_id", profile.user_id)
+    .eq("endpoint", subscription.endpoint);
+  if (error) throw error;
+  await subscription.unsubscribe();
+  await writeAudit("push_alerts_removed_on_signout", "push_subscription");
 }
 async function getProfile() {
   const { data: { session } } = await supabase.auth.getSession();
