@@ -45,10 +45,17 @@
         <img class="brand-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Step Town logo">
         <span class="brand-copy"><strong>STEP TOWN</strong><small>FOOD · CELEBRATIONS · CAKES</small></span>
       </a>
-      <button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="primary-nav">
+      <nav class="desktop-primary-nav" aria-label="Main navigation">
+        <a href="/" data-site-route="home">Home</a>
+        <a href="/categories" data-site-route="categories">Categories</a>
+        <a href="/gallery" data-site-route="gallery">Gallery</a>
+        <a href="/cart" data-site-route="cart">Cart</a>
+        <a href="/profile" data-site-route="profile">Profile</a>
+      </nav>
+      <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="primary-nav">
         <span></span><span></span><span></span>
       </button>
-      <nav class="primary-nav" id="primary-nav" aria-label="Main navigation">
+      <nav class="primary-nav" id="primary-nav" aria-label="More menu options">
         <a href="/#story">Our approach</a>
         <a href="/categories">Order online</a>
         <a href="/#services">What we do</a>
@@ -135,7 +142,7 @@
         <div class="service-grid">
           <article class="service-card service-card-tall">
             <a class="service-image" href="#enquiry" aria-label="Ask about event catering">
-              <div class="image-slot image-slot--catering" role="img" aria-label="Instagram photo placeholder: Event catering"></div>
+              <div class="image-slot image-slot--catering" role="img" aria-label="Event catering buffet and prepared food"></div>
               <span class="image-number">01 / 03</span>
             </a>
             <div class="service-copy">
@@ -148,7 +155,7 @@
 
           <article class="service-card service-card-offset">
             <a class="service-image" href="#enquiry" aria-label="Ask about barbecue">
-              <div class="image-slot image-slot--barbecue" role="img" aria-label="Instagram photo placeholder: Barbecue"></div>
+              <div class="image-slot image-slot--barbecue" role="img" aria-label="Outdoor barbecue grill with freshly cooked meat"></div>
               <span class="image-number">02 / 03</span>
             </a>
             <div class="service-copy">
@@ -161,7 +168,7 @@
 
           <article class="service-card service-card-tall">
             <a class="service-image" href="#enquiry" aria-label="Ask about wedding cakes">
-              <div class="image-slot image-slot--cake" role="img" aria-label="Instagram photo placeholder: Wedding cake"></div>
+              <div class="image-slot image-slot--cake" role="img" aria-label="Elegant wedding cake with floral decoration"></div>
               <span class="image-number">03 / 03</span>
             </a>
             <div class="service-copy">
@@ -177,7 +184,7 @@
 
     <section class="manifesto" id="story">
       <div class="manifesto-image">
-        <div class="image-slot image-slot--barbecue" role="img" aria-label="Instagram photo placeholder: Barbecue"></div>
+        <div class="image-slot image-slot--barbecue" role="img" aria-label="Outdoor barbecue grill with freshly cooked meat"></div>
         <span class="photo-caption">A little care makes every bite matter.</span>
       </div>
       <div class="manifesto-copy">
@@ -235,8 +242,8 @@
         <form class="enquiry-form" id="enquiry-form">
           <div class="form-topline"><span>YOUR EVENT ENQUIRY</span><span>01 — 04</span></div>
           <div class="form-row">
-            <label for="name">Your name <span>*</span><input id="name" name="name" type="text" placeholder="How should we address you?" autocomplete="name" required></label>
-            <label for="phone">Your phone <span>*</span><input id="phone" name="phone" type="tel" placeholder="+250 ..." autocomplete="tel" required></label>
+            <label for="name">Your name <span>*</span><input id="name" name="name" type="text" maxlength="120" placeholder="How should we address you?" autocomplete="name" required></label>
+            <label for="phone">Your phone <span>*</span><input id="phone" name="phone" type="tel" maxlength="40" placeholder="+250 ..." autocomplete="tel" required></label>
           </div>
           <div class="form-row">
             <label for="service">What do you need? <span>*</span>
@@ -253,9 +260,9 @@
           </div>
           <div class="form-row">
             <label for="guests">Approx. guests<input id="guests" name="guests" type="number" min="1" max="10000" placeholder="e.g. 80"></label>
-            <label for="location">Event location<input id="location" name="location" type="text" placeholder="Where will it happen?"></label>
+            <label for="location">Event location<input id="location" name="location" type="text" maxlength="180" placeholder="Where will it happen?"></label>
           </div>
-          <label for="details">A little more about your plans<textarea id="details" name="details" rows="3" placeholder="Style, cake inspiration, food preferences or anything else we should know..."></textarea></label>
+          <label for="details">A little more about your plans<textarea id="details" name="details" rows="3" maxlength="3000" placeholder="Style, cake inspiration, food preferences or anything else we should know..."></textarea></label>
           <button class="button button-dark form-submit" type="submit">Save enquiry & continue</button>
           <p class="form-privacy">Your enquiry is saved securely with Step Town. You can also continue on WhatsApp after submitting.</p>
           <p class="form-error" id="form-error" role="alert" aria-live="polite"></p>
