@@ -91,7 +91,7 @@ export function bindProductGallery(root) {
   });
 }
 
-export function showProductToast(message) {
+export function showProductToast(message, action = null) {
   let toast = document.querySelector(".store-toast");
   if (!toast) {
     toast = document.createElement("div");
@@ -100,10 +100,20 @@ export function showProductToast(message) {
     toast.setAttribute("aria-live", "polite");
     document.body.append(toast);
   }
-  toast.textContent = message;
+  toast.replaceChildren();
+  const label = document.createElement("span");
+  label.textContent = String(message || "");
+  toast.append(label);
+  if (action?.href && action?.label) {
+    const link = document.createElement("a");
+    link.href = action.href;
+    link.textContent = action.label;
+    link.className = "store-toast-link";
+    toast.append(link);
+  }
   toast.classList.add("is-visible");
   window.clearTimeout(showProductToast.timer);
-  showProductToast.timer = window.setTimeout(() => toast.classList.remove("is-visible"), 1500);
+  showProductToast.timer = window.setTimeout(() => toast.classList.remove("is-visible"), 3200);
 }
 
 export function flashCartButton(button) {
