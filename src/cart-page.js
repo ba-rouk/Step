@@ -1,7 +1,7 @@
 import "./cart-page.css";
 import { apiFetch } from "./api.js";
 
-const path=window.location.pathname.replace(/\\/+$/,"")||"/";
+const path=window.location.pathname.replace(/\/+$/,"")||"/";
 const params=new URLSearchParams(window.location.search);
 const html=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money=value=>value==null?"Price to be confirmed":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(value));
