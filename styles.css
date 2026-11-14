@@ -2349,3 +2349,10 @@ body.route-customer-page .customer-error {
   .menu-toggle { display: flex; }
   .primary-nav { top: 72px; right: 0; left: 0; width: auto; padding: 16px 20px 22px; border-radius: 0 0 20px 20px; }
 }
+
+
+/* On desktop keep the menu control on the outer content edge, without
+   changing the logo or the five centred destination links. */
+@media (min-width:1024px) {
+  .header-inner > .menu-toggle { transform:translateX(20px); }
+}
