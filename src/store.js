@@ -105,6 +105,7 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
       cart = [...merged.values()].slice(0,50);
       saveCart();
       await apiFetch("/api/profile/cart", {method:"PUT",body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
+      try { localStorage.removeItem(GUEST_CART_STORAGE_KEY); } catch {}
       renderCart();
     } catch (error) { console.warn("Cart account sync deferred:",error.message); }
   }
