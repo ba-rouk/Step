@@ -667,12 +667,13 @@ function pageTitle(pathname){
 async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   const decoded=decodeURIComponent(pathname);
   const staffRoute=decoded==="/staff"||decoded.startsWith("/staff/");
-  let file=staffRoute?path.join(DIST,"staff.html"):(decoded==="/" ? path.join(DIST,"index.html") : path.resolve(DIST,"."+decoded));
+  let file=staffRoute?path.join(DIST,"staff.html"):(decoded==="/cart"?path.join(DIST,"cart.html"):(decoded==="/" ? path.join(DIST,"index.html") : path.resolve(DIST,"."+decoded)));
   if(!staffRoute&&file!==DIST&&!file.startsWith(DIST+path.sep))return sendJson(res,400,{error:"Invalid path."});
   const requestedExt=path.extname(file).toLowerCase();
   try{const stat=await fs.stat(file);if(stat.isDirectory())file=path.join(file,"index.html");}
   catch{
     if(staffRoute){file=path.join(DIST,"staff.html");}
+    else if(decoded==="/cart")return sendJson(res,503,{error:"The cart page is building. Refresh shortly."});
     else if(decoded==="/"||requestedExt===".html"||!requestedExt){file=path.join(DIST,"index.html");}
     else return sendJson(res,404,{error:"Static asset not found."});
   }
@@ -681,7 +682,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   catch{return sendJson(res,staffRoute?503:404,{error:staffRoute?"The staff workspace is building. Refresh shortly.":"Static asset not found."});}
   const ext=path.extname(file).toLowerCase();
   const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/")||decoded==="/cart");
-  if(ext===".html"&&path.basename(file)==="index.html"){
+  if(ext===".html"&&(path.basename(file)==="index.html"||decoded==="/cart")){
     let html=data.toString("utf8");
     const lowerHtml=html.toLowerCase();
     const titleStart=lowerHtml.indexOf("<title>");
