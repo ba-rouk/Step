@@ -1,482 +1,247 @@
 import "./cart-page.css";
 import { apiFetch } from "./api.js";
+import { REQUIRE_LOGIN_FOR_CART_LIST, GUEST_CART_STORAGE_KEY } from "./cart-config.js";
 
-const path = window.location.pathname.replace(/\/+$/, "") || "/";
+const route = window.location.pathname.replace(/\\/+$/, "") || "/";
 const params = new URLSearchParams(window.location.search);
-const cartHandoffKey = "step-town-cart-handoff-v1";
-const html = value => String(value ?? "").replace(/[&<>"']/g, c => ({
-  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-})[c]);
-const money = value => new Intl.NumberFormat("en-RW", {
-  style:"currency",currency:"RWF",maximumFractionDigits:0
-}).format(Number(value));
+const html = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = value => new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(value));
+let quickItem = null;
+let savedItems = [];
+let account = null;
+let isSignedIn = false;
+let sending = false;
 
-let cartItems = [];
-let accountData = null;
-let accountUser = false;
-let persistQueue = Promise.resolve();
-
-function setPage(route) {
-  document.body.classList.toggle("route-cart", route === "cart");
-  document.body.classList.toggle("route-confirmation", route === "confirmation");
-  const cartPage = document.querySelector("#cart-page");
-  const confirmPage = document.querySelector("#order-confirmation-page");
-  if (cartPage) cartPage.hidden = route !== "cart";
-  if (confirmPage) confirmPage.hidden = route !== "confirmation";
+function setPage(page) {
+  document.body.classList.toggle("route-cart",page==="cart");
+  document.body.classList.toggle("route-confirmation",page==="confirmation");
+  const cart=document.querySelector("#cart-page"),confirmation=document.querySelector("#order-confirmation-page");
+  if(cart)cart.hidden=page!=="cart";
+  if(confirmation)confirmation.hidden=page!=="confirmation";
 }
-
-function imageFor(product) {
-  const first = Array.isArray(product?.images) ? product.images[0] : null;
-  return (typeof first === "string" ? first : first?.url) ||
-    (Array.isArray(product?.image_urls) ? product.image_urls[0] : "") ||
-    product?.image_url || "";
+function imageFor(item) {
+  const first=Array.isArray(item?.images)?item.images[0]:null;
+  return (typeof first==="string"?first:first?.url)||(Array.isArray(item?.image_urls)?item.image_urls[0]:"")||item?.image_url||"";
 }
-
-function normalizeItem(raw) {
-  if (!raw || typeof raw !== "object") return null;
-  const id = String(raw.product_id || raw.id || "");
-  const quantity = Math.floor(Number(raw.quantity || 1));
-  if (!id || !Number.isFinite(quantity) || quantity < 1) return null;
-  const amount = raw.price === null || raw.price === undefined || raw.price === ""
-    ? null : Number(raw.price);
-  return {
-    ...raw,
-    id,
-    product_id:id,
-    slug:String(raw.slug || ""),
-    name:String(raw.name || "Menu item"),
-    description:String(raw.description || ""),
-    category_name:String(raw.category_name || raw.category?.name || "Menu"),
-    price:Number.isFinite(amount) ? amount : null,
-    price_unit:String(raw.price_unit || "unit"),
-    price_unit_label:String(raw.price_unit_label || raw.price_unit || "unit"),
-    image_url:String(raw.image_url || imageFor(raw) || ""),
-    quantity:Math.min(20, Math.max(1, quantity))
-  };
+function normalize(item) {
+  if(!item||typeof item!=="object")return null;
+  const id=String(item.product_id||item.id||"");
+  const quantity=Math.max(1,Math.min(20,Math.floor(Number(item.quantity)||1)));
+  if(!id)return null;
+  const price=item.price==null||item.price===""?null:Number(item.price);
+  return {...item,id,product_id:id,slug:String(item.slug||""),name:String(item.name||"Menu item"),
+    description:String(item.description||""),category_name:String(item.category_name||item.category?.name||"Menu"),
+    price:Number.isFinite(price)?price:null,price_unit:String(item.price_unit||"unit"),
+    price_unit_label:String(item.price_unit_label||item.price_unit||"unit"),
+    image_url:String(item.image_url||imageFor(item)||""),quantity};
 }
-
-function readCartHandoff() {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(cartHandoffKey) || "[]");
-    return Array.isArray(saved) ? saved.map(normalizeItem).filter(Boolean).slice(0, 50) : [];
-  } catch {
-    return [];
+function readGuestCart() {
+  try {const rows=JSON.parse(localStorage.getItem(GUEST_CART_STORAGE_KEY)||"[]");return Array.isArray(rows)?rows.map(normalize).filter(Boolean).slice(0,50):[];}
+  catch{return [];}
+}
+function writeGuestCart() {
+  try {localStorage.setItem(GUEST_CART_STORAGE_KEY,JSON.stringify(savedItems));return true;}
+  catch{return false;}
+}
+function merge(primary,secondary) {
+  const map=new Map();
+  for(const raw of [...primary,...secondary]){
+    const item=normalize(raw);if(!item)continue;
+    const old=map.get(item.product_id);
+    map.set(item.product_id,old?{...old,...item,quantity:Math.min(20,old.quantity+item.quantity)}:item);
   }
+  return [...map.values()].slice(0,50);
 }
-
-function clearCartHandoff() {
-  try { sessionStorage.removeItem(cartHandoffKey); } catch {}
-  // Remove guest cart snapshots created by older versions; they are not order history.
-  try {
-    localStorage.removeItem("step-town-cart-v1");
-    localStorage.removeItem("step-town-cart-history-v1");
-    localStorage.removeItem("step-town-cart-id-v1");
-  } catch {}
+async function request(url,options={}) {
+  const response=await fetch(url,{credentials:"same-origin",...options});
+  const data=await response.json().catch(()=>({}));
+  return {response,data};
 }
-
-async function jsonRequest(url, options = {}) {
-  const response = await fetch(url, { credentials:"same-origin", ...options });
-  const data = await response.json().catch(() => ({}));
-  return { response, data };
+async function loadAccount() {
+  const {response,data}=await request("/api/profile");
+  if(response.ok){account=data;isSignedIn=true;return true;}
+  if(response.status===401){account=null;isSignedIn=false;return false;}
+  throw new Error(data.error||"Your account could not be checked.");
 }
-
-async function getAccount() {
-  const { response, data } = await jsonRequest("/api/profile");
-  if (response.ok) {
-    accountData = data;
-    accountUser = true;
-    return true;
+async function loadAccountCart() {
+  const {response,data}=await request("/api/profile/cart");
+  if(!response.ok)throw new Error(data.error||"Your saved cart could not be loaded.");
+  return Array.isArray(data.items)?data.items.map(normalize).filter(Boolean):[];
+}
+async function saveAccountCart() {
+  if(!isSignedIn)return;
+  const response=await apiFetch("/api/profile/cart",{method:"PUT",body:{items:savedItems.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error||"Your saved cart could not be updated.");
+}
+async function loadProduct(reference) {
+  if(!reference)return null;
+  const embedded=document.querySelector("#step-menu-initial-data");
+  if(embedded){try{const data=JSON.parse(embedded.textContent||"{}");const item=(data.products||[]).find(p=>String(p.slug||"")===reference||String(p.id)===reference);if(item)return normalize({...item,quantity:1});}catch{}}
+  const isId=/^[0-9a-f-]{36}$/i.test(reference);
+  const {response,data}=await request("/api/catalog?limit=1&"+(isId?"product_id=":"slug=")+encodeURIComponent(reference));
+  if(!response.ok)throw new Error(data.error||"The selected menu item could not be loaded.");
+  const item=(data.products||[]).find(p=>String(p.id)===reference||String(p.slug||"")===reference);
+  return item?normalize({...item,quantity:1}):null;
+}
+function itemMarkup(item,kind) {
+  const price=item.price==null?"Price to be confirmed":money(item.price)+" per "+html(item.price_unit_label||item.price_unit||"unit");
+  const line=item.price==null?"Quote required":money(item.price*item.quantity);
+  return '<article class="cart-selected-item" data-cart-product="'+html(item.product_id)+'" data-cart-kind="'+kind+'">'+
+    '<div class="cart-selected-image">'+(imageFor(item)?'<img src="'+html(imageFor(item))+'" alt="'+html(item.name)+'" loading="lazy">':'<div class="product-image-placeholder">STEP TOWN</div>')+'</div>'+
+    '<div class="cart-selected-copy"><div class="cart-selected-head"><span class="cart-selected-category">'+html(item.category_name)+'</span>'+
+    (kind==="saved"?'<button type="button" class="cart-item-remove" data-action="remove">Remove</button>':'')+'</div>'+
+    '<h2>'+html(item.name)+'</h2>'+(item.description?'<p class="cart-summary-description">'+html(item.description)+'</p>':'')+
+    '<div class="cart-unit-price"><span>'+price+'</span><strong>'+line+'</strong></div>'+
+    '<div class="cart-item-footer"><div class="order-quantity"><button type="button" data-action="decrease" aria-label="Decrease quantity">−</button><output>'+item.quantity+'</output><button type="button" data-action="increase" aria-label="Increase quantity">+</button></div>'+
+    '<div class="cart-line-total"><span>Line total</span><strong>'+line+'</strong></div></div></div></article>';
+}
+function total(items) {
+  const known=items.filter(item=>item.price!=null&&Number.isFinite(Number(item.price)));
+  const subtotal=known.reduce((sum,item)=>sum+Number(item.price)*item.quantity,0);
+  return {subtotal,allPriced:items.length>0&&known.length===items.length,known:known.length};
+}
+function updateCartBadge() {
+  const count=savedItems.reduce((n,item)=>n+item.quantity,0);
+  const badge=document.querySelector("#mobile-cart-count");
+  if(badge){badge.textContent=count>99?"99+":String(count);badge.hidden=count===0;}
+}
+function render() {
+  const host=document.querySelector("#cart-product-summary");
+  const quickHost=document.querySelector("#quick-order-summary");
+  const savedHost=document.querySelector("#saved-cart-summary");
+  const submit=document.querySelector("#product-order-submit");
+  if(quickHost){
+    quickHost.hidden=!quickItem;
+    quickHost.innerHTML=quickItem?'<p class="eyebrow">ORDER THIS ITEM</p>'+itemMarkup(quickItem,"quick"):"";
   }
-  if (response.status === 401) {
-    accountData = null;
-    accountUser = false;
-    return false;
-  }
-  throw new Error(data.error || "We couldn't verify your account.");
-}
-
-async function getAccountCart() {
-  const { response, data } = await jsonRequest("/api/profile/cart");
-  if (!response.ok) throw new Error(data.error || "Your saved cart could not be loaded.");
-  return Array.isArray(data.items) ? data.items.map(normalizeItem).filter(Boolean) : [];
-}
-
-function mergeCarts(primary, secondary) {
-  const merged = new Map();
-  for (const raw of [...primary, ...secondary]) {
-    const item = normalizeItem(raw);
-    if (!item) continue;
-    const previous = merged.get(item.product_id);
-    if (previous) {
-      merged.set(item.product_id, {
-        ...previous,
-        quantity:Math.min(20, previous.quantity + item.quantity)
-      });
-    } else {
-      merged.set(item.product_id, item);
+  if(host){
+    host.hidden=Boolean(quickItem);
+    if(!quickItem){
+      if(!savedItems.length){
+        host.innerHTML='<div class="cart-empty"><span aria-hidden="true">✳</span><strong>Your cart is empty.</strong><p>Browse the menu and add something you love.</p><a class="button button-dark" href="/categories">Browse the menu</a></div>';
+      }else{
+        const t=total(savedItems);
+        host.innerHTML='<p class="eyebrow">YOUR CART</p><div class="cart-selected-items">'+savedItems.map(item=>itemMarkup(item,"saved")).join("")+'</div>'+
+          '<div class="cart-estimate-bar"><div><span>Estimated cart total</span><strong>'+(t.allPriced?money(t.subtotal):(t.known?money(t.subtotal)+" + quote":"Quote required"))+'</strong></div><p>Final pricing is confirmed by Step Town before your order is accepted.</p></div>';
+      }
     }
   }
-  return [...merged.values()].slice(0, 50);
-}
-
-async function persistCart() {
-  if (!accountUser) return;
-  const items = cartItems.map(item => ({
-    product_id:item.product_id || item.id,
-    quantity:item.quantity
-  }));
-  const response = await apiFetch("/api/profile/cart", { method:"PUT", body:{ items } });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Your account cart could not be saved.");
-}
-
-async function getSelectedProduct(reference) {
-  if (!reference) return null;
-  const embedded = document.querySelector("#step-menu-initial-data");
-  if (embedded) {
-    try {
-      const initial = JSON.parse(embedded.textContent || "{}");
-      const found = (initial.products || []).find(product =>
-        String(product.id) === reference || String(product.slug || "") === reference
-      );
-      if (found) return normalizeItem({ ...found, quantity:1 });
-    } catch {}
+  if(savedHost){
+    savedHost.hidden=!quickItem;
+    if(quickItem)savedHost.innerHTML='<h2 class="saved-cart-heading">Your saved cart</h2>'+(savedItems.length?'<div class="cart-selected-items">'+savedItems.map(item=>itemMarkup(item,"saved")).join("")+'</div>':'<p class="saved-cart-empty">Your saved cart is empty.</p>');
   }
-
-  const isId = /^[0-9a-f-]{36}$/i.test(reference);
-  const query = isId ? "product_id=" : "slug=";
-  const { response, data } = await jsonRequest(
-    "/api/catalog?limit=1&" + query + encodeURIComponent(reference)
-  );
-  if (!response.ok) throw new Error(data.error || "The product could not be loaded.");
-  const products = Array.isArray(data.products) ? data.products : [];
-  const found = products.find(product =>
-    String(product.id) === reference || String(product.slug || "") === reference
-  );
-  return found ? normalizeItem({ ...found, quantity:1 }) : null;
+  if(submit){submit.disabled=sending||(!quickItem&&!savedItems.length);submit.textContent=sending?"Sending order…":"Send order";}
+  updateCartBadge();
 }
-
-function addProduct(product) {
-  const item = normalizeItem({ ...product, product_id:product.id, quantity:1 });
-  if (!item) throw new Error("This product does not have a valid catalogue ID.");
-  const existing = cartItems.find(entry => entry.product_id === item.product_id);
-  if (existing) existing.quantity = Math.min(20, existing.quantity + 1);
-  else {
-    if (cartItems.length >= 50) throw new Error("Your cart can contain up to 50 different products.");
-    cartItems.push(item);
-  }
-}
-
-function isPriced(item) {
-  return item.price !== null && item.price !== undefined &&
-    item.price !== "" && Number.isFinite(Number(item.price));
-}
-
-function cartEstimate() {
-  const pricedItems = cartItems.filter(isPriced);
-  const subtotal = pricedItems.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
-  const allPriced = cartItems.length > 0 && pricedItems.length === cartItems.length;
-  return { subtotal, allPriced, pricedCount:pricedItems.length };
-}
-
-function renderCart() {
-  const host = document.querySelector("#cart-product-summary");
-  const submit = document.querySelector("#product-order-submit");
-  const status = document.querySelector("#product-order-error");
-  if (!host) return;
-
-  if (!cartItems.length) {
-    host.innerHTML =
-      '<div class="cart-empty">' +
-        '<span aria-hidden="true">✳</span>' +
-        '<strong>Your cart is empty.</strong>' +
-        '<p>Choose catering, barbecue or a celebration cake to start an order.</p>' +
-        '<a class="text-link" href="/categories">Explore the menu</a>' +
-      '</div>';
-    if (submit) {
-      submit.disabled = true;
-      submit.textContent = "Add items to your cart first";
-    }
-    return;
-  }
-
-  const itemsHtml = cartItems.map(item => {
-    const image = imageFor(item);
-    const priced = isPriced(item);
-    const unit = item.price_unit_label || item.price_unit || "unit";
-    const lineTotal = priced ? money(Number(item.price) * item.quantity) : "Quote required";
-    return '<article class="cart-selected-item" data-cart-product="' + html(item.product_id) + '">' +
-      '<div class="cart-selected-image">' +
-        (image
-          ? '<img src="' + html(image) + '" alt="' + html(item.name) + '" loading="lazy">'
-          : '<div class="product-image-placeholder">STEP TOWN</div>') +
-      '</div>' +
-      '<div class="cart-selected-copy">' +
-        '<div class="cart-selected-head"><span class="cart-selected-category">' + html(item.category_name) + '</span>' +
-          '<button class="cart-item-remove" type="button" data-cart-action="remove" aria-label="Remove ' + html(item.name) + '">Remove</button></div>' +
-        '<h2>' + html(item.name) + '</h2>' +
-        (item.description ? '<p class="cart-summary-description">' + html(item.description) + '</p>' : '') +
-        '<div class="cart-unit-price"><span>Price per ' + html(unit) + '</span><strong>' + (priced ? html(money(item.price)) : 'To be confirmed') + '</strong></div>' +
-        '<div class="cart-item-footer">' +
-          '<div class="order-quantity" aria-label="Quantity for ' + html(item.name) + '">' +
-            '<button type="button" data-cart-action="decrease" aria-label="Decrease quantity">−</button>' +
-            '<output aria-live="polite">' + item.quantity + '</output>' +
-            '<button type="button" data-cart-action="increase" aria-label="Increase quantity">+</button>' +
-          '</div>' +
-          '<div class="cart-line-total"><span>Item total</span><strong>' + html(lineTotal) + '</strong></div>' +
-        '</div>' +
-      '</div>' +
-    '</article>';
-  }).join("");
-
-  const estimate = cartEstimate();
-  const totalText = estimate.allPriced
-    ? money(estimate.subtotal)
-    : (estimate.pricedCount ? money(estimate.subtotal) + " + quote" : "Quote required");
-  const note = estimate.allPriced
-    ? "Estimated total only. Step Town will confirm availability and final pricing."
-    : "This estimate includes priced items only. Items marked “To be confirmed” will be quoted by Step Town.";
-  host.innerHTML =
-    '<div class="cart-selected-items">' + itemsHtml + '</div>' +
-    '<div class="cart-estimate-bar"><div><span>Estimated cart total</span><strong>' + html(totalText) + '</strong></div>' +
-      '<p>' + html(note) + '</p></div>';
-
-  if (submit) {
-    submit.disabled = false;
-    submit.textContent = "Send order request";
-  }
-  if (status && status.dataset.clearOnRender === "true") status.textContent = "";
-}
-
+function activeOrderItems(){return quickItem?[{product_id:quickItem.product_id,slug:quickItem.slug,quantity:quickItem.quantity}]:savedItems.map(item=>({product_id:item.product_id,slug:item.slug,quantity:item.quantity}));}
 function updateDeliveryField() {
-  const select = document.querySelector("#order-fulfillment");
-  const label = document.querySelector("#order-location-label");
-  const input = document.querySelector("#order-delivery-location");
-  const delivery = select?.value === "delivery";
-  const eventService = select?.value === "event";
-  if (label) {
-    label.hidden = !(delivery || eventService);
-    const labelText = label.firstChild;
-    if (labelText && labelText.nodeType === Node.TEXT_NODE) {
-      labelText.textContent = eventService ? "Event venue " : "Delivery location ";
-    }
-  }
-  if (input) input.required = Boolean(delivery || eventService);
+  const select=document.querySelector("#order-fulfillment"),label=document.querySelector("#order-location-label"),input=document.querySelector("#order-delivery-location");
+  const delivery=select?.value==="delivery";
+  if(label)label.hidden=!delivery;
+  if(input)input.required=Boolean(delivery);
 }
-
-function renderConfirmation() {
-  setPage("confirmation");
-  const number = document.querySelector("#confirmed-order-number");
-  const message = sessionStorage.getItem("step-town-last-order-message") || "";
-  if (number) number.textContent = params.get("order") || "";
-  const link = document.querySelector("#confirmation-whatsapp");
-  if (message && link) {
-    link.href = "https://wa.me/250780382589?text=" + encodeURIComponent(message);
-    link.hidden = false;
-  }
-  const details = document.querySelector("#confirmation-details");
-  if (details) details.textContent = "Your request has been saved. Step Town will contact you to confirm the details.";
+function prefillForm(form) {
+  const profile=account?.profile||{},user=account?.user||{};
+  const name=profile.full_name||user.user_metadata?.full_name||user.user_metadata?.name||"";
+  const phone=profile.phone||user.phone||"";
+  if(name&&form.elements.customer_name)form.elements.customer_name.value=name;
+  if(phone&&form.elements.customer_phone)form.elements.customer_phone.value=phone;
+  if(user.email&&form.elements.customer_email)form.elements.customer_email.value=user.email;
 }
-
+function showConfirmation(data) {
+  sessionStorage.setItem("step-town-order-confirmation",JSON.stringify(data||{}));
+  window.location.assign("/order/confirmation?order="+encodeURIComponent(data?.order_number||""));
+}
 async function startCart() {
   setPage("cart");
-  const form = document.querySelector("#product-order-form");
-  if (!form) return;
-
-  const dateInput = document.querySelector("#order-preferred-date");
-  if (dateInput) {
-    dateInput.min = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const form=document.querySelector("#product-order-form");
+  if(!form)return;
+  const status=document.querySelector("#product-order-error");
+  const date=form.elements.requested_date;
+  if(date)date.min=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+  savedItems=readGuestCart();
+  const reference=params.get("product");
+  try{
+    const signed=await loadAccount();
+    if(signed){
+      const accountCart=await loadAccountCart();
+      savedItems=merge(accountCart,savedItems);
+      await saveAccountCart();
+      try{localStorage.removeItem(GUEST_CART_STORAGE_KEY);}catch{}
+    }else if(REQUIRE_LOGIN_FOR_CART_LIST&&!reference){
+      window.location.assign("/login?next="+encodeURIComponent("/cart"));return;
+    }else writeGuestCart();
+  }catch(error){if(status)status.textContent=error.message||"Your cart could not be loaded.";}
+  if(reference){
+    try{quickItem=await loadProduct(reference);if(!quickItem)throw new Error("This product is no longer available. Please return to the menu.");}
+    catch(error){if(status)status.textContent=error.message;}
   }
-
-  const handoffItems = readCartHandoff();
-  // Consume the one-time guest handoff before any async request so a refresh
-  // cannot replay a guest selection while account verification is still loading.
-  try { sessionStorage.removeItem(cartHandoffKey); } catch {}
-  const selectedReference = params.get("product");
-  if (selectedReference) history.replaceState(null, "", "/cart");
-  cartItems = handoffItems.slice();
-  const status = document.querySelector("#product-order-error");
-
-  try {
-    const signedIn = await getAccount();
-    if (signedIn) {
-      const accountCart = await getAccountCart();
-      cartItems = mergeCarts(accountCart, handoffItems);
-      if (handoffItems.length) {
-        try {
-          await persistCart();
-          clearCartHandoff();
-        } catch (saveError) {
-          console.warn("The selected product is visible, but account synchronisation is incomplete:", saveError.message);
-          if (status) status.textContent = "Your selected product is visible, but it could not yet be saved to your account. Please retry before leaving this page.";
-        }
-      }
-    } else {
-      // A guest gets this one product for the current page only.
-      cartItems = handoffItems;
-      clearCartHandoff();
-    }
-  } catch (error) {
-    // Keep the selection in memory for this visit, but never persist a guest cart.
-    cartItems = handoffItems;
-    if (status) status.textContent = error.message || "Your account cart could not be loaded.";
-  }
-
-  if (selectedReference) {
-    try {
-      const product = await getSelectedProduct(selectedReference);
-      if (!product) throw new Error("This product could not be found in the current menu. Please refresh the menu and try again.");
-      addProduct(product);
-      await persistCart();
-      clearCartHandoff();
-      if (status) {
-        status.textContent = "Added to your cart.";
-        status.dataset.clearOnRender = "true";
-      }
-    } catch (error) {
-      if (status) {
-        status.textContent = error.message || "The selected product could not be added.";
-        status.dataset.clearOnRender = "false";
-      }
-      // Do not persist guest selections; keep the error visible on this page.
-    }
-  }
-
-  if (accountUser && accountData) {
-    const name = form.elements.customer_name;
-    const phone = form.elements.customer_phone;
-    const savedName = accountData.profile?.full_name ||
-      accountData.user?.user_metadata?.full_name ||
-      accountData.user?.user_metadata?.name;
-    const savedPhone = accountData.profile?.phone || accountData.user?.phone;
-    const email = form.elements.customer_email;
-    const savedEmail = accountData.user?.email;
-    if (savedName && name) name.value = savedName;
-    if (savedPhone && phone) phone.value = savedPhone;
-    if (savedEmail && email) {
-      email.value = savedEmail;
-      email.readOnly = true;
-      email.setAttribute("aria-readonly", "true");
-    }
-  }
-
-  renderCart();
+  prefillForm(form);
+  render();
   updateDeliveryField();
-  document.querySelector("#order-fulfillment")?.addEventListener("change", updateDeliveryField);
-
-  const closePage = () => window.location.assign("/categories");
-  document.querySelector("#cart-page-close")?.addEventListener("click", closePage);
-  document.querySelector("#cart-close")?.addEventListener("click", closePage);
-
-  document.querySelector("#cart-product-summary")?.addEventListener("click", async event => {
-    const button = event.target.closest("[data-cart-action]");
-    if (!button) return;
-    const row = button.closest("[data-cart-product]");
-    const id = row?.dataset.cartProduct;
-    const item = cartItems.find(entry => entry.product_id === id);
-    if (!item) return;
-
-    if (button.dataset.cartAction === "increase") {
-      item.quantity = Math.min(20, item.quantity + 1);
-    } else if (button.dataset.cartAction === "decrease") {
-      item.quantity = Math.max(1, item.quantity - 1);
-    } else if (button.dataset.cartAction === "remove") {
-      cartItems = cartItems.filter(entry => entry.product_id !== id);
+  document.querySelector("#order-fulfillment")?.addEventListener("change",updateDeliveryField);
+  document.querySelector("#cart-page-close")?.addEventListener("click",()=>window.location.assign("/categories"));
+  document.querySelector("#cart-close")?.addEventListener("click",()=>window.location.assign("/categories"));
+  document.querySelector("#cart-product-summary")?.addEventListener("click",event=>handleItemAction(event));
+  document.querySelector("#quick-order-summary")?.addEventListener("click",event=>handleItemAction(event));
+  document.querySelector("#saved-cart-summary")?.addEventListener("click",event=>handleItemAction(event));
+  async function handleItemAction(event){
+    const button=event.target.closest("[data-action]");if(!button)return;
+    const row=button.closest("[data-cart-product]");if(!row)return;
+    const item=row.dataset.cartKind==="quick"?quickItem:savedItems.find(x=>x.product_id===row.dataset.cartProduct);
+    if(!item)return;
+    if(button.dataset.action==="increase")item.quantity=Math.min(20,item.quantity+1);
+    if(button.dataset.action==="decrease")item.quantity=Math.max(1,item.quantity-1);
+    if(button.dataset.action==="remove")savedItems=savedItems.filter(x=>x.product_id!==item.product_id);
+    if(row.dataset.cartKind==="saved"){
+      if(isSignedIn){try{await saveAccountCart();}catch(error){if(status)status.textContent=error.message;}}
+      else writeGuestCart();
     }
-    renderCart();
-    try {
-      await persistCart();
-    } catch (error) {
-      if (status) status.textContent = error.message || "Your cart change could not be saved.";
-    }
-  });
-
-  form.addEventListener("submit", async event => {
-    event.preventDefault();
-    if (status) status.textContent = "";
-    if (!cartItems.length) {
-      if (status) status.textContent = "Add at least one menu item before sending your order.";
-      return;
-    }
-    if (!form.reportValidity()) return;
-
-    const fields = new FormData(form);
-    const order = {
-      customer_name:String(fields.get("customer_name") || "").trim(),
-      customer_phone:String(fields.get("customer_phone") || "").trim(),
-      customer_email:String(fields.get("customer_email") || "").trim(),
-      fulfillment:String(fields.get("fulfillment") || "pickup"),
-      requested_date:String(fields.get("requested_date") || "") || null,
-      requested_time:String(fields.get("requested_time") || "") || null,
-      delivery_location:String(fields.get("delivery_location") || "").trim() || null,
-      order_description:String(fields.get("order_description") || "").trim(),
-      notes:String(fields.get("notes") || "").trim(),
-      website:String(fields.get("website") || ""),
-      items:cartItems.map(item => ({
-        product_id:item.product_id,
-        slug:item.slug,
-        quantity:item.quantity
-      })),
-      product_slug:cartItems[0]?.slug || null,
-      quantity:cartItems.reduce((sum, item) => sum + item.quantity, 0)
-    };
-
-    const button = document.querySelector("#product-order-submit");
-    if (button) {
-      button.disabled = true;
-      button.textContent = "Sending order…";
-    }
-    try {
-      const response = await apiFetch("/api/orders", { method:"POST", body:order });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        if (status) status.textContent = data.error || "We could not save your order. Please try again.";
-        return;
-      }
-      const estimate = cartEstimate();
-      const message = [
-        "Hello Step Town, I have placed an order request.",
-        "Order: " + (data.order?.order_number || ""),
-        "Name: " + order.customer_name,
-        "Phone: " + order.customer_phone,
-        "Items:",
-        ...cartItems.map(item => {
-          const line = item.name + " × " + item.quantity;
-          return line + " — " + (isPriced(item) ? money(Number(item.price) * item.quantity) : "Quote required");
-        }),
-        "Estimated total: " + (estimate.allPriced ? money(estimate.subtotal) : (estimate.pricedCount ? money(estimate.subtotal) + " + quote" : "Quote required")),
-        order.order_description ? "Order details: " + order.order_description : "",
-        "Fulfilment: " + order.fulfillment,
-        order.requested_date ? "Preferred date: " + order.requested_date : "",
-        order.requested_time ? "Preferred time: " + order.requested_time : "",
-        order.delivery_location ? "Location: " + order.delivery_location : "",
-        order.notes ? "Notes: " + order.notes : ""
-      ].filter(Boolean).join("\n");
-      sessionStorage.setItem("step-town-last-order-message", message);
-      cartItems = [];
-      try { await persistCart(); } catch (error) {
-        console.warn("The order was sent, but the active account cart could not be cleared:", error.message);
-      }
-      clearCartHandoff();
-      window.location.assign("/order/confirmation?order=" + encodeURIComponent(data.order?.order_number || ""));
-    } catch (error) {
-      if (status) status.textContent = error.message || "Connection problem. Check your internet and try again.";
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.textContent = "Send order request";
-      }
-    }
-  });
-
-  if (!cartItems.length) {
-    const submit = document.querySelector("#product-order-submit");
-    if (submit) {
-      submit.disabled = true;
-      submit.textContent = "Add items to your cart first";
-    }
+    render();
   }
+  form.addEventListener("submit",async event=>{
+    event.preventDefault();if(sending)return;
+    if(status)status.textContent="";
+    const items=activeOrderItems();
+    if(!items.length){if(status)status.textContent="Add at least one menu item before sending your order.";return;}
+    if(!form.reportValidity())return;
+    const fields=new FormData(form);
+    const order={
+      customer_name:String(fields.get("customer_name")||"").trim(),
+      customer_phone:String(fields.get("customer_phone")||"").trim(),
+      customer_email:String(fields.get("customer_email")||"").trim(),
+      fulfillment:String(fields.get("fulfillment")||"pickup"),
+      requested_date:String(fields.get("requested_date")||"")||null,
+      requested_time:String(fields.get("requested_time")||"")||null,
+      delivery_location:String(fields.get("delivery_location")||"").trim()||null,
+      order_description:String(fields.get("order_description")||"").trim(),
+      notes:String(fields.get("notes")||"").trim(),
+      website:String(fields.get("website")||""),
+      items
+    };
+    sending=true;render();
+    try{
+      const response=await apiFetch("/api/orders",{method:"POST",body:order});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok){if(status)status.textContent=data.error||"We could not save your order. Please check the details and try again.";return;}
+      if(!quickItem){savedItems=[];if(isSignedIn)await saveAccountCart();else writeGuestCart();}
+      showConfirmation(data.order||{});
+    }catch(error){if(status)status.textContent=error.message||"Connection problem. Please try again.";}
+    finally{sending=false;render();}
+  });
 }
-
-if (path === "/cart") void startCart();
-if (path === "/order/confirmation") renderConfirmation();
+function renderConfirmation() {
+  setPage("confirmation");
+  let data={};try{data=JSON.parse(sessionStorage.getItem("step-town-order-confirmation")||"{}");}catch{}
+  const number=document.querySelector("#confirmed-order-number");
+  if(number)number.textContent=params.get("order")||data.order_number||"";
+  const details=document.querySelector("#confirmation-details");
+  if(details)details.textContent="Your request has been saved. Step Town will contact you to confirm availability and final pricing.";
+  const track=document.querySelector("#confirmation-tracking-link");
+  if(track&&data.tracking_token){track.href="/order/"+encodeURIComponent(data.tracking_token);track.hidden=false;}
+  const create=document.querySelector("#confirmation-create-account");
+  if(create){create.href="/login?next="+encodeURIComponent("/profile/orders");}
+}
+if(route==="/cart")void startCart();
+if(route==="/order/confirmation")renderConfirmation();
