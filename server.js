@@ -234,6 +234,43 @@ async function authRoutes(req,res,url) {
   if(!csrfValid(req))return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
   if(!configured())return sendJson(res,503,{error:"Customer sign-in is not configured on the server."});
   const route=url.pathname;
+  if(route==="/api/auth/email-code/request"){
+    const b=await body(req,4000);
+    const email=String(b.email||"").trim().toLowerCase();
+    if(email.length<5||email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))
+      return sendJson(res,200,{message:"If the address can receive mail, a sign-in code will be sent shortly."});
+    try{
+      const response=await fetch(SUPABASE_URL+"/functions/v1/request-login-code",{
+        method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)console.warn("Email code request returned",response.status,result.error||"");
+      return sendJson(res,200,{message:"If the address can receive mail, a sign-in code will be sent shortly."});
+    }catch(error){
+      console.error("Email code request:",error);
+      return sendJson(res,200,{message:"If the address can receive mail, a sign-in code will be sent shortly."});
+    }
+  }
+  if(route==="/api/auth/email-code/verify"){
+    const b=await body(req,4000);
+    const email=String(b.email||"").trim().toLowerCase(),code=String(b.code||"").trim();
+    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||!/^[0-9]{6}$/.test(code))
+      return sendJson(res,400,{error:"That code is invalid or expired."});
+    try{
+      const response=await fetch(SUPABASE_URL+"/functions/v1/verify-login-code",{
+        method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},body:JSON.stringify({email,code})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.session?.access_token||!result.session?.refresh_token)
+        return sendJson(res,response.status>=500?502:400,{error:result.error||"That code is invalid or expired."});
+      setSession(res,req,result.session);
+      await profileUpsert(result.session,result.user||{id:result.session.user?.id,email},b.name||"",null);
+      return sendJson(res,200,{authenticated:true,next:safeNext(b.next||"/profile/orders")});
+    }catch(error){
+      console.error("Email code verification:",error);
+      return sendJson(res,502,{error:"We could not complete sign-in. Please request a new code and try again."});
+    }
+  }
   if(route==="/api/auth/register"){
     if(!rateLimit(req,"register",5))return sendJson(res,429,{error:"Too many registration attempts. Try again in 15 minutes."});
     const b=await body(req),name=String(b.name||"").trim(),phone=phoneNumber(b.phone),password=String(b.password||"");
