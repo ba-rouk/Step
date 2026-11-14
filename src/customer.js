@@ -106,16 +106,8 @@ if (isAuthRoute) {
         const response=await apiFetch("/api/auth/verify-email-code",{method:"POST",body:{email,code,next:safeNext}});
         const payload=await response.json().catch(()=>({}));
         if(!response.ok){error.textContent=payload.error||"That code could not be verified.";return;}
-        const guestCart=localStorage.getItem("step-town-cart-v1");
-        if(guestCart){
-          try{
-            const items=JSON.parse(guestCart);
-            if(Array.isArray(items)&&items.length){
-              await apiFetch("/api/profile/cart/merge",{method:"POST",body:{items}});
-            }
-          }catch(cartError){console.warn("Guest cart merge deferred:",cartError.message);}
-          localStorage.setItem("step-town-cart-owner-v1", "pending");
-        }
+        // The storefront cart synchronises and merges its local guest snapshot
+        // against the signed-in account on the destination page.
         window.location.assign(payload.next||safeNext);
       }catch(cause){error.textContent=cause.message||"We could not verify that code. Please try again.";}
       finally{if(button.isConnected){button.disabled=false;button.textContent="Verify and sign in";}}
@@ -258,6 +250,8 @@ if (isAuthRoute) {
       }
       const add = event.target.closest("[data-add-product]");
       if (!add) return;
+      event.preventDefault();
+      event.stopPropagation();
       const product = favouriteProducts.find(item => item.id === add.dataset.addProduct);
       if (!product) return;
       const firstImage = Array.isArray(product.images) ? product.images[0] : null;
@@ -279,10 +273,18 @@ if (isAuthRoute) {
         quantity: 1
       };
       try {
-        sessionStorage.setItem("step-town-cart-handoff-v1", JSON.stringify([item]));
-        window.location.assign("/cart");
+        const key="step-town-cart-v1";
+        const saved=JSON.parse(localStorage.getItem(key)||"[]");
+        const existing=Array.isArray(saved)?saved.find(row=>String(row.product_id||row.id)===item.product_id):null;
+        if(existing)existing.quantity=Math.min(20,Number(existing.quantity||1)+1);
+        else saved.push(item);
+        localStorage.setItem(key,JSON.stringify(saved));
+        const badge=document.querySelector("#mobile-cart-count");
+        if(badge){const count=saved.reduce((sum,row)=>sum+Math.max(1,Number(row.quantity||1)),0);badge.textContent=count>99?"99+":String(count);badge.hidden=count<=0;}
+        flashCartButton(add);
+        showProductToast("Added to cart",{href:"/cart",label:"View cart"});
       } catch {
-        showProductToast("Your browser could not open the cart. Please try again.");
+        showProductToast("Your browser could not save this item. Please try again.");
       }
     });
     app.querySelector("#customer-signout").addEventListener("click", async () => {
@@ -336,9 +338,8 @@ if (isAuthRoute) {
         escapeHtml(order.created_at ? new Date(order.created_at).toLocaleDateString() : "") +
         ' · ' + escapeHtml(order.fulfillment || "") + '</small>' +
         '<div class="customer-order-items">' + itemMarkup + '</div>' +
-        (order.order_description ? '<p class="customer-order-description"><strong>Describe your order</strong><br>' + escapeHtml(order.order_description) + '</p>' : '') +
-        (order.notes ? '<p>' + escapeHtml(order.notes) + '</p>' : '') +
-        '<b>' + escapeHtml(total) + '</b></article>';
+        '<b>' + escapeHtml(total) + '</b><div class="customer-order-actions"><a href="/profile/orders/' + encodeURIComponent(order.id) + '">View order details</a>' +
+        (order.tracking_token ? '<a href="/order/' + encodeURIComponent(order.tracking_token) + '">Track order</a>' : '') + '</div></article>';
     }).join("") : '<div class="customer-empty-orders"><strong>No orders yet.</strong><p>Your submitted order requests will appear here.</p><a href="/categories">Explore the menu</a></div>';
     shell(
       '<h1>Your orders.</h1><p class="customer-intro">Your submitted Step Town orders, including requests made as a guest using this account email.</p>' +
@@ -348,12 +349,59 @@ if (isAuthRoute) {
   }
 
 
+  function renderEmailVerificationPrompt() {
+    const currentEmail=String(accountData?.user?.email||"");
+    shell(
+      '<h1>Verify your email to see your orders.</h1>' +
+      '<p class="customer-intro">We need to confirm that you can access this email address before showing orders linked to it.</p>' +
+      '<form id="orders-email-code-send" novalidate><label class="customer-field"><span>Email address</span><input name="email" type="email" value="' + escapeHtml(currentEmail) + '" maxlength="254" required autocomplete="email" placeholder="you@example.com"></label>' +
+      '<p class="customer-error" role="alert" aria-live="polite"></p><button class="customer-submit" type="submit">Send code</button></form>' +
+      '<p class="customer-note"><a href="/profile">Back to profile</a></p>',
+      "ORDER HISTORY PROTECTION"
+    );
+    app.querySelector("#orders-email-code-send").addEventListener("submit",async event=>{
+      event.preventDefault();
+      const form=event.currentTarget,error=form.querySelector(".customer-error");
+      error.textContent="";
+      if(!form.reportValidity())return;
+      const email=String(new FormData(form).get("email")||"").trim().toLowerCase();
+      const button=form.querySelector('button[type="submit"]');
+      button.disabled=true;button.textContent="Sending code…";
+      try{
+        const response=await apiFetch("/api/auth/email-code",{method:"POST",body:{email,next:"/profile/orders"}});
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(payload.error||"A code could not be sent. Please try again.");
+        emailCodeVerificationForm(email,"If this address can receive a code, it has been sent. Enter it below.");
+      }catch(error){error.textContent=error.message||"A code could not be sent. Please try again.";}
+      finally{if(button.isConnected){button.disabled=false;button.textContent="Send code";}}
+    });
+  }
+
+  function renderOrderDetail(order) {
+    if(!order){shell('<h1>Order not found.</h1><p class="customer-intro">This order is not available in your verified account history.</p><a class="customer-submit" href="/profile/orders">Back to orders</a>');return;}
+    const money=value=>value==null?"Quote to be confirmed":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(value));
+    const items=Array.isArray(order.items)?order.items:[];
+    const itemMarkup=items.map(item=>'<div class="customer-order-item"><div class="customer-order-item-copy"><strong>'+escapeHtml(item.name||"Menu item")+'</strong><small>'+Number(item.quantity||1)+' × '+(item.unit_price==null?"Quote to be confirmed":money(item.unit_price)+" per "+escapeHtml(item.price_unit_label||"unit"))+'</small></div><b>'+escapeHtml(money(item.line_total))+'</b></div>').join("");
+    const tracking=order.tracking_token?'<a class="customer-submit" href="/order/'+encodeURIComponent(order.tracking_token)+'">Track this order</a>':"";
+    shell(
+      '<h1>Order '+escapeHtml(order.order_number||"")+'.</h1><p class="customer-intro">'+escapeHtml(order.created_at?new Date(order.created_at).toLocaleString():"")+' · '+escapeHtml(order.status||"new")+'</p>' +
+      '<section class="customer-order-card"><div class="customer-order-items">'+itemMarkup+'</div><p><b>Estimated total: '+escapeHtml(money(order.estimated_total))+'</b></p>' +
+      '<p>Fulfilment: '+escapeHtml(order.fulfillment||"")+'<br>Preferred date: '+escapeHtml(order.requested_date||"Not set")+'<br>Preferred time: '+escapeHtml(order.requested_time||"Not set")+'<br>Delivery details: '+escapeHtml(order.delivery_location||"Pickup")+'</p>' +
+      (order.order_description?'<p><b>Describe your order</b><br>'+escapeHtml(order.order_description)+'</p>':"")+
+      (order.notes?'<p>'+escapeHtml(order.notes)+'</p>':"")+'</section>'+tracking+
+      '<p class="customer-note"><a href="/profile/orders">Back to your orders</a></p>',
+      "ORDER DETAILS"
+    );
+  }
+
   async function loadProtectedView() {
     shell('<h1>Loading your account…</h1><p class="customer-intro">Checking your secure Step Town session.</p>', "SECURE ACCOUNT");
     try {
-      if (route === "/profile/cart-history" || route === "/profile/orders") {
+      if (route === "/profile/cart-history" || route === "/profile/orders" || route.startsWith("/profile/orders/")) {
         const detailRoute=route.startsWith("/profile/orders/");
         const endpoint=detailRoute?"/api/profile/orders/"+encodeURIComponent(route.split("/").pop()):"/api/profile/orders";
+        const profileResponse=await apiFetch("/api/profile");
+        accountData=profileResponse.ok?await profileResponse.json().catch(()=>null):null;
         const response = await apiFetch(endpoint);
         const payload = await response.json().catch(() => ({}));
         if (response.status === 401) {
