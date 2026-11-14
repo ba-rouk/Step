@@ -20,24 +20,39 @@ Deno.serve(async req=>{
   const {data:subscriptions}=await db.from("push_subscriptions").select("*").in("user_id",recipients);
   const items=Array.isArray(order.items)?order.items:[];
   const description=items.map(i=>Number(i.quantity||1)+" x "+String(i.name||"item")).join(", ");
-  const body=description+" - "+(order.estimated_total==null?"Price to confirm":"RWF "+Number(order.estimated_total).toLocaleString("en-US"))+" - "+(order.fulfillment==="pickup"?"Pickup":"Delivery")+(order.requested_time?" "+order.requested_time:"");
-  const payload=JSON.stringify({title:"New order "+order.order_number,body,url:"/staff/orders/"+encodeURIComponent(order.order_number),tag:"order-"+order.id});
+  const fulfillmentLabel=order.fulfillment==="event"?"Event service":order.fulfillment==="delivery"?"Delivery":"Pickup";
+  const requestedSlot=[order.requested_date,order.requested_time].filter(Boolean).join(" ");
+  const body=[description,order.estimated_total==null?"Price to confirm":"RWF "+Number(order.estimated_total).toLocaleString("en-US"),fulfillmentLabel,requestedSlot].filter(Boolean).join(" · ");
+  // Staff detail routes look up records by UUID, not the customer-facing order number.
+  const orderPath="/staff/orders/"+encodeURIComponent(order.id);
+  const orderUrl="https://steptown.onrender.com"+orderPath;
+  const payload=JSON.stringify({title:"New order "+order.order_number,body,url:orderPath,tag:"order-"+order.id});
   const pub=Deno.env.get("VAPID_PUBLIC_KEY"),priv=Deno.env.get("VAPID_PRIVATE_KEY"),subject=Deno.env.get("VAPID_SUBJECT")||"mailto:orders@steptown.rw";
-  if(!pub||!priv)return Response.json({error:"VAPID keys are not configured",sent:0},{status:503,headers:cors});
-  webpush.setVapidDetails(subject,pub,priv);
-  const outcomes=await Promise.all((subscriptions||[]).map(async s=>{
-    try{await webpush.sendNotification({endpoint:s.endpoint,keys:{p256dh:s.p256dh,auth:s.auth_key}},payload);return true;}
-    catch(e){if(e.statusCode===404||e.statusCode===410)await db.from("push_subscriptions").delete().eq("id",s.id);return false;}
-  }));
+  const outcomes:boolean[]=[];
+  if(pub&&priv){
+    webpush.setVapidDetails(subject,pub,priv);
+    outcomes.push(...await Promise.all((subscriptions||[]).map(async s=>{
+      try{await webpush.sendNotification({endpoint:s.endpoint,keys:{p256dh:s.p256dh,auth:s.auth_key}},payload);return true;}
+      catch(e){
+        if(e.statusCode===404||e.statusCode===410)await db.from("push_subscriptions").delete().eq("id",s.id);
+        console.error("Staff push delivery failed:",e);
+        return false;
+      }
+    })));
+  }else{
+    console.error("VAPID keys are not configured; checking the alert webhook fallback.");
+  }
   let fallbackSent=false;
   const webhook=Deno.env.get("ALERT_WEBHOOK_URL");
   if(webhook){
     try{
       const headers:Record<string,string>={"Content-Type":"application/json"};
       const webhookToken=Deno.env.get("ALERT_WEBHOOK_TOKEN");if(webhookToken)headers.Authorization="Bearer "+webhookToken;
-      const response=await fetch(webhook,{method:"POST",headers,body:JSON.stringify({event:"step_town.new_order",title:"New order "+order.order_number,body,order_number:order.order_number,order_url:"https://steptown.onrender.com/staff/orders/"+encodeURIComponent(order.order_number),recipients:(staff||[]).map(x=>({phone:x.phone,email:x.email}))})});
+      const response=await fetch(webhook,{method:"POST",headers,body:JSON.stringify({event:"step_town.new_order",title:"New order "+order.order_number,body,order_number:order.order_number,order_url:orderUrl,recipients:(staff||[]).map(x=>({phone:x.phone,email:x.email}))})});
       fallbackSent=response.ok;
     }catch(error){console.error("Fallback alert webhook failed",error);}
   }
-  return Response.json({ok:true,sent:outcomes.filter(Boolean).length,attempted:outcomes.length,fallback_sent:fallbackSent},{headers:cors});
+  const sent=outcomes.filter(Boolean).length;
+  const ok=sent>0||fallbackSent;
+  return Response.json({ok,sent,attempted:outcomes.length,fallback_sent:fallbackSent,error:ok?undefined:"No staff alert channel accepted this order notification."},{status:ok?200:503,headers:cors});
 });
