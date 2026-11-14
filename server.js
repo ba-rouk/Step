@@ -578,7 +578,7 @@ async function api(req,res,url) {
         const status=[400,401,403,413,429].includes(response.status)?response.status:502;
         return sendJson(res,status,{error:result.error||"We could not save your order just now. Please try again."});
       }
-      if(current?.session?.access_token){
+      if(current?.session?.access_token && b.cart_source==="saved_cart"){
         const orderedProductIds=[...new Set(normalizedItems.map(item=>item.product_id).filter(Boolean))];
         if(orderedProductIds.length){
           try{
