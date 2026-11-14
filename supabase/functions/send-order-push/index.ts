@@ -6,20 +6,36 @@ Deno.serve(async req=>{
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
   if(req.method!=="POST")return Response.json({error:"Method not allowed"},{status:405,headers:cors});
   const token=(req.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"");
-  if(!token)return Response.json({error:"Authentication required"},{status:401,headers:cors});
   const db=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{autoRefreshToken:false,persistSession:false}});
-  const {data:{user},error:authError}=await db.auth.getUser(token);
-  if(authError||!user)return Response.json({error:"Invalid session"},{status:401,headers:cors});
-  const {order_id}=await req.json();
+  let user=null;
+  if(token){
+    const auth=await db.auth.getUser(token);
+    if(auth.error||!auth.data?.user)return Response.json({error:"Invalid session"},{status:401,headers:cors});
+    user=auth.data.user;
+  }
+  const body=await req.json().catch(()=>({}));
+  const order_id=String(body.order_id||"");
+  if(!/^[0-9a-f-]{36}$/i.test(order_id))return Response.json({error:"Invalid order reference"},{status:400,headers:cors});
   const {data:order,error}=await db.from("store_orders").select("*").eq("id",order_id).maybeSingle();
   if(error||!order)return Response.json({error:"Order not found"},{status:404,headers:cors});
+  const isGuestOrder=!order.customer_id&&order.status==="new"&&!order.push_notified_at&&Date.now()-new Date(order.created_at).getTime()<20*60*1000;
+  const isCustomerOrder=Boolean(user&&order.customer_id===user.id);
+  let isAuthorizedGuest=isGuestOrder;
+  let isAuthorizedStaff=false;
+  if(user&&!isCustomerOrder){
+    const staffCheck=await db.from("staff_profiles").select("user_id").eq("user_id",user.id).eq("is_active",true).maybeSingle();
+    isAuthorizedStaff=Boolean(staffCheck.data);
+  }
+  if(!isAuthorizedGuest&&!isCustomerOrder&&!isAuthorizedStaff){
+    return Response.json({error:"Not allowed to notify for this order"},{status:403,headers:cors});
+  }
   const {data:staff}=await db.from("staff_profiles").select("user_id,phone,email").in("role",["manager","accountant","cashier"]).eq("is_active",true);
-  const isStaff=await db.from("staff_profiles").select("user_id").eq("user_id",user.id).eq("is_active",true).maybeSingle();
-  if(order.customer_id!==user.id&&!isStaff.data)return Response.json({error:"Not allowed to notify for this order"},{status:403,headers:cors});
   const recipients=(staff||[]).map(x=>x.user_id);
   const {data:subscriptions}=await db.from("push_subscriptions").select("*").in("user_id",recipients);
   const items=Array.isArray(order.items)?order.items:[];
-  const description=items.map(i=>Number(i.quantity||1)+" x "+String(i.name||"item")).join(", ");
+  const itemDescription=items.map(i=>Number(i.quantity||1)+" x "+String(i.name||"item")).join(", ");
+  const orderDescription=String(order.order_description||"").trim().slice(0,900);
+  const description=[itemDescription,orderDescription].filter(Boolean).join(" · ");
   const fulfillmentLabel=order.fulfillment==="event"?"Event service":order.fulfillment==="delivery"?"Delivery":"Pickup";
   const requestedSlot=[order.requested_date,order.requested_time].filter(Boolean).join(" ");
   const body=[description,order.estimated_total==null?"Price to confirm":"RWF "+Number(order.estimated_total).toLocaleString("en-US"),fulfillmentLabel,requestedSlot].filter(Boolean).join(" · ");
@@ -54,5 +70,9 @@ Deno.serve(async req=>{
   }
   const sent=outcomes.filter(Boolean).length;
   const ok=sent>0||fallbackSent;
+  if(ok){
+    const {error:markError}=await db.from("store_orders").update({push_notified_at:new Date().toISOString()}).eq("id",order.id).is("push_notified_at",null);
+    if(markError)console.error("Push delivery succeeded but order notification marker failed:",markError);
+  }
   return Response.json({ok,sent,attempted:outcomes.length,fallback_sent:fallbackSent,error:ok?undefined:"No staff alert channel accepted this order notification."},{status:ok?200:503,headers:cors});
 });

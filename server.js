@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { CAKE_CATEGORY_LABEL } from "./src/catalog-config.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
@@ -91,12 +92,17 @@ function csrfValid(req) {
   const x=Buffer.from(a),y=Buffer.from(b);
   return x.length===y.length&&timingSafeEqual(x,y);
 }
-function rateLimit(req,name,max,windowMs=900000) {
-  const ip=String(req.headers["x-forwarded-for"]||req.socket.remoteAddress||"unknown").split(",")[0].trim();
-  const key=name+":"+ip, now=Date.now(), bucket=limits.get(key);
+function rateLimitKey(key,max,windowMs=900000) {
+  const now=Date.now(),bucket=limits.get(key);
   if(!bucket||bucket.reset<=now){limits.set(key,{count:1,reset:now+windowMs});return true;}
   bucket.count++;
   return bucket.count<=max;
+}
+function requestIp(req) {
+  return String(req.headers["cf-connecting-ip"]||req.headers["x-real-ip"]||req.headers["x-forwarded-for"]||req.socket.remoteAddress||"unknown").split(",").at(-1).trim();
+}
+function rateLimit(req,name,max,windowMs=900000) {
+  return rateLimitKey(name+":"+requestIp(req),max,windowMs);
 }
 async function body(req,max=32768) {
   const chunks=[];let size=0;
@@ -122,6 +128,84 @@ async function sb(endpoint,opts={}) {
   if(!r.ok){const e=new Error(data.msg||data.message||data.error_description||data.error||"Supabase request failed.");e.status=r.status;throw e;}
   return data;
 }
+
+const publicMenuCache = new Map();
+const publicMenuInflight = new Map();
+const PUBLIC_MENU_PAGE_SIZE = 12;
+const PUBLIC_MENU_TTL_MS = 25000;
+const PUBLIC_MENU_STALE_MS = 240000;
+
+async function fetchPublicMenu(options={}) {
+  const limit=Math.min(36,Math.max(1,Number(options.limit)||PUBLIC_MENU_PAGE_SIZE));
+  const offset=Math.max(0,Number(options.offset)||0);
+  const categorySlug=String(options.category||"").trim().slice(0,80);
+  const productSlug=String(options.slug||"").trim().slice(0,160);
+  const search=String(options.search||"").trim().slice(0,80).replace(/[\\%_*(),]/g," ");
+  const categoriesPromise=sb("/rest/v1/store_categories?select=id,name,slug,description,cover_image_url,sort_order,is_active&is_active=eq.true&order=sort_order.asc");
+  const params=new URLSearchParams();
+  params.set("select","id,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_available,is_visible,slug,created_at,category:store_categories!store_products_category_id_fkey!inner(id,name,slug),images:product_images!product_images_product_id_fkey(id,url,public_id,position,alt_text,variants)");
+  params.set("is_available","eq.true");
+  params.set("is_visible","eq.true");
+  if(categorySlug)params.set("category.slug","eq."+categorySlug);
+  if(productSlug)params.set("slug","eq."+productSlug);
+  if(search){
+    if(search.toLowerCase()===CAKE_CATEGORY_LABEL.toLowerCase())params.set("category.slug","eq.cake");
+    else params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*)");
+  }
+  params.set("order","sort_order.asc,created_at.desc");
+  const productsPromise=(async()=>{
+    const response=await fetch(SUPABASE_URL+"/rest/v1/store_products?"+params.toString(),{
+      headers:{apikey:SUPABASE_KEY,Prefer:"count=exact",Range:offset+"-"+(offset+limit-1)}
+    });
+    const raw=await response.text();
+    let rows=[];try{rows=raw?JSON.parse(raw):[];}catch{throw new Error("The menu service returned invalid data.");}
+    if(!response.ok)throw Object.assign(new Error(rows?.message||"The public menu could not be loaded."),{status:response.status});
+    const countText=(response.headers.get("content-range")||"").split("/").pop();
+    const total=Number(countText);
+    return {rows:Array.isArray(rows)?rows:[],total:Number.isFinite(total)?total:(Array.isArray(rows)?rows.length:0)};
+  })();
+  const [categories,productPage]=await Promise.all([categoriesPromise,productsPromise]);
+  const products=(productPage.rows||[]).map(product=>({
+    ...product,
+    category_name:product.category?.name||"Menu",
+    images:Array.isArray(product.images)?product.images:[]
+  }));
+  return {categories:categories||[],products,total:productPage.total,limit,offset,hasMore:offset+products.length<productPage.total};
+}
+async function getPublicMenu(options={}) {
+  const normalized={
+    limit:Math.min(36,Math.max(1,Number(options.limit)||PUBLIC_MENU_PAGE_SIZE)),
+    offset:Math.max(0,Number(options.offset)||0),
+    category:String(options.category||""),
+    slug:String(options.slug||""),
+    search:String(options.search||"").trim().slice(0,80)
+  };
+  const key=JSON.stringify(normalized),now=Date.now(),cached=publicMenuCache.get(key);
+  if(cached&&now<cached.expiresAt)return cached.data;
+  const refresh=()=>{
+    if(publicMenuInflight.has(key))return publicMenuInflight.get(key);
+    const task=fetchPublicMenu(normalized).then(data=>{
+      publicMenuCache.set(key,{data,expiresAt:Date.now()+PUBLIC_MENU_TTL_MS,staleUntil:Date.now()+PUBLIC_MENU_STALE_MS});
+      return data;
+    }).finally(()=>publicMenuInflight.delete(key));
+    publicMenuInflight.set(key,task);
+    return task;
+  };
+  if(cached){
+    if(now>=cached.expiresAt)void refresh().catch(error=>console.warn("Stale menu refresh failed:",error.message));
+    return cached.data;
+  }
+  return refresh();
+}
+function invalidatePublicMenu(){publicMenuCache.clear();}
+function publicMenuHeaders(){
+  return {
+    "Cache-Control":"public, max-age=20, stale-while-revalidate=180",
+    "CDN-Cache-Control":"public, s-maxage=60, stale-while-revalidate=300",
+    "Surrogate-Control":"max-age=60, stale-while-revalidate=300"
+  };
+}
+
 async function currentUser(req,res) {
   const saved=unseal(cookies(req)[SESSION_COOKIE]);
   if(!saved?.access_token||!saved?.refresh_token)return null;
@@ -234,16 +318,29 @@ async function api(req,res,url) {
     return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
   if(req.method==="GET"&&route==="/api/catalog"){
     try{
-      const products=await sb("/rest/v1/store_products?select=id,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_available,is_visible&is_available=eq.true&is_visible=eq.true&order=sort_order.asc");
-      const ids=(products||[]).map(product=>product.id);
-      const categoryIds=[...new Set((products||[]).map(product=>product.category_id))];
-      let images=[],categories=[];
-      if(ids.length)images=await sb("/rest/v1/product_images?select=id,product_id,url,public_id,position,alt_text,variants&product_id=in.("+ids.join(",")+")&order=position.asc");
-      if(categoryIds.length)categories=await sb("/rest/v1/store_categories?select=id,name&id=in.("+categoryIds.join(",")+")");
-      const grouped=new Map(),categoryNames=new Map((categories||[]).map(category=>[category.id,category.name]));
-      for(const image of images||[]){if(!grouped.has(image.product_id))grouped.set(image.product_id,[]);grouped.get(image.product_id).push(image);}
-      return sendJson(res,200,{products:(products||[]).map(product=>({...product,category_name:categoryNames.get(product.category_id)||"Menu",images:grouped.get(product.id)||[]}))},{ "Cache-Control":"public, max-age=60, stale-while-revalidate=300" });
-    }catch(e){console.error("Public catalogue:",e.message);return sendJson(res,e.status||502,{error:"The menu could not be loaded."});}
+      const menu=await getPublicMenu({
+        limit:url.searchParams.get("limit")||PUBLIC_MENU_PAGE_SIZE,
+        offset:url.searchParams.get("offset")||0,
+        category:url.searchParams.get("category")||"",
+        slug:url.searchParams.get("slug")||"",
+        search:url.searchParams.get("q")||""
+      });
+      return sendJson(res,200,menu,publicMenuHeaders());
+    }catch(error){
+      console.error("Public catalogue:",error.message);
+      return sendJson(res,error.status||502,{error:"The menu could not be loaded."});
+    }
+  }
+  if(req.method==="POST"&&route==="/api/catalog/invalidate"){
+    const token=String(req.headers.authorization||"").replace(/^Bearer\s+/i,"");
+    if(!token)return sendJson(res,401,{error:"Staff authentication is required."});
+    try{
+      const user=await sb("/auth/v1/user",{access:token});
+      const staff=await sb("/rest/v1/staff_profiles?select=user_id&user_id=eq."+encodeURIComponent(user.id)+"&is_active=eq.true",{access:token});
+      if(!staff?.length)return sendJson(res,403,{error:"Active staff access is required."});
+      invalidatePublicMenu();
+      return sendJson(res,200,{ok:true});
+    }catch(error){return sendJson(res,error.status||401,{error:"The catalogue cache could not be refreshed."});}
   }
   if(req.method==="GET"&&route==="/api/session"){
     if(!configured())return sendJson(res,503,{error:"Customer sign-in is not configured on the server."});
@@ -251,6 +348,32 @@ async function api(req,res,url) {
   }
   if(req.method==="POST"&&route.startsWith("/api/auth/"))return authRoutes(req,res,url);
 
+  if(req.method==="GET"&&route==="/api/profile/cart"){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Sign in to view your saved cart."});
+    try{
+      const rows=await sb("/rest/v1/customer_cart_items?select=product_id,quantity,product:store_products!customer_cart_items_product_id_fkey(id,slug,name,description,price,price_unit,price_unit_label,image_url,image_urls,category:store_categories!store_products_category_id_fkey(name,slug),images:product_images!product_images_product_id_fkey(id,url,position,alt_text,variants))&user_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.asc",{access:current.session.access_token});
+      return sendJson(res,200,{items:(rows||[]).map(row=>({...row.product,quantity:row.quantity,product_id:row.product_id,category_name:row.product?.category?.name||"Menu",images:row.product?.images||[]}))});
+    }catch(error){return sendJson(res,error.status||502,{error:"Your saved cart could not be loaded."});}
+  }
+  if(req.method==="PUT"&&route==="/api/profile/cart"){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Sign in to save your cart list."});
+    const b=await body(req,12000),incoming=Array.isArray(b.items)?b.items:[];
+    if(incoming.length>50)return sendJson(res,400,{error:"Your cart can contain up to 50 different products."});
+    const normalized=new Map();
+    for(const item of incoming){
+      const id=String(item.product_id||item.id||"");
+      const quantity=Number(item.quantity);
+      if(!/^[0-9a-f-]{36}$/i.test(id)||!Number.isInteger(quantity)||quantity<1||quantity>20)return sendJson(res,400,{error:"A cart item is invalid."});
+      normalized.set(id,Math.min(20,(normalized.get(id)||0)+quantity));
+    }
+    try{
+      await sb("/rest/v1/customer_cart_items?user_id=eq."+encodeURIComponent(current.user.id),{method:"DELETE",access:current.session.access_token,headers:{Prefer:"return=minimal"}});
+      if(normalized.size)await sb("/rest/v1/customer_cart_items",{method:"POST",access:current.session.access_token,body:[...normalized].map(([product_id,quantity])=>({user_id:current.user.id,product_id,quantity})),headers:{Prefer:"return=minimal"}});
+      return sendJson(res,200,{ok:true,count:normalized.size});
+    }catch(error){return sendJson(res,error.status||502,{error:"Your saved cart could not be updated."});}
+  }
   if(req.method==="GET"&&route==="/api/profile/favourites"){
     const current=await currentUser(req,res);
     if(!current)return sendJson(res,401,{error:"Please sign in to view favourites."});
@@ -278,81 +401,104 @@ async function api(req,res,url) {
         const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
         return sendJson(res,200,{user:current.user,profile:rows[0]||null});
       }
-      const orders=await sb("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=50",{access:current.session.access_token});
+      const orders=await sb("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=50",{access:current.session.access_token});
       return sendJson(res,200,{orders:orders||[]});
     }catch(e){return sendJson(res,e.status||502,{error:"Your account data could not be loaded."});}
   }
 
   if(req.method==="POST"&&route==="/api/orders"){
-    if(!rateLimit(req,"orders",8))return sendJson(res,429,{error:"Too many order requests. Please try again later."});
+    const b=await body(req,16000);
+    if(!rateLimit(req,"orders-ip",8,900000))return sendJson(res,429,{error:"Too many order requests from this connection. Try again in 15 minutes."});
+    if(String(b.website||b.company_website||"").trim())return sendJson(res,400,{error:"We could not process this request. Please try again."});
+
     const current=await currentUser(req,res);
-    if(!current)return sendJson(res,401,{error:"Sign in before sending an order request."});
-    const b=await body(req),name=String(b.customer_name||current.user.user_metadata?.full_name||"").trim();
-    const phone=phoneNumber(b.customer_phone||current.user.phone),fulfillment=String(b.fulfillment||"pickup");
-    const email=String(b.customer_email||current.user.email||"").trim();
-    if(email&&(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return sendJson(res,400,{error:"Enter a valid email address or leave it blank."});
-    const incoming=Array.isArray(b.items)?b.items:[];
-    if(name.length<2||name.length>120)return sendJson(res,400,{error:"Enter your name before sending the request."});
-    if(!phone)return sendJson(res,400,{error:"Enter a valid contact phone number."});
-    if(!["pickup","delivery","event"].includes(fulfillment))return sendJson(res,400,{error:"Choose a valid fulfilment option."});
-    if(!incoming.length||incoming.length>50)return sendJson(res,400,{error:"Your cart must contain between 1 and 50 items."});
-    const quantities=new Map();
+    const name=String(b.customer_name||current?.user.user_metadata?.full_name||current?.user.user_metadata?.name||"").trim();
+    const phone=phoneNumber(b.customer_phone||current?.user.phone);
+    const email=String(b.customer_email||current?.user.email||"").trim();
+    const fulfillment=String(b.fulfillment||"pickup");
+    const description=String(b.order_description||"").trim();
+    const notes=String(b.notes||"").trim();
+    const location=String(b.delivery_location||"").trim();
+
+    if(name.length<2||name.length>120)return sendJson(res,400,{error:"Enter your name (2–120 characters)."});
+    if(!phone)return sendJson(res,400,{error:"Enter a valid phone number, including the +250 country code."});
+    if(!rateLimitKey("orders-phone:"+phone,5,900000))return sendJson(res,429,{error:"Too many orders have been sent from this phone number. Try again in 15 minutes."});
+    if(email&&(email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)))return sendJson(res,400,{error:"Enter a valid email address or leave it blank."});
+    if(!["pickup","delivery","event"].includes(fulfillment))return sendJson(res,400,{error:"Choose pickup, delivery or event service for this order."});
+    if((fulfillment==="delivery"||fulfillment==="event")&&location.length<3)return sendJson(res,400,{error:"Add the delivery or event location before sending."});
+    if(location.length>180||description.length>5000||notes.length>3000)return sendJson(res,400,{error:"One of your order details is too long. Shorten it and try again."});
+
+    const date=b.requested_date?String(b.requested_date):null;
+    const time=b.requested_time?String(b.requested_time):null;
+    if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid preferred date."});
+    if(time&&!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))return sendJson(res,400,{error:"Choose a valid preferred time."});
+
+    const incoming=Array.isArray(b.items)?b.items:(b.product_slug?[{slug:b.product_slug,quantity:b.quantity||1}]:[]);
+    if(!incoming.length||incoming.length>50)return sendJson(res,400,{error:"Choose at least one menu item before sending your order."});
+    const normalizedItems=[];
     for(const item of incoming){
-      const id=String(item.product_id||""),qty=Number(item.quantity);
-      if(!/^[0-9a-f-]{36}$/i.test(id)||!Number.isInteger(qty)||qty<1||qty>20)return sendJson(res,400,{error:"A cart item is invalid. Refresh the menu and try again."});
-      quantities.set(id,Math.min(20,(quantities.get(id)||0)+qty));
+      const quantity=Number(item.quantity||1);
+      const id=String(item.product_id||item.id||"");
+      const slug=String(item.slug||item.product_slug||"").trim().slice(0,160);
+      if(!Number.isInteger(quantity)||quantity<1||quantity>20)return sendJson(res,400,{error:"Each product quantity must be between 1 and 20."});
+      if(id&&/^[0-9a-f-]{36}$/i.test(id))normalizedItems.push({product_id:id,quantity});
+      else if(slug&&/^[a-z0-9-]+$/i.test(slug))normalizedItems.push({slug,quantity});
+      else return sendJson(res,400,{error:"A selected product is invalid. Refresh the menu and try again."});
     }
-    const ids=[...quantities.keys()];
     try{
-      const products=await sb("/rest/v1/store_products?select=id,category_id,name,price,price_unit,price_unit_label&is_available=eq.true&is_visible=eq.true&id=in.("+ids.join(",")+")",{access:current.session.access_token});
-      if(products.length!==ids.length)return sendJson(res,400,{error:"Some items are no longer available. Review your cart."});
-      const catIds=[...new Set(products.map(p=>p.category_id))];
-      const cats=await sb("/rest/v1/store_categories?select=id,name&id=in.("+catIds.join(",")+")",{access:current.session.access_token});
-      const names=new Map(cats.map(c=>[c.id,c.name]));
-      let priced=true,total=0;
-      const clean=products.map(p=>{
-        const qty=quantities.get(p.id),price=p.price==null?null:Number(p.price);
-        if(!Number.isFinite(price))priced=false;else total+=price*qty;
-        return {product_id:p.id,name:p.name,category:names.get(p.category_id)||"Menu",quantity:qty,price_unit:p.price_unit||"unit",price_unit_label:p.price_unit_label||p.price_unit||"unit",unit_price:price,line_total:price==null?null:price*qty};
-      });
-      const date=b.requested_date?String(b.requested_date):null;
-      if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid requested date."});
-      const order={
-        customer_id:current.user.id,customer_name:name,customer_phone:phone,customer_email:email||null,
-        fulfillment,requested_date:date,requested_time:b.requested_time?String(b.requested_time).slice(0,5):null,
-        delivery_location:b.delivery_location?String(b.delivery_location).trim().slice(0,180):null,
-        notes:b.notes?String(b.notes).trim().slice(0,3000):null,
-        items:clean,estimated_total:priced?total:null,price_needs_confirmation:!priced
+      const headers={
+        apikey:SUPABASE_KEY,
+        "Content-Type":"application/json",
+        ...(current?.session?.access_token?{Authorization:"Bearer "+current.session.access_token}:{})
       };
-      const rows=await sb("/rest/v1/store_orders?select=id,order_number,estimated_total,created_at",{method:"POST",access:current.session.access_token,body:order,headers:{Prefer:"return=representation"}});
-      const saved=rows[0];
-      if(saved?.id){
-        try{
-          await fetch(SUPABASE_URL+"/functions/v1/send-order-push",{
-            method:"POST",headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+current.session.access_token,"Content-Type":"application/json"},
-            body:JSON.stringify({order_id:saved.id})
-          });
-        }catch(e){console.warn("Order saved; staff notification failed:",e.message);}
+      const response=await fetch(SUPABASE_URL+"/functions/v1/submit-store-order",{
+        method:"POST",
+        headers,
+        body:JSON.stringify({
+          customer_name:name,
+          customer_phone:phone,
+          customer_email:email||null,
+          fulfillment,
+          requested_date:date,
+          requested_time:time,
+          delivery_location:location||null,
+          order_description:description||null,
+          notes:notes||null,
+          website:String(b.website||b.company_website||""),
+          items:normalizedItems
+        })
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok){
+        const status=[400,401,403,413,429].includes(response.status)?response.status:502;
+        return sendJson(res,status,{error:result.error||"We could not save your order just now. Please try again."});
       }
-      return sendJson(res,201,{order:saved});
-    }catch(e){
-      console.error("Order request:",e.status||502,e.message);
-      const status=e.status&&e.status<500?e.status:502;
-      const cause=String(e.message||"The order database rejected the request.").replace(/[\r\n]+/g," ").slice(0,240);
-      const suggestion=status===400?"Check the customer details and make sure every cart item is still available.":status===401?"Sign in again, then submit the order once more.":status===403?"Your account does not have permission to submit this request. Contact Step Town support.":status===429?"Wait 15 minutes before sending another order request.":status===502?"The order service could not complete its database request. Retry shortly; if it persists, staff should inspect the Supabase database logs.":"Check the form details and retry. If the problem continues, contact Step Town with this error.";
-      return sendJson(res,status,{error:"Order request failed: "+cause,suggestion,code:e.code||null});
+      return sendJson(res,201,{
+        ok:true,
+        order:result.order||null,
+        alert_queued:Boolean(result.alert_queued)
+      });
+    }catch(error){
+      console.error("Order request:",error.status||502,error.message);
+      const status=error.status&&error.status<500?error.status:502;
+      const message=status===400?"Some order details were invalid. Check the form and try again.":status===403?"The order service could not accept this request. Refresh the page and retry.":status===429?"Too many requests. Wait before sending another order.":"We could not save your order just now. Please retry or contact Step Town on WhatsApp.";
+      return sendJson(res,status,{error:message});
     }
   }
   return sendJson(res,404,{error:"API endpoint not found."});
 }
 function pageTitle(pathname){
-  const titles={"/":"Food · Celebrations · Cakes","/categories":"Categories","/gallery":"Gallery","/cart":"Cart","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
-  if(pathname.startsWith("/categories/"))return "Menu category";
+  const titles={"/":"Food · Celebrations · Cakes","/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
+  if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
+  if(pathname.startsWith("/categories/")){
+    const slug=pathname.split("/").filter(Boolean).at(-1);
+    if(slug==="cake")return CAKE_CATEGORY_LABEL;
+    return "Menu category";
+  }
   if(pathname.startsWith("/staff"))return "Staff workspace";
   return titles[pathname]||"Food · Celebrations · Cakes";
 }
-// Keep staff URLs on their own HTML entry instead of falling through to the storefront.
-async function staticPage(res,pathname){
+async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   const decoded=decodeURIComponent(pathname);
   const staffRoute=decoded==="/staff"||decoded.startsWith("/staff/");
   let file=staffRoute?path.join(DIST,"staff.html"):(decoded==="/" ? path.join(DIST,"index.html") : path.resolve(DIST,"."+decoded));
@@ -360,8 +506,6 @@ async function staticPage(res,pathname){
   const requestedExt=path.extname(file).toLowerCase();
   try{const stat=await fs.stat(file);if(stat.isDirectory())file=path.join(file,"index.html");}
   catch{
-    // Never turn a missing script, stylesheet, manifest or image into index.html.
-    // That fallback caused /sw.js to be served as text/html, which Chrome rejects.
     if(staffRoute){file=path.join(DIST,"staff.html");}
     else if(decoded==="/"||requestedExt===".html"||!requestedExt){file=path.join(DIST,"index.html");}
     else return sendJson(res,404,{error:"Static asset not found."});
@@ -370,21 +514,52 @@ async function staticPage(res,pathname){
   try{data=await fs.readFile(file);}
   catch{return sendJson(res,staffRoute?503:404,{error:staffRoute?"The staff workspace is building. Refresh shortly.":"Static asset not found."});}
   const ext=path.extname(file).toLowerCase();
-  const headers={"Content-Type":MIME[ext]||"application/octet-stream","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin","X-Frame-Options":"SAMEORIGIN","Cache-Control":ext===".html"?"no-store":"public, max-age=3600"};
+  const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/")||decoded==="/cart");
   if(ext===".html"&&path.basename(file)==="index.html"){
-    data=Buffer.from(data.toString("utf8").replace(/<title>[\s\S]*?<\/title>/i,"<title>Step Town | "+pageTitle(pathname)+"</title>"));
+    let html=data.toString("utf8").replace(/<title>[\\s\\S]*?<\\/title>/i,"<title>Step Town | "+pageTitle(pathname)+"</title>");
+    if(menuPage){
+      try{
+        const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
+        const productSlug=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
+        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:productSlug});
+        const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
+          .replace(/</g,"\\u003c")
+          .replace(/\u2028/g,"\\u2028")
+          .replace(/\u2029/g,"\\u2029");
+        const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
+        // Inject before </head> so this works with Vite's hashed production bundle
+        // as well as the development /src/main.js entry.
+        html=html.replace(/<\/head>/i,initial+'</head>');
+      }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
+    }
+    data=Buffer.from(html);
   }
+  const headers={
+    "Content-Type":MIME[ext]||"application/octet-stream",
+    "X-Content-Type-Options":"nosniff",
+    "Referrer-Policy":"strict-origin-when-cross-origin",
+    "X-Frame-Options":"SAMEORIGIN",
+    "Cache-Control":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
+    ...(menuPage&&ext===".html"?{"CDN-Cache-Control":"public, s-maxage=30, stale-while-revalidate=240"}:{})
+  };
   res.writeHead(200,headers);res.end(data);
 }
 async function handle(req,res){
-  const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname);
+  const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname).replace(/\/+$/,"")||"/";
   if(req.method==="GET"&&route==="/api/auth/google")return oauthStart(req,res,url);
   if(req.method==="GET"&&route==="/auth/callback")return oauthCallback(req,res,url);
+  if(req.method==="GET"&&route==="/categories/wedding-cakes"){
+    res.writeHead(301,{Location:"/categories/cake","Cache-Control":"public, max-age=31536000, immutable"}).end();return;
+  }
+  if(req.method==="GET"&&route.startsWith("/product/")){
+    const slug=route.split("/").filter(Boolean).at(-1);
+    res.writeHead(301,{Location:"/cart?product="+encodeURIComponent(slug),"Cache-Control":"public, max-age=31536000, immutable"}).end();return;
+  }
   if(route.startsWith("/api/")){
     try{return await api(req,res,url);}
     catch(e){console.error("API:",e);return sendJson(res,e.status||500,{error:e.status===413?e.message:"The request could not be completed."});}
   }
-  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders"||route==="/cart")){
+  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders"||(route==="/cart"&&!url.searchParams.get("product")))){
     const current=await currentUser(req,res);
     if(!current){appendCookie(res,clearCookie(SESSION_COOKIE,req,true));res.writeHead(303,{Location:"/login?next="+encodeURIComponent(route+url.search),"Cache-Control":"no-store"});return res.end();}
   }
@@ -393,7 +568,7 @@ async function handle(req,res){
     if(current){res.writeHead(303,{Location:"/profile","Cache-Control":"no-store"});return res.end();}
   }
   if(req.method!=="GET"&&req.method!=="HEAD")return sendJson(res,405,{error:"Method not allowed."});
-  return staticPage(res,route);
+  return staticPage(res,route,url);
 }
 if(PROD&&!KEY)console.warn("SESSION_SECRET is missing: customer login remains disabled until configured.");
 const server=http.createServer((req,res)=>{res.setHeader("X-Content-Type-Options","nosniff");res.setHeader("Referrer-Policy","strict-origin-when-cross-origin");res.setHeader("X-Frame-Options","SAMEORIGIN");void handle(req,res).catch(e=>{console.error("Unhandled request:",e);if(!res.headersSent)sendJson(res,500,{error:"Unexpected server error."});else res.end();});});

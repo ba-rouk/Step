@@ -1,6 +1,6 @@
-# Step Town — Catering, Barbecue & Wedding Cakes
+# Step Town — Catering, Barbecue & Cake
 
-Responsive Vite website for Step Town Catering and Wedding Cakes in Rwanda.
+Responsive Vite website for Step Town Catering and Cake in Rwanda.
 
 ## Stack
 - Vite 7
@@ -49,7 +49,7 @@ Migrations `create_step_town_enquiries` and `allow_public_enquiry_insert` create
 The enquiry form validates required fields, saves the enquiry to Supabase, then offers an optional WhatsApp continuation. A successful database insert is confirmed before the success message appears.
 
 ## Business details
-- Step Town Catering and Wedding Cakes
+- Step Town Catering and Cake
 - Runda, Rwanda
 - +250 780 382 589
 - WhatsApp: https://wa.me/250780382589
@@ -62,7 +62,7 @@ The gallery currently uses illustrative preview photographs, not verified Step T
 
 ## Online menu and orders
 - The storefront reads active categories from `public.store_categories` and available menu items from `public.store_products`.
-- Add and manage real Step Town dishes, packages, cake designs and prices in the Supabase Table Editor. Categories are pre-created: Catering, Barbecue and Wedding cakes.
+- Add and manage real Step Town dishes, packages, cake designs and prices in the Supabase Table Editor. Categories are pre-created: Catering, Barbecue and Cake.
 - The shopping bag is stored in the visitor's browser. Checkout writes order requests to `public.store_orders`; public visitors can submit requests but cannot read, change or delete customer orders.
 - Orders are requests, not online payments or confirmed bookings. Step Town confirms availability and final prices directly, including any items whose price is left blank.
 

@@ -632,3 +632,46 @@ body.route-category-detail .product-grid,
   padding-top: 0 !important;
 }
 .product-detail-add { display: none !important; }
+
+
+/* Full-width, centred price divider. The 8px margin and padding keep equal
+   breathing room on either side without changing the 70/30 card proportions. */
+.product-card-copy { min-width:0; }
+.product-card-bottom {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  width:100%;
+  min-width:0;
+  min-height:34px;
+  margin:8px 0 0;
+  padding:8px 0 0;
+  overflow:visible;
+  border:0;
+  border-top:1px solid rgba(255,255,255,.2);
+  box-sizing:border-box;
+}
+.product-card-bottom .product-price-link {
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow:visible;
+  white-space:nowrap;
+}
+.product-card-bottom > strong,
+.product-card-bottom .product-price {
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  overflow:visible;
+  white-space:nowrap;
+  text-overflow:clip;
+  line-height:1.25;
+}
+@media (max-width:430px) {
+  .product-card-copy { padding-inline:12px; }
+  .product-card-bottom { gap:0; }
+  .product-card-bottom .product-price { font-size:clamp(11px,3vw,13px); }
+}

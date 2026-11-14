@@ -1,3 +1,4 @@
+import { normalizeCategoryLabel } from "./catalog-config.js";
 import { supabase, supabaseConfigured } from "./supabase.js";
 import "../staff.css";
 
@@ -41,13 +42,13 @@ let profileGuardChannel = null;
 let teamCache = [];
 let toastTimer;
 
-function notify(message, type = "success") {
+function notify(message, type = "success", duration = 3600) {
   const node = $("#staff-toast");
   if (!node) return;
   node.textContent = message;
   node.className = "staff-toast is-visible " + type;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => node.classList.remove("is-visible"), 3600);
+  toastTimer = setTimeout(() => node.classList.remove("is-visible"), duration);
 }
 function panelError(error) {
   return '<div class="staff-alert" role="alert">' + esc(error?.message || "This information could not be loaded. Refresh and try again.") + "</div>";
@@ -68,6 +69,28 @@ async function writeAudit(action, entityType, entityId = null, details = {}) {
     details
   });
   if (error) console.warn("Audit entry was not saved:", error.message);
+}
+async function invalidatePublicCatalog() {
+  try {
+    const csrfResponse = await fetch("/api/csrf", { credentials:"same-origin", cache:"no-store" });
+    const csrf = await csrfResponse.json().catch(() => ({}));
+    if (!csrfResponse.ok || !csrf.csrfToken) throw new Error("Catalogue cache token unavailable.");
+    const { data:{ session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const response = await fetch("/api/catalog/invalidate", {
+      method:"POST",
+      credentials:"same-origin",
+      headers:{
+        "Content-Type":"application/json",
+        "X-CSRF-Token":csrf.csrfToken,
+        Authorization:"Bearer "+session.access_token
+      },
+      body:"{}"
+    });
+    if (!response.ok) throw new Error("Catalogue cache invalidation failed.");
+  } catch (error) {
+    console.warn("The public catalogue cache will expire naturally:", error.message);
+  }
 }
 function downloadCsv(filename, rows) {
   const csv = rows.map(row => row.map(value => '"' + String(value ?? "").replace(/"/g, '""') + '"').join(",")).join("\r\n");
@@ -164,127 +187,121 @@ function shell(title, body, subtitle = "") {
     const button = $("#staff-logout");
     if (button) { button.disabled = true; button.textContent = "Signing out…"; }
     try {
-      // Keep the device's push subscription intact; clearing auth is the only
-      // required sign-out work and avoids several slow network operations.
+      await removeDeviceAlertsForSignout();
       await supabase.auth.signOut({ scope: "local" });
-    } finally {
       location.replace("/staff/login");
+    } catch (error) {
+      if (button) { button.disabled = false; button.textContent = "Sign out"; }
+      notify("Could not safely sign out this device. Please try again.", "error");
+      console.warn("Staff push cleanup before sign-out failed:", error);
     }
   });
   renderAlertControl();
 }
-async function renderAlertControl() {
-  const host = $("#staff-alert-area");
-  if (!host) return;
-  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  if (!supported) {
-    host.innerHTML = '<p class="staff-alert-hint">Push alerts are not supported in this browser. On iPhone, install this site to your Home Screen and open it there first.</p>';
-    return;
+async function getOrCreateStaffPushSubscription() {
+  const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+  if (!publicKey) throw new Error("Push notifications are not configured on this site.");
+  const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: decodeVapidKey(publicKey)
+    });
   }
-  if (Notification.permission === "denied") {
-    host.innerHTML = '<button class="staff-alert-button is-blocked" type="button" id="staff-alert-help"><span class="staff-alert-dot"></span><span>Alerts blocked · How to allow</span></button>';
-    $("#staff-alert-help")?.addEventListener("click", () => notify("In Chrome, open the site controls beside the address, choose Permissions → Notifications → Allow, then reload Step Town.", "warning"));
-    return;
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) throw new Error("Chrome returned an incomplete push subscription.");
+  const { data: existing, error: lookupError } = await supabase.from("push_subscriptions")
+    .select("id")
+    .eq("user_id", profile.user_id)
+    .eq("endpoint", json.endpoint)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (!existing) {
+    const { error } = await supabase.from("push_subscriptions").upsert({
+      user_id: profile.user_id,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth_key: json.keys.auth,
+      user_agent: navigator.userAgent,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "endpoint" });
+    if (error) throw error;
+    await writeAudit("push_alerts_enabled", "push_subscription", null, { user_agent: navigator.userAgent });
   }
-  try {
-    const registration = await navigator.serviceWorker.getRegistration("/");
-    const subscription = await registration?.pushManager.getSubscription();
-    if (subscription) {
-      host.innerHTML = '<span class="staff-alert-state is-on"><span class="staff-alert-dot"></span>Alerts on</span><button class="staff-alert-test" type="button" id="staff-alert-test">Send test alert</button><button class="staff-alert-button" type="button" id="staff-alert-off">Turn off alerts on this device</button>';
-      $("#staff-alert-off")?.addEventListener("click", disableAlerts);
-      $("#staff-alert-test")?.addEventListener("click", sendTestAlert);
-    } else {
-      host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on"><span class="staff-alert-dot"></span><span>Enable alerts</span></button>';
-      $("#staff-alert-on")?.addEventListener("click", enableAlerts);
-    }
-  } catch (error) {
-    host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on">Enable alerts</button>';
-    $("#staff-alert-on")?.addEventListener("click", enableAlerts);
-  }
+  return subscription;
 }
 function decodeVapidKey(value) {
   const padded = value + "=".repeat((4 - value.length % 4) % 4);
   const raw = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from(raw, char => char.charCodeAt(0));
 }
-function showAlertsEnabledPopup() {
-  document.querySelector("#staff-alert-enabled-dialog")?.remove();
-  const dialog = document.createElement("div");
-  dialog.id = "staff-alert-enabled-dialog";
-  dialog.className = "staff-alert-dialog-backdrop";
-  dialog.innerHTML = '<section class="staff-alert-dialog" role="dialog" aria-modal="true" aria-labelledby="staff-alert-enabled-title"><button type="button" class="staff-alert-dialog-close" aria-label="Close">×</button><p class="staff-eyebrow">DEVICE READY</p><h2 id="staff-alert-enabled-title">Alerts enabled on this device</h2><p>Step Town can now notify you when a customer places an order.</p><button type="button" class="staff-primary" id="staff-alert-dialog-test">Send test alert</button></section>';
-  document.body.append(dialog);
-  dialog.querySelector(".staff-alert-dialog-close").addEventListener("click", () => dialog.remove());
-  dialog.addEventListener("click", event => { if (event.target === dialog) dialog.remove(); });
-  dialog.querySelector("#staff-alert-dialog-test").addEventListener("click", async () => {
-    dialog.remove();
-    await sendTestAlert();
-  });
+async function renderAlertControl() {
+  const host = $("#staff-alert-area");
+  if (!host) return;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    const note = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+      ? "Install the site to your home screen first"
+      : "Push alerts are not supported in this browser";
+    host.innerHTML = '<p class="staff-alert-hint" role="note">' + esc(note) + '</p>';
+    return;
+  }
+  if (Notification.permission === "denied") {
+    host.innerHTML = '<p class="staff-alert-hint" role="note">Alerts blocked. Allow notifications for this site in Chrome settings</p>';
+    return;
+  }
+  if (Notification.permission === "default") {
+    host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on"><span class="staff-alert-dot"></span><span>Enable alerts</span></button>';
+    $("#staff-alert-on")?.addEventListener("click", () => { void enableAlerts(); });
+    return;
+  }
+  // Permission is already granted: reconcile the real browser subscription with
+  // the current signed-in staff user before showing the static status.
+  host.innerHTML = "";
+  try {
+    await getOrCreateStaffPushSubscription();
+    host.innerHTML = '<span class="staff-alert-state is-on" role="status" aria-live="polite"><span class="staff-alert-dot"></span>Alerts on</span>';
+  } catch (error) {
+    console.warn("Staff alerts could not be restored automatically:", error);
+    host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on"><span class="staff-alert-dot"></span><span>Enable alerts</span></button>';
+    $("#staff-alert-on")?.addEventListener("click", () => { void enableAlerts(); });
+  }
 }
 async function enableAlerts() {
-  if (!("Notification" in window)) { notify("This browser does not support web notifications. On iPhone, install Step Town to your Home Screen first.", "warning"); return; }
-  // Keep this as the first asynchronous operation in the real tap handler.
-  // Chrome will not show its native permission prompt if this is deferred.
+  // This is intentionally the first operation in the direct tap handler:
+  // Chrome must see Notification.requestPermission() during the user gesture.
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
     await renderAlertControl();
-    notify(permission === "denied" ? "Alerts are blocked. Allow notifications in Chrome site settings." : "Notification permission was not granted.", "warning");
+    if (permission === "denied") notify("Alerts blocked. Allow notifications for this site in Chrome settings", "warning", 2000);
     return;
   }
-  const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-  if (!publicKey) { notify("Push notifications are not configured on the site.", "warning"); return; }
   try {
-    const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: decodeVapidKey(publicKey)
-    });
-    const json = subscription.toJSON();
-    const { error } = await supabase.from("push_subscriptions").upsert({
-      user_id: profile.user_id,
-      endpoint: json.endpoint,
-      p256dh: json.keys?.p256dh,
-      auth_key: json.keys?.auth,
-      user_agent: navigator.userAgent,
-      updated_at: new Date().toISOString()
-    }, { onConflict: "endpoint" });
-    if (error) throw error;
-    await writeAudit("push_alerts_enabled", "push_subscription", null, { user_agent: navigator.userAgent });
+    await getOrCreateStaffPushSubscription();
     await renderAlertControl();
-    showAlertsEnabledPopup();
+    notify("Alerts are on", "success", 2000);
   } catch (error) {
-    console.error(error);
-    notify("Could not enable alerts: " + error.message, "error");
-  }
-}
-async function disableAlerts(options = {}) {
-  try {
-    const registration = await navigator.serviceWorker.getRegistration("/");
-    const subscription = await registration?.pushManager.getSubscription();
-    if (subscription) {
-      const endpoint = subscription.endpoint;
-      await supabase.from("push_subscriptions").delete().eq("user_id", profile.user_id).eq("endpoint", endpoint);
-      await subscription.unsubscribe();
+    console.error("Could not enable staff push alerts:", error);
+    const host = $("#staff-alert-area");
+    if (host) {
+      host.innerHTML = '<button class="staff-alert-button" type="button" id="staff-alert-on"><span class="staff-alert-dot"></span><span>Enable alerts</span></button>';
+      $("#staff-alert-on")?.addEventListener("click", () => { void enableAlerts(); });
     }
-    await writeAudit("push_alerts_disabled", "push_subscription");
-    await renderAlertControl();
-    if (!options.quiet) notify("Alerts are turned off on this device.");
-  } catch (error) {
-    if (!options.quiet) notify("Could not turn alerts off: " + error.message, "error");
+    notify("Could not enable alerts. Please try again.", "error", 2500);
   }
 }
-async function sendTestAlert() {
-  const button = $("#staff-alert-test");
-  if (button) { button.disabled = true; button.textContent = "Sending…"; }
-  try {
-    const { data, error } = await supabase.functions.invoke("send-staff-test-push", { body: {} });
-    if (error || !data?.ok) throw error || new Error(data?.error || "Test alert could not be sent.");
-    notify("Test alert sent to this device.");
-  } catch (error) {
-    notify("Test alert failed: " + error.message, "error");
-  } finally {
-    await renderAlertControl();
-  }
+async function removeDeviceAlertsForSignout() {
+  if (!("serviceWorker" in navigator) || !profile?.user_id) return;
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return;
+  const { error } = await supabase.from("push_subscriptions")
+    .delete()
+    .eq("user_id", profile.user_id)
+    .eq("endpoint", subscription.endpoint);
+  if (error) throw error;
+  await subscription.unsubscribe();
+  await writeAudit("push_alerts_removed_on_signout", "push_subscription");
 }
 async function getProfile() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -505,6 +522,7 @@ async function orderDetailPage(id) {
       "<h3>Items ordered</h3><div class=\"staff-items\">" + items.map(item =>
         "<p><b>" + Number(item.quantity || 1) + " × " + esc(item.name) + "</b><span>" + money(item.line_total) + "</span></p>"
       ).join("") + "</div>" +
+      (order.order_description ? '<div class="staff-notes"><p class="staff-eyebrow">DESCRIBE YOUR ORDER</p>' + esc(order.order_description) + "</div>" : "") +
       '<p class="staff-notes">' + esc(order.notes || "No additional customer notes.") + "</p>" +
       (order.cancellation_reason ? '<p class="staff-cancel-reason"><b>Cancellation reason:</b> ' + esc(order.cancellation_reason) + "</p>" : "") +
     "</section>" +
@@ -774,7 +792,7 @@ async function productsPage() {
     shell(title,
       '<section class="staff-panel"><form id="product-form" class="staff-form-grid">' +
         '<label>Product name<input name="name" maxlength="120" required value="' + esc(product?.name || "") + '"></label>' +
-        '<label>Category<select name="category_id" required>' + categories.map(category => '<option value="' + category.id + '" ' + (product?.category_id === category.id ? "selected" : "") + ">" + esc(category.name) + "</option>").join("") + "</select></label>" +
+        '<label>Category<select name="category_id" required>' + categories.map(category => '<option value="' + category.id + '" ' + (product?.category_id === category.id ? "selected" : "") + ">" + esc(normalizeCategoryLabel(category.name)) + "</option>").join("") + "</select></label>" +
         '<label>Price (RWF)<input name="price" type="number" min="0" step="1" value="' + (product?.price ?? "") + '" placeholder="Leave blank for quote"></label>' +
         '<label id="price-unit-wrap" hidden>Price measured per<select name="price_unit"><option value="unit">Each / unit</option><option value="kg">Kilogram (kg)</option><option value="g">Gram (g)</option><option value="litre">Litre</option><option value="dozen">Dozen</option><option value="serving">Serving</option><option value="tray">Tray</option><option value="other">Other measure</option></select></label><label id="price-unit-custom-wrap" hidden>Custom measure<input name="price_unit_label" maxlength="24" value="' + esc(product?.price_unit_label || "") + '" placeholder="e.g. tray, metre"></label>' +
         '<label>Stock quantity<input name="stock_quantity" type="number" min="0" step="1" value="' + (product?.stock_quantity ?? "") + '" placeholder="Blank means not tracked"></label>' +
@@ -924,6 +942,7 @@ async function productsPage() {
         }
         await writeAudit("product_gallery_changed","store_product",savedId,{image_count:orderedImages.length,removed_count:removed.length});
         await writeAudit(isEdit?"product_updated":"product_created","store_product",savedId,{name:payload.name});
+        await invalidatePublicCatalog();
         location.assign("/staff/products");
       } catch (error) {
         $("#product-message").textContent = error.message || "Product could not be saved.";
@@ -935,18 +954,18 @@ async function productsPage() {
   }
   shell("Products",
     '<section class="staff-panel"><div class="staff-panel-head"><div><p class="staff-eyebrow">PUBLIC MENU</p><h2>Menu catalogue</h2></div><a class="staff-primary" href="/staff/products/new">Add product</a></div>' +
-      '<div class="staff-filters"><label>Search products<input id="product-search" type="search" placeholder="Product name"></label><label>Category<select id="product-category-filter"><option value="all">All categories</option>' + categories.map(category => '<option value="' + category.id + '">' + esc(category.name) + '</option>').join("") + '</select></label></div><div id="products-table"></div></section>');
+      '<div class="staff-filters"><label>Search products<input id="product-search" type="search" placeholder="Product name"></label><label>Category<select id="product-category-filter"><option value="all">All categories</option>' + categories.map(category => '<option value="' + category.id + '">' + esc(normalizeCategoryLabel(category.name)) + '</option>').join("") + '</select></label></div><div id="products-table"></div></section>');
   const render = () => {
     const term = ($("#product-search").value || "").toLowerCase();
     const categoryId = $("#product-category-filter").value;
     const visible = products.filter(item =>
       (categoryId === "all" || item.category_id === categoryId) &&
-      (item.name + " " + (item.store_categories?.name || "")).toLowerCase().includes(term)
+      (item.name + " " + normalizeCategoryLabel(item.store_categories?.name || "")).toLowerCase().includes(term)
     );
     $("#products-table").innerHTML = visible.length ?
       '<div class="staff-table-wrap"><table><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Menu status</th><th>Actions</th></tr></thead><tbody>' +
       visible.map(item =>
-        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(item.store_categories?.name || "—") + "</td><td>" + money(item.price) + (item.price != null && item.price_unit && item.price_unit !== "unit" ? " per " + esc(item.price_unit_label || item.price_unit) : "") + "</td>" +
+        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(normalizeCategoryLabel(item.store_categories?.name || "—")) + "</td><td>" + money(item.price) + (item.price != null && item.price_unit && item.price_unit !== "unit" ? " per " + esc(item.price_unit_label || item.price_unit) : "") + "</td>" +
         "<td>" + (item.stock_quantity == null ? (item.has_stock ? "In stock" : "Sold out") : item.stock_quantity) + "</td>" +
         "<td>" + ((item.is_visible && item.is_available && item.has_stock) ? "Published" : "Hidden / unavailable") + "</td>" +
         '<td><details class="staff-action-menu"><summary aria-label="Product actions">•••</summary><div class="staff-action-menu-pop"><a href="/staff/products/' + item.id + '/edit">Edit</a><button type="button" data-product-stock="' + item.id + '">' + (item.has_stock ? "Mark as sold" : "Mark in stock") + '</button><button type="button" data-product-visibility="' + item.id + '">' + (item.is_visible ? "Hide" : "Publish") + '</button><button type="button" data-product-delete="' + item.id + '">Delete</button></div></details></td></tr>'
@@ -956,21 +975,21 @@ async function productsPage() {
       const hasStock = !item.has_stock;
       const { error } = await supabase.from("store_products").update({ has_stock: hasStock, updated_by: profile.user_id, updated_at: new Date().toISOString() }).eq("id", item.id);
       if (error) notify(error.message, "error");
-      else { await writeAudit("product_stock_changed", "store_product", item.id, { has_stock: hasStock }); notify("Stock status updated."); await productsPage(); }
+      else { await writeAudit("product_stock_changed", "store_product", item.id, { has_stock: hasStock }); await invalidatePublicCatalog(); notify("Stock status updated."); await productsPage(); }
     }));
     $$("[data-product-visibility]").forEach(button => button.addEventListener("click", async () => {
       const item = products.find(row => row.id === button.dataset.productVisibility);
       const isVisible = !item.is_visible;
       const { error } = await supabase.from("store_products").update({ is_visible: isVisible, updated_by: profile.user_id, updated_at: new Date().toISOString() }).eq("id", item.id);
       if (error) notify(error.message, "error");
-      else { await writeAudit("product_visibility_changed", "store_product", item.id, { is_visible: isVisible }); notify("Menu visibility updated."); await productsPage(); }
+      else { await writeAudit("product_visibility_changed", "store_product", item.id, { is_visible: isVisible }); await invalidatePublicCatalog(); notify("Menu visibility updated."); await productsPage(); }
     }));
     $$("[data-product-delete]").forEach(button => button.addEventListener("click", async () => {
       if (!confirm("Permanently delete this menu item?")) return;
       const id = button.dataset.productDelete;
       const { error } = await supabase.from("store_products").delete().eq("id", id);
       if (error) notify(error.message, "error");
-      else { await writeAudit("product_deleted", "store_product", id, {}); notify("Product deleted."); await productsPage(); }
+      else { await writeAudit("product_deleted", "store_product", id, {}); await invalidatePublicCatalog(); notify("Product deleted."); await productsPage(); }
     }));
   };
   $("#product-search").addEventListener("input", render);
@@ -1225,7 +1244,7 @@ async function reportsPage() {
         const name = String(item.name || "Item");
         const quantity = Number(item.quantity || 0);
         sellers[name] = (sellers[name] || 0) + quantity;
-        const category = String(item.category || "Other");
+        const category = normalizeCategoryLabel(item.category || "Other");
         categories[category] = (categories[category] || 0) + Number(item.line_total || 0);
       }));
       const dayKeys = [];

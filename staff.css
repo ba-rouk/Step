@@ -578,3 +578,27 @@ body.staff-page-body {
   .staff-gallery-lightbox-prev { left:7px; }
   .staff-gallery-lightbox-next { right:7px; }
 }
+
+
+/* Alerts on is a static status pill with the same footprint as Enable alerts. */
+.staff-alert-state {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  width:100%;
+  min-height:34px;
+  padding:8px 10px;
+  box-sizing:border-box;
+  border:1px solid rgba(95,205,139,.28);
+  border-radius:10px;
+  color:#d8f0df;
+  background:rgba(44,130,82,.13);
+  font:600 11px/1.2 var(--font-sans,Inter,sans-serif);
+}
+.staff-alert-state .staff-alert-dot { background:#55d48a; box-shadow:0 0 9px rgba(85,212,138,.45); }
+.staff-alert-hint {
+  margin:4px 2px;
+  color:#e9c6a5;
+  font-size:10px;
+  line-height:1.5;
+}
