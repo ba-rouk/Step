@@ -76,6 +76,11 @@ async function saveAccountCart() {
 }
 async function loadProduct(reference) {
   if(!reference)return null;
+  const serverResolved=document.querySelector("#step-cart-product-data");
+  if(serverResolved){
+    try{const item=JSON.parse(serverResolved.textContent||"null");if(item&&item.id)return normalize({...item,quantity:1});}
+    catch(error){console.warn("Server-rendered cart product data was invalid:",error);}
+  }
   const embedded=document.querySelector("#step-menu-initial-data");
   if(embedded){try{const data=JSON.parse(embedded.textContent||"{}");const item=(data.products||[]).find(p=>String(p.slug||"")===reference||String(p.id)===reference);if(item)return normalize({...item,quantity:1});}catch{}}
   const isId=/^[0-9a-f-]{36}$/i.test(reference);
