@@ -479,15 +479,16 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
   }
 
   async function syncAccountCart() {
-    if (!cartRoute) return;
     try {
       const sessionResponse = await fetch("/api/session", { credentials: "same-origin", cache: "no-store" });
       const session = await sessionResponse.json().catch(() => ({}));
       menuAuthenticated = Boolean(session.authenticated);
       const lock = document.querySelector("#cart-list-lock");
       const list = document.querySelector("#cart-list-section");
-      if (lock) lock.hidden = menuAuthenticated;
-      if (list) list.hidden = !menuAuthenticated;
+      if (cartRoute) {
+        if (lock) lock.hidden = menuAuthenticated;
+        if (list) list.hidden = !menuAuthenticated;
+      }
       if (menuAuthenticated) {
         const profileResponse = await apiFetch("/api/profile");
         const profile = await profileResponse.json().catch(() => ({}));
@@ -680,9 +681,9 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
   } else {
     loadCatalog({ quiet: hasInitialMenu });
   }
+  void syncAccountCart();
   if (cartRoute) {
     openCart();
-    void syncAccountCart();
     void loadSelectedOrderProduct();
   }
   document.querySelectorAll('a[href="/categories"], [data-dock-route="categories"]').forEach(link => {
