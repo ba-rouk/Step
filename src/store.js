@@ -7,6 +7,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
   const productGrid = document.querySelector("#product-grid");
+  const galleryGrid = document.querySelector(".gallery-grid");
   const catalogStatus = document.querySelector("#catalog-status");
   const catalogCount = document.querySelector("#catalog-count");
   const productHeading = document.querySelector("#product-heading");
@@ -81,6 +82,8 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
           name: String(item.name || "Menu item").slice(0, 120),
           category_name: String(item.category_name || "").slice(0, 80),
           price: item.price == null ? null : Number(item.price),
+          price_unit: String(item.price_unit || "unit"),
+          price_unit_label: String(item.price_unit_label || item.price_unit || "unit"),
           image_url: safeImageUrl(item.image_url),
           quantity: Math.min(20, Math.max(1, Math.floor(Number(item.quantity))))
         }));
@@ -216,7 +219,8 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
       : "At least one item needs a custom quote. Step Town will confirm the final price.";
     cartItems.innerHTML = cart.map((item) => {
       const image = safeImageUrl(item.image_url);
-      const linePrice = item.price == null ? "Quote required" : money(item.price * item.quantity);
+      const unitText = item.price_unit_label || item.price_unit || "unit";
+      const linePrice = item.price == null ? "Quote required" : money(item.price) + " per " + unitText + " · " + money(item.price * item.quantity) + " estimated";
       return '<article class="cart-item">' +
         '<div class="cart-item-image">' + (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : '<span>ST</span>') + '</div>' +
         '<div class="cart-item-copy"><span>' + escapeHtml(item.category_name) + '</span><strong>' + escapeHtml(item.name) + '</strong><small>' + escapeHtml(linePrice) + '</small>' +
@@ -255,6 +259,8 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
         name: product.name,
         category_name: categoryName(product.category_id),
         price: product.price == null ? null : Number(product.price),
+        price_unit: String(product.price_unit || "unit"),
+        price_unit_label: String(product.price_unit_label || product.price_unit || "unit"),
         image_url: safeImageUrl(product.images?.[0]?.url) || safeImageUrl(product.image_urls?.[0]) || safeImageUrl(product.image_url) || safeImageUrl((categories.find((item) => item.id === product.category_id) || {}).cover_image_url),
         quantity: 1
       });
@@ -274,7 +280,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     catalogStatus.textContent = "Loading the Step Town menu…";
     const [categoryResult, productResult] = await Promise.all([
       supabase.from("store_categories").select("id,name,slug,description,cover_image_url,sort_order").eq("is_active", true).order("sort_order"),
-      supabase.from("store_products").select("id,category_id,name,description,price,image_url,image_urls,sort_order,is_visible").eq("is_available", true).eq("is_visible", true).order("sort_order")
+      supabase.from("store_products").select("id,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_visible").eq("is_available", true).eq("is_visible", true).order("sort_order")
     ]);
 
     if (categoryResult.error || productResult.error) {
@@ -285,6 +291,24 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 
     categories = categoryResult.data || [];
     products = productResult.data || [];
+    if (galleryRoute && galleryGrid) {
+      const { data: galleryRows, error: galleryError } = await supabase.from("gallery_items").select("id,title,category,image_url,alt_text,caption,sort_order,created_at").eq("is_published", true).order("sort_order").order("created_at", { ascending: false });
+      if (galleryError) {
+        console.error("Step Town public gallery could not load:", galleryError);
+        galleryGrid.innerHTML = '<p class="gallery-note">The gallery could not load. Please refresh or contact Step Town.</p>';
+      } else if (galleryRows?.length) {
+        galleryGrid.innerHTML = galleryRows.map((item,index) => {
+          const image = safeImageUrl(item.image_url);
+          if (!image) return "";
+          const caption = item.caption || item.title || item.category || "Step Town moments";
+          return '<figure class="gallery-item ' + (index === 0 ? "gallery-large" : index === 1 ? "gallery-tall" : "") + '"><img src="' + escapeHtml(image) + '" alt="' + escapeHtml(item.alt_text || caption) + '" loading="lazy" decoding="async"><figcaption><span>' + String(index + 1).padStart(2,"0") + '</span> ' + escapeHtml(caption) + '</figcaption></figure>';
+        }).join("");
+        const note = document.querySelector(".gallery-note");
+        if (note) note.hidden = true;
+      } else {
+        galleryGrid.innerHTML = '<p class="gallery-note">New Step Town gallery photographs will appear here soon.</p>';
+      }
+    }
     const ids = products.map(product => product.id);
     if (ids.length) {
       const { data: galleryRows, error: galleryError } = await supabase.from("product_images").select("id,product_id,url,position,alt_text,variants").in("product_id", ids).order("position").order("id");
@@ -324,6 +348,13 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 
   bindProductGallery(productGrid);
   productGrid.addEventListener("click", (event) => {
+    const imageAdd = event.target.closest("[data-image-cart]");
+    if (imageAdd) {
+      event.preventDefault();
+      addProduct(imageAdd.dataset.imageCart);
+      window.location.assign("/cart");
+      return;
+    }
     const favourite = event.target.closest("[data-favourite]");
     if (favourite) {
       const key = "step-town-favourites-v1";
@@ -418,7 +449,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
         return;
       }
       if (!response.ok) {
-        checkoutStatus.textContent = payload.error || "We couldn't save your request. Please check your details and try again.";
+        checkoutStatus.textContent = [payload.error || "We couldn't save your request.", payload.suggestion ? "How to fix it: " + payload.suggestion : ""].filter(Boolean).join(" ");
         return;
       }
 
@@ -449,7 +480,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
       checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>';
     } catch (error) {
       console.error("Step Town order request failed:", error);
-      checkoutStatus.textContent = "We couldn't reach the order service. Please try again or contact Step Town on WhatsApp.";
+      checkoutStatus.textContent = "Connection problem: " + (error.message || "The order service could not be reached.") + " Try again after checking your internet connection. If it continues, contact Step Town on WhatsApp.";
     } finally {
       checkoutSubmit.disabled = false;
       checkoutSubmit.innerHTML = originalText;
