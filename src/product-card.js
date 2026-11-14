@@ -66,7 +66,7 @@ export function renderProductCard(product, options = {}) {
   const detail = Boolean(options.detail);
   const eager = Boolean(options.eager);
   const extraClass = options.extraClass ? " " + escapeHtml(options.extraClass) : "";
-  const productReference = product.id || product.slug || productSlug(product);
+  const productReference = product.slug || productSlug(product) || product.id;
   const href = "/cart?product=" + encodeURIComponent(productReference);
   const images = productImages(product);
 
