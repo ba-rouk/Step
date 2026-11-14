@@ -150,12 +150,16 @@ In **Authentication → URL Configuration**, set **Site URL** to `https://stepto
 
 ## Guest cart, quick orders and email login
 
-The storefront uses two separate cart flows:
+The storefront, product cards, favourites and `/cart` page use one shared cart module:
 
-- The product-card cart icon adds one item in place and updates the Cart badge. It does not navigate.
-- The product image and product text open `/cart?product=<slug>`. This quick-order form submits only that selected item and does not change the saved cart.
-- The Cart tab displays the editable saved cart. Guest carts are stored in `localStorage`; signed-in carts are persisted to `customer_cart_items`. A guest cart is merged into the account cart after sign-in.
-- `src/cart-config.js` contains the single `REQUIRE_LOGIN_FOR_CART_LIST` switch. It defaults to `false`; set it to `true` only if guests should be redirected to sign-in before seeing the saved-cart list. Quick order remains guest-accessible.
+- `src/cart-store.js` is the single reader/writer for local cart state. Version 2 uses `step-town-cart-v2`; every local item contains only `product_id`, `slug` and `quantity`.
+- Existing `step-town-cart-v1` and recognized legacy Bag keys are migrated once. Cart migration resolves old slugs against the public catalogue, drops invalid/ghost products and records `cart_version=2`.
+- The badge is calculated from quantities whose product IDs still resolve through `/api/catalog`. Product names, images and current prices are resolved from the catalogue, not cached in cart storage.
+- Signed-in carts are stored as `product_id` and `quantity` in `public.customer_cart_items`. The local guest cart merges into the account cart using the higher quantity per product, so a repeated sign-in sync does not add the same snapshot again.
+- `/cart` is served from its own `cart.html` entry. Product quick-order links are resolved server-side by current slug or ID, with a conservative name/slug fallback for legacy slugs. Unknown products return a 404 "Product not found" page.
+- The temporary `/cart-debug` diagnostic endpoint is disabled unless the Render environment variable `CART_DEBUG_ENABLED=true`. It displays only browser cart keys, product resolution, badge calculation, cart version and service-worker cache version; it does not display authentication cookies or secrets.
+
+Run the cart unit tests with `npm test`. Run the mobile Playwright suite against a deployed preview that contains the Carrots menu item by setting `E2E_BASE_URL` and running `npm run test:e2e`. The Playwright suite retains a trace, screenshot on failure and a JSON record of browser-console errors, failed requests and API paths.
 
 ### Email login and verification
 

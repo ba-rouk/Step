@@ -8,14 +8,17 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "node --check server.js && node --check script.js && node --check vite.config.js && node --check src/main.js && node --check src/api.js && node --check src/cart-page.js && node --check src/cart-config.js && node --check src/tracking.js && node --check src/catalog-config.js && node --check src/customer.js && node --check src/gallery.js && node --check src/product-card.js && node --check src/product-gallery.js && node --check src/product-page.js && node --check src/staff.js && node --check src/staff-workspace.js && node --check src/store.js && node --check src/supabase.js && vite build",
+    "build": "node --check server.js && node --check sw.js && node --check public/sw.js && node --check script.js && node --check vite.config.js && node --check src/main.js && node --check src/api.js && node --check src/cart-page.js && node --check src/cart-store.js && node --check src/cart-config.js && node --check src/tracking.js && node --check src/catalog-config.js && node --check src/customer.js && node --check src/gallery.js && node --check src/product-card.js && node --check src/product-gallery.js && node --check src/product-page.js && node --check src/staff.js && node --check src/staff-workspace.js && node --check src/store.js && node --check playwright.config.js && node --check tests/cart-store.test.js && node --check tests/e2e/cart.spec.js && node --check src/supabase.js && vite build",
     "preview": "node --env-file-if-exists=.env server.js",
-    "start": "node --env-file-if-exists=.env server.js"
+    "start": "node --env-file-if-exists=.env server.js",
+    "test": "node --test tests/cart-store.test.js",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "vite": "7.1.12"
   }
 }

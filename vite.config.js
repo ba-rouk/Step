@@ -23,6 +23,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(process.cwd(), "index.html"),
+        cart: resolve(process.cwd(), "cart.html"),
         staff: resolve(process.cwd(), "staff.html")
       }
     }

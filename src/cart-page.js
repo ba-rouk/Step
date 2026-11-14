@@ -1,6 +1,7 @@
 import "./cart-page.css";
 import { apiFetch } from "./api.js";
-import { REQUIRE_LOGIN_FOR_CART_LIST, GUEST_CART_STORAGE_KEY } from "./cart-config.js";
+import { REQUIRE_LOGIN_FOR_CART_LIST } from "./cart-config.js";
+import { getCartItems, replaceCartItems, mergeCartItems, setCartItemQuantity, removeCartItem, clearCart, migrateCart, resolveCartItems, fetchCartProducts, bindCartBadge } from "./cart-store.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const params = new URLSearchParams(window.location.search);
@@ -36,21 +37,15 @@ function normalize(item) {
     image_url:String(item.image_url||imageFor(item)||""),quantity};
 }
 function readGuestCart() {
-  try {const rows=JSON.parse(localStorage.getItem(GUEST_CART_STORAGE_KEY)||"[]");return Array.isArray(rows)?rows.map(normalize).filter(Boolean).slice(0,50):[];}
-  catch{return [];}
+  return getCartItems().map(item => normalize({ ...item, name: "Loading product details…", price: null }));
 }
 function writeGuestCart() {
-  try {localStorage.setItem(GUEST_CART_STORAGE_KEY,JSON.stringify(savedItems));return true;}
-  catch{return false;}
+  return replaceCartItems(savedItems);
 }
-function merge(primary,secondary) {
-  const map=new Map();
-  for(const raw of [...primary,...secondary]){
-    const item=normalize(raw);if(!item)continue;
-    const old=map.get(item.product_id);
-    map.set(item.product_id,old?{...old,...item,quantity:Math.max(old.quantity,item.quantity)}:item);
-  }
-  return [...map.values()].slice(0,50);
+function merge(primary, secondary) {
+  replaceCartItems(primary);
+  mergeCartItems(secondary);
+  return getCartItems().map(item => normalize({ ...item, name: "Loading product details…", price: null }));
 }
 async function request(url,options={}) {
   const response=await fetch(url,{credentials:"same-origin",...options});
@@ -77,7 +72,13 @@ async function saveAccountCart() {
 async function loadProduct(reference) {
   if(!reference)return null;
   const embedded=document.querySelector("#step-menu-initial-data");
-  if(embedded){try{const data=JSON.parse(embedded.textContent||"{}");const item=(data.products||[]).find(p=>String(p.slug||"")===reference||String(p.id)===reference);if(item)return normalize({...item,quantity:1});}catch{}}
+  if(embedded){
+    try{
+      const data=JSON.parse(embedded.textContent||"{}");
+      const item=(data.products||[]).find(p=>String(p.slug||"")===reference||String(p.id)===reference);
+      if(item)return normalize({...item,quantity:1});
+    }catch(error){console.warn("Embedded quick-order product could not be read:",error.message);}
+  }
   const isId=/^[0-9a-f-]{36}$/i.test(reference);
   const {response,data}=await request("/api/catalog?limit=1&"+(isId?"product_id=":"slug=")+encodeURIComponent(reference));
   if(!response.ok)throw new Error(data.error||"The selected menu item could not be loaded.");
@@ -102,9 +103,7 @@ function total(items) {
   return {subtotal,allPriced:items.length>0&&known.length===items.length,known:known.length};
 }
 function updateCartBadge() {
-  const count=savedItems.reduce((n,item)=>n+item.quantity,0);
-  const badge=document.querySelector("#mobile-cart-count");
-  if(badge){badge.textContent=count>99?"99+":String(count);badge.hidden=count===0;}
+  bindCartBadge();
 }
 function render() {
   const host=document.querySelector("#cart-product-summary");
@@ -116,6 +115,7 @@ function render() {
     quickHost.innerHTML=quickItem?'<p class="eyebrow">ORDER THIS ITEM</p>'+itemMarkup(quickItem,"quick"):"";
   }
   if(host){
+    host.setAttribute("aria-busy","false");
     host.hidden=Boolean(quickItem);
     if(!quickItem){
       if(!savedItems.length){
@@ -155,34 +155,64 @@ function showConfirmation(data) {
 }
 async function startCart() {
   setPage("cart");
+  bindCartBadge();
   const form=document.querySelector("#product-order-form");
   if(!form)return;
   const status=document.querySelector("#product-order-error");
   const date=form.elements.requested_date;
   if(date)date.min=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
-  savedItems=readGuestCart();
   const reference=params.get("product");
-  try{
+  if(reference){
+    const embedded=document.querySelector("#step-menu-initial-data");
+    if(embedded){
+      try{
+        const data=JSON.parse(embedded.textContent||"{}");
+        const product=(data.products||[]).find(item=>String(item.slug||"")===reference||String(item.id)===reference);
+        if(product)quickItem=normalize({...product,quantity:1});
+      }catch(error){console.warn("Server-rendered quick-order data could not be read:",error.message);}
+    }
+  }
+  // Hydrate the current v2 snapshot synchronously before any catalogue or auth request.
+  savedItems=readGuestCart();
+  render();
+  try {
+    await migrateCart(async slug => {
+      const {response,data}=await request("/api/catalog?limit=1&slug="+encodeURIComponent(slug));
+      if(!response.ok)throw new Error("Legacy product lookup failed.");
+      return (data.products||[])[0]||null;
+    });
+    savedItems=readGuestCart();
+    render();
+  } catch(error) {
+    if(status)status.textContent=error.message||"Your saved cart could not be migrated.";
+  }
+  try {
     const signed=await loadAccount();
     if(signed){
       const accountCart=await loadAccountCart();
       savedItems=merge(accountCart,savedItems);
       await saveAccountCart();
-      try{localStorage.removeItem(GUEST_CART_STORAGE_KEY);}catch{}
     }else if(REQUIRE_LOGIN_FOR_CART_LIST&&!reference){
       window.location.assign("/login?next="+encodeURIComponent("/cart"));return;
-    }else writeGuestCart();
-  }catch(error){if(status)status.textContent=error.message||"Your cart could not be loaded.";}
+    }
+  }catch(error){
+    if(status)status.textContent=error.message||"Your cart could not be loaded.";
+  }
+  if(savedItems.length){
+    try {
+      savedItems=await resolveCartItems(fetchCartProducts);
+    }catch(error){
+      if(status)status.textContent=error.message||"Product details could not be loaded. Your saved cart is still on this device.";
+    }
+  }
   if(reference){
-    try{quickItem=await loadProduct(reference);if(!quickItem)throw new Error("This product is no longer available. Please return to the menu.");}
+    try{quickItem=await loadProduct(reference);if(!quickItem)throw new Error("Product not found. Please return to the menu.");}
     catch(error){if(status)status.textContent=error.message;}
   }
   prefillForm(form);
   render();
   updateDeliveryField();
   document.querySelector("#order-fulfillment")?.addEventListener("change",updateDeliveryField);
-  document.querySelector("#cart-page-close")?.addEventListener("click",()=>window.location.assign("/categories"));
-  document.querySelector("#cart-close")?.addEventListener("click",()=>window.location.assign("/categories"));
   document.querySelector("#cart-product-summary")?.addEventListener("click",event=>handleItemAction(event));
   document.querySelector("#quick-order-summary")?.addEventListener("click",event=>handleItemAction(event));
   document.querySelector("#saved-cart-summary")?.addEventListener("click",event=>handleItemAction(event));
@@ -193,7 +223,12 @@ async function startCart() {
     if(!item)return;
     if(button.dataset.action==="increase")item.quantity=Math.min(20,item.quantity+1);
     if(button.dataset.action==="decrease")item.quantity=Math.max(1,item.quantity-1);
-    if(button.dataset.action==="remove")savedItems=savedItems.filter(x=>x.product_id!==item.product_id);
+    if(button.dataset.action==="remove"&&row.dataset.cartKind==="saved"){
+      removeCartItem(item.product_id);
+      savedItems=savedItems.filter(x=>x.product_id!==item.product_id);
+    }else if(row.dataset.cartKind==="saved"){
+      setCartItemQuantity(item.product_id,item.quantity);
+    }
     if(row.dataset.cartKind==="saved"){
       if(isSignedIn){try{await saveAccountCart();}catch(error){if(status)status.textContent=error.message;}}
       else writeGuestCart();
@@ -226,7 +261,11 @@ async function startCart() {
       const response=await apiFetch("/api/orders",{method:"POST",body:order});
       const data=await response.json().catch(()=>({}));
       if(!response.ok){if(status)status.textContent=data.error||"We could not save your order. Please check the details and try again.";return;}
-      if(!quickItem){savedItems=[];if(isSignedIn){try{await saveAccountCart();}catch(clearError){console.warn("Order saved; cart cleanup will retry on the next visit:",clearError.message);}}else writeGuestCart();}
+      if(!quickItem){
+        clearCart();
+        savedItems=[];
+        if(isSignedIn){try{await saveAccountCart();}catch(clearError){console.warn("Order saved; cart cleanup will retry on the next visit:",clearError.message);}}
+      }
       showConfirmation(data.order||{});
     }catch(error){if(status)status.textContent=error.message||"Connection problem. Please try again.";}
     finally{sending=false;render();}

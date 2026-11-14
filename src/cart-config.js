@@ -1,3 +1,2 @@
-// Customer cart access policy. Guests can view and edit their cart by default.
+// Guests can view and edit their cart by default. Authentication is required only where the order API requires it.
 export const REQUIRE_LOGIN_FOR_CART_LIST = false;
-export const GUEST_CART_STORAGE_KEY = "step-town-cart-v1";

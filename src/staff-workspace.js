@@ -41,6 +41,23 @@ let profile = null;
 let profileGuardChannel = null;
 let teamCache = [];
 let toastTimer;
+let serviceWorkerRefreshBound = false;
+function bindServiceWorkerRefresh() {
+  if (serviceWorkerRefreshBound || !("serviceWorker" in navigator)) return;
+  serviceWorkerRefreshBound = true;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    const key = "step-town-sw-refresh-version";
+    const version = "2026-11-14-cart-v2";
+    try {
+      if (sessionStorage.getItem(key) !== version) {
+        sessionStorage.setItem(key, version);
+        window.location.reload();
+      }
+    } catch {
+      window.location.reload();
+    }
+  }, { once: true });
+}
 
 function notify(message, type = "success", duration = 3600) {
   const node = $("#staff-toast");
@@ -201,7 +218,8 @@ function shell(title, body, subtitle = "") {
 async function getOrCreateStaffPushSubscription() {
   const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
   if (!publicKey) throw new Error("Push notifications are not configured on this site.");
-  const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  bindServiceWorkerRefresh();
+  const registration = await navigator.serviceWorker.register("/sw.js?v=2026-11-14-cart-v2", { scope: "/" });
   let subscription = await registration.pushManager.getSubscription();
   if (subscription?.expirationTime && subscription.expirationTime <= Date.now()) {
     try { await subscription.unsubscribe(); } catch (error) {
