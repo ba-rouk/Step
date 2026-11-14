@@ -290,10 +290,10 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     try {
       localStorage.setItem(menuCacheKey, JSON.stringify({
         cachedAt: Date.now(),
-        categories: data.categories,
-        products: data.products,
-        total: data.total,
-        hasMore: data.hasMore
+        categories,
+        products,
+        total: Number(data?.total ?? products.length),
+        hasMore: menuHasMore
       }));
     } catch (error) { console.warn("Menu cache unavailable:", error.message); }
   }
