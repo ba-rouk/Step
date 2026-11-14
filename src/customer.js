@@ -268,7 +268,6 @@ if (isAuthRoute) {
       void apiFetch("/api/session").then(r=>r.json()).then(session=>{
         if(session.authenticated)return apiFetch("/api/profile/cart",{method:"PUT",body:{items:cart.map(row=>({product_id:row.product_id||row.id,quantity:row.quantity}))}});
       }).catch(error=>console.warn("Favourite cart sync deferred:",error.message));
-      }
     });
     app.querySelector("#customer-signout").addEventListener("click", async () => {
       const button = app.querySelector("#customer-signout");
