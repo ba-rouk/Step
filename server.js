@@ -140,6 +140,7 @@ async function fetchPublicMenu(options={}) {
   const offset=Math.max(0,Number(options.offset)||0);
   const categorySlug=String(options.category||"").trim().slice(0,80);
   const productSlug=String(options.slug||"").trim().slice(0,160);
+  const productId=String(options.productId||"").trim().slice(0,80);
   const search=String(options.search||"").trim().slice(0,80).replace(/[\\%_*(),]/g," ");
   const categoriesPromise=sb("/rest/v1/store_categories?select=id,name,slug,description,cover_image_url,sort_order,is_active&is_active=eq.true&order=sort_order.asc");
   const params=new URLSearchParams();
@@ -148,6 +149,7 @@ async function fetchPublicMenu(options={}) {
   params.set("is_visible","eq.true");
   if(categorySlug)params.set("category.slug","eq."+categorySlug);
   if(productSlug)params.set("slug","eq."+productSlug);
+  if(productId)params.set("id","eq."+productId);
   if(search){
     if(search.toLowerCase()===CAKE_CATEGORY_LABEL.toLowerCase())params.set("category.slug","eq.cake");
     else params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*)");
@@ -178,6 +180,7 @@ async function getPublicMenu(options={}) {
     offset:Math.max(0,Number(options.offset)||0),
     category:String(options.category||""),
     slug:String(options.slug||""),
+    productId:String(options.productId||""),
     search:String(options.search||"").trim().slice(0,80)
   };
   const key=JSON.stringify(normalized),now=Date.now(),cached=publicMenuCache.get(key);
@@ -323,6 +326,7 @@ async function api(req,res,url) {
         offset:url.searchParams.get("offset")||0,
         category:url.searchParams.get("category")||"",
         slug:url.searchParams.get("slug")||"",
+        productId:url.searchParams.get("product_id")||"",
         search:url.searchParams.get("q")||""
       });
       return sendJson(res,200,menu,publicMenuHeaders());
