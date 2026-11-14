@@ -47,6 +47,13 @@ body.route-category-detail .product-grid,
   box-sizing: border-box;
 }
 
+/* Match and override the older, higher-specificity storefront card skin. */
+.storefront .product-card {
+  border: 1px solid var(--step-product-border);
+  background: linear-gradient(145deg, rgba(36, 31, 34, .97), rgba(23, 24, 31, .97));
+  box-shadow: 0 15px 38px rgba(5, 8, 15, .25), inset 0 1px 0 rgba(255, 255, 255, .11);
+}
+
 .product-card::before {
   position: absolute;
   z-index: 5;
