@@ -1,6 +1,6 @@
-# Step Town — Catering, Barbecue & Wedding Cakes
+# Step Town — Food, Celebrations & Cake
 
-Responsive Vite website for Step Town Catering and Wedding Cakes in Rwanda.
+Responsive Vite storefront for Step Town's catering, barbecue and Cake services in Rwanda.
 
 ## Stack
 - Vite 7
@@ -49,7 +49,7 @@ Migrations `create_step_town_enquiries` and `allow_public_enquiry_insert` create
 The enquiry form validates required fields, saves the enquiry to Supabase, then offers an optional WhatsApp continuation. A successful database insert is confirmed before the success message appears.
 
 ## Business details
-- Step Town Catering and Wedding Cakes
+- Step Town · Food, Celebrations & Cake
 - Runda, Rwanda
 - +250 780 382 589
 - WhatsApp: https://wa.me/250780382589
