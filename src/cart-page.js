@@ -469,6 +469,9 @@ async function startCart() {
     } else if (button.dataset.cartAction === "remove") {
       cartItems = cartItems.filter(entry => entry.product_id !== id);
     }
+    if (!cartItems.length) {
+      try { localStorage.removeItem(cartIdKey); } catch {}
+    }
     renderCart();
     try {
       await persistCart();
