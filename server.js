@@ -303,12 +303,20 @@ async function api(req,res,url) {
     }catch(e){console.error("Public catalogue:",e.message);return sendJson(res,e.status||502,{error:"The menu could not be loaded."});}
   }
   if(req.method==="POST"&&route==="/api/catalog/invalidate"){
-    const current=await currentUser(req,res);
-    if(!current)return sendJson(res,401,{error:"Authentication required."});
-    const memberships=await sb("/rest/v1/staff_profiles?select=user_id&user_id=eq."+encodeURIComponent(current.user.id)+"&is_active=eq.true&role=in.(manager,accountant)",{access:current.session.access_token});
-    if(!memberships?.length)return sendJson(res,403,{error:"Only active product staff can invalidate the menu cache."});
-    catalogCache.clear();
-    return sendJson(res,200,{ok:true});
+    const accessToken=String(req.headers.authorization||"").replace(/^Bearer\\s+/i,"");
+    if(!accessToken)return sendJson(res,401,{error:"Staff authentication required."});
+    try{
+      const authResponse=await fetch(SUPABASE_URL+"/auth/v1/user",{headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+accessToken}});
+      if(!authResponse.ok)return sendJson(res,401,{error:"Staff authentication expired."});
+      const staffUser=await authResponse.json();
+      const memberships=await sb("/rest/v1/staff_profiles?select=user_id&user_id=eq."+encodeURIComponent(staffUser.id)+"&is_active=eq.true&role=in.(manager,accountant)",{access:accessToken});
+      if(!memberships?.length)return sendJson(res,403,{error:"Only active product staff can invalidate the menu cache."});
+      catalogCache.clear();
+      return sendJson(res,200,{ok:true});
+    }catch(error){
+      console.warn("Public menu cache invalidation failed:",error.message);
+      return sendJson(res,502,{error:"The menu cache could not be refreshed."});
+    }
   }
   if(req.method==="GET"&&route==="/api/cart"){
     const current=await currentUser(req,res);
