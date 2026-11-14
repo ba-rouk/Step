@@ -127,6 +127,81 @@ async function sb(endpoint,opts={}) {
   if(!r.ok){const e=new Error(data.msg||data.message||data.error_description||data.error||"Supabase request failed.");e.status=r.status;throw e;}
   return data;
 }
+
+const publicMenuCache = new Map();
+const publicMenuInflight = new Map();
+const PUBLIC_MENU_PAGE_SIZE = 12;
+const PUBLIC_MENU_TTL_MS = 25000;
+const PUBLIC_MENU_STALE_MS = 240000;
+
+async function fetchPublicMenu(options={}) {
+  const limit=Math.min(36,Math.max(1,Number(options.limit)||PUBLIC_MENU_PAGE_SIZE));
+  const offset=Math.max(0,Number(options.offset)||0);
+  const categorySlug=String(options.category||"").trim().slice(0,80);
+  const productSlug=String(options.slug||"").trim().slice(0,160);
+  const search=String(options.search||"").trim().slice(0,80).replace(/[\\%_*(),]/g," ");
+  const categoriesPromise=sb("/rest/v1/store_categories?select=id,name,slug,description,cover_image_url,sort_order,is_active&is_active=eq.true&order=sort_order.asc");
+  const params=new URLSearchParams();
+  params.set("select","id,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_available,is_visible,slug,created_at,category:store_categories!store_products_category_id_fkey(id,name,slug),images:product_images!product_images_product_id_fkey(id,url,public_id,position,alt_text,variants)");
+  params.set("is_available","eq.true");
+  params.set("is_visible","eq.true");
+  if(categorySlug)params.set("category.slug","eq."+categorySlug);
+  if(productSlug)params.set("slug","eq."+productSlug);
+  if(search)params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*)");
+  params.set("order","sort_order.asc,created_at.desc");
+  const productsPromise=(async()=>{
+    const response=await fetch(SUPABASE_URL+"/rest/v1/store_products?"+params.toString(),{
+      headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,Prefer:"count=exact",Range:offset+"-"+(offset+limit-1)}
+    });
+    const raw=await response.text();
+    let rows=[];try{rows=raw?JSON.parse(raw):[];}catch{throw new Error("The menu service returned invalid data.");}
+    if(!response.ok)throw Object.assign(new Error(rows?.message||"The public menu could not be loaded."),{status:response.status});
+    const countText=(response.headers.get("content-range")||"").split("/").pop();
+    const total=Number(countText);
+    return {rows:Array.isArray(rows)?rows:[],total:Number.isFinite(total)?total:(Array.isArray(rows)?rows.length:0)};
+  })();
+  const [categories,productPage]=await Promise.all([categoriesPromise,productsPromise]);
+  const products=(productPage.rows||[]).map(product=>({
+    ...product,
+    category_name:product.category?.name||"Menu",
+    images:Array.isArray(product.images)?product.images:[]
+  }));
+  return {categories:categories||[],products,total:productPage.total,limit,offset,hasMore:offset+products.length<productPage.total};
+}
+async function getPublicMenu(options={}) {
+  const normalized={
+    limit:Math.min(36,Math.max(1,Number(options.limit)||PUBLIC_MENU_PAGE_SIZE)),
+    offset:Math.max(0,Number(options.offset)||0),
+    category:String(options.category||""),
+    slug:String(options.slug||""),
+    search:String(options.search||"").trim().slice(0,80)
+  };
+  const key=JSON.stringify(normalized),now=Date.now(),cached=publicMenuCache.get(key);
+  if(cached&&now<cached.expiresAt)return cached.data;
+  const refresh=()=>{
+    if(publicMenuInflight.has(key))return publicMenuInflight.get(key);
+    const task=fetchPublicMenu(normalized).then(data=>{
+      publicMenuCache.set(key,{data,expiresAt:Date.now()+PUBLIC_MENU_TTL_MS,staleUntil:Date.now()+PUBLIC_MENU_STALE_MS});
+      return data;
+    }).finally(()=>publicMenuInflight.delete(key));
+    publicMenuInflight.set(key,task);
+    return task;
+  };
+  if(cached&&now<cached.staleUntil){
+    void refresh().catch(error=>console.warn("Stale menu refresh failed:",error.message));
+    return cached.data;
+  }
+  return refresh();
+}
+function invalidatePublicMenu(){publicMenuCache.clear();}
+function publicMenuHeaders(){
+  return {
+    "Cache-Control":"public, max-age=20, stale-while-revalidate=180",
+    "CDN-Cache-Control":"public, s-maxage=60, stale-while-revalidate=300",
+    "Surrogate-Control":"max-age=60, stale-while-revalidate=300"
+  };
+}
+
 async function currentUser(req,res) {
   const saved=unseal(cookies(req)[SESSION_COOKIE]);
   if(!saved?.access_token||!saved?.refresh_token)return null;
