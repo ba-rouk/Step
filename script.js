@@ -104,6 +104,43 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
       .toISOString().slice(0, 10);
   }
 
+  function clearEnquiryFieldErrors() {
+    ["name","phone","service","date","guests","location","details"].forEach((key) => {
+      const field = form?.elements.namedItem(key);
+      if (field) {
+        field.setCustomValidity("");
+        field.removeAttribute("aria-invalid");
+      }
+    });
+  }
+
+  function showEnquiryIssue(fieldName, message) {
+    const field = form?.elements.namedItem(fieldName);
+    if (field) {
+      field.setAttribute("aria-invalid","true");
+      field.setCustomValidity(message);
+      field.reportValidity();
+      field.focus();
+    }
+    if (error) error.textContent = "We couldn't save your enquiry. Issue: " + ({
+      name:"Your name",phone:"Your phone number",service:"Service",date:"Event date",
+      guests:"Approximate guest count",location:"Event location",details:"Additional details"
+    }[fieldName] || "Enquiry details") + " — " + message;
+  }
+
+  function enquiryConstraintIssue(insertError) {
+    const source = [insertError?.constraint,insertError?.message,insertError?.details,insertError?.hint].filter(Boolean).join(" ").toLowerCase();
+    const issues = [
+      ["name",/enquiries_name_check|name_check/,"Enter 2–120 characters for your name."],
+      ["phone",/enquiries_phone_check|phone_check/,"Enter 5–40 characters for your phone number."],
+      ["service",/enquiries_service_check|service_check/,"Choose one of the listed services."],
+      ["guests",/enquiries_guest_count_check|guest_count/,"Enter a whole number from 1 to 10,000, or leave it blank."],
+      ["location",/enquiries_event_location_check|event_location/,"Keep the event location to 180 characters or fewer."],
+      ["details",/enquiries_details_check|details_check/,"Keep additional details to 3,000 characters or fewer."]
+    ];
+    return issues.find(([,pattern]) => pattern.test(source)) || null;
+  }
+
   const form = document.querySelector("#enquiry-form");
   const error = document.querySelector("#form-error");
   const submitButton = form?.querySelector('button[type="submit"]');
@@ -130,18 +167,34 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
       const location = clean(data.get("location"));
       const details = clean(data.get("details"));
 
-      if (!name || !phone || !service) {
-        if (error) error.textContent = "Please complete your name, phone number and service.";
+      if (name.length < 2 || name.length > 120) {
+        showEnquiryIssue("name","Enter 2–120 characters.");
         return;
       }
-
-      if (name.length > 120 || phone.length > 40 || location.length > 180 || details.length > 3000) {
-        if (error) error.textContent = "Please shorten one of your entries and try again.";
+      if (phone.length < 5 || phone.length > 40) {
+        showEnquiryIssue("phone","Enter 5–40 characters, including your country code if available.");
+        return;
+      }
+      const validServices = Array.from(form.elements.service.options).map(option => option.value).filter(Boolean);
+      if (!service || !validServices.includes(service)) {
+        showEnquiryIssue("service","Choose one of the available services.");
+        return;
+      }
+      if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || (() => { const [year,month,day] = date.split("-").map(Number); const parsed = new Date(Date.UTC(year,month-1,day)); return parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month-1 || parsed.getUTCDate() !== day; })())) {
+        showEnquiryIssue("date","Choose a valid calendar date.");
         return;
       }
       const guestCount = guests ? Number(guests) : null;
       if (guests && (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > 10000)) {
-        if (error) error.textContent = "Enter a guest count between 1 and 10,000.";
+        showEnquiryIssue("guests","Enter a whole number from 1 to 10,000, or leave it blank.");
+        return;
+      }
+      if (location.length > 180) {
+        showEnquiryIssue("location","Use 180 characters or fewer.");
+        return;
+      }
+      if (details.length > 3000) {
+        showEnquiryIssue("details","Use 3,000 characters or fewer.");
         return;
       }
       const enquiry = {
@@ -174,13 +227,18 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
 
       if (insertError) {
         console.error("Step Town enquiry submission failed:", insertError);
-        const policyBlocked = insertError?.code === "42501";
-        const invalidEntry = ["22023", "23514"].includes(insertError?.code);
-        if (error) error.textContent = "We couldn't save your enquiry. " + (policyBlocked
-          ? "Refresh the page and try again."
-          : invalidEntry
-            ? "Check the length and range of your details, then try again."
-            : "Please try again or contact us directly on WhatsApp.");
+        const issue = enquiryConstraintIssue(insertError);
+        if (issue) {
+          showEnquiryIssue(issue[0],issue[2]);
+        } else if (insertError?.code === "42501") {
+          if (error) error.textContent = "We couldn't save your enquiry. Issue: submission permission — refresh the page and try again. If it continues, contact Step Town on WhatsApp.";
+        } else if (insertError?.code === "22023") {
+          if (error) error.textContent = "We couldn't save your enquiry. Issue: one of the date or number fields has an invalid value. Check Event date and Approx. guests.";
+          const guestField = form.elements.guests;
+          if (guestField) { guestField.setAttribute("aria-invalid","true"); guestField.focus(); }
+        } else if (error) {
+          error.textContent = "We couldn't save your enquiry. Issue: " + (insertError?.message || "the enquiry service could not accept the request") + ". Check the highlighted details or contact Step Town on WhatsApp.";
+        }
         return;
       }
 

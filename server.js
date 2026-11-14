@@ -352,6 +352,51 @@ async function api(req,res,url) {
   }
   if(req.method==="POST"&&route.startsWith("/api/auth/"))return authRoutes(req,res,url);
 
+  if((req.method==="GET"||req.method==="POST")&&route==="/api/profile/cart-history"){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Please sign in to view and save cart history."});
+    try{
+      if(req.method==="GET"){
+        const rows=await sb("/rest/v1/customer_cart_history?select=id,cart_id,items,item_count,estimated_total,status,created_at,updated_at&user_id=eq."+encodeURIComponent(current.user.id)+"&order=updated_at.desc&limit=50",{access:current.session.access_token});
+        return sendJson(res,200,{carts:rows||[]});
+      }
+      const b=await body(req,100000);
+      const cartId=String(b.cart_id||"");
+      const incoming=Array.isArray(b.items)?b.items:[];
+      const status=String(b.status||"saved");
+      if(!/^[0-9a-f-]{36}$/i.test(cartId))return sendJson(res,400,{error:"This cart session is invalid. Refresh the cart and try again."});
+      if(!["saved","abandoned","converted"].includes(status))return sendJson(res,400,{error:"The cart history status is invalid."});
+      if(!incoming.length||incoming.length>50)return sendJson(res,400,{error:"Cart history must contain 1–50 products."});
+      let itemCount=0,allPriced=true,total=0;
+      const items=[];
+      for(const item of incoming){
+        const productId=String(item.product_id||item.id||"");
+        const quantity=Number(item.quantity);
+        const name=String(item.name||"Menu item").trim();
+        const price=item.price===null||item.price===undefined||item.price===""?null:Number(item.price);
+        if(!/^[0-9a-f-]{36}$/i.test(productId))return sendJson(res,400,{error:"A product in this cart has an invalid catalogue ID."});
+        if(!Number.isInteger(quantity)||quantity<1||quantity>20)return sendJson(res,400,{error:"Each saved product quantity must be between 1 and 20."});
+        if(name.length<1||name.length>120)return sendJson(res,400,{error:"A product name in this cart is too long."});
+        if(price!==null&&(!Number.isFinite(price)||price<0))return sendJson(res,400,{error:"A product price in this cart is invalid."});
+        itemCount+=quantity;
+        if(price===null)allPriced=false;else total+=price*quantity;
+        items.push({
+          product_id:productId,name,description:String(item.description||"").slice(0,1200),
+          category_name:String(item.category_name||"Menu").slice(0,80),price,
+          price_unit:String(item.price_unit||"unit").slice(0,32),
+          price_unit_label:String(item.price_unit_label||item.price_unit||"unit").slice(0,32),
+          image_url:String(item.image_url||"").slice(0,2048),quantity
+        });
+      }
+      if(itemCount>1000)return sendJson(res,400,{error:"The total quantity in this cart is too high."});
+      const row={user_id:current.user.id,cart_id:cartId,items,item_count:itemCount,estimated_total:allPriced?total:null,status,updated_at:new Date().toISOString()};
+      await sb("/rest/v1/customer_cart_history?on_conflict=user_id,cart_id",{method:"POST",access:current.session.access_token,body:row,headers:{Prefer:"resolution=merge-duplicates,return=minimal"}});
+      return sendJson(res,200,{ok:true,cart_id:cartId,status});
+    }catch(error){
+      console.error("Customer cart history:",error.status||502,error.message);
+      return sendJson(res,error.status||502,{error:"Cart history could not be saved or loaded. Please try again."});
+    }
+  }
   if(req.method==="GET"&&route==="/api/profile/cart"){
     const current=await currentUser(req,res);
     if(!current)return sendJson(res,401,{error:"Sign in to view your saved cart."});
@@ -506,7 +551,7 @@ async function api(req,res,url) {
   return sendJson(res,404,{error:"API endpoint not found."});
 }
 function pageTitle(pathname){
-  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
+  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Cart history","/login":"Customer login","/register":"Create an account"};
   if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
   if(pathname.startsWith("/categories/")){
     const slug=pathname.split("/").filter(Boolean).at(-1);
@@ -542,8 +587,9 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     if(menuPage){
       try{
         const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
-        const productSlug=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
-        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:productSlug});
+        const productReference=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
+        const isProductId=/^[0-9a-f-]{36}$/i.test(productReference);
+        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:isProductId?"":productReference,productId:isProductId?productReference:""});
         const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
           .replace(/</g,"\\u003c")
           .replace(/\u2028/g,"\\u2028")
