@@ -65,7 +65,7 @@ Deno.serve(async req=>{
     if(!claimed.data)continue;
     try{
       await sendEmail(job.recipient,render(job));
-      await db.from("email_outbox").update({status:"sent",sent_at:new Date().toISOString(),last_error:null}).eq("id",job.id);
+      await db.from("email_outbox").update({status:"sent",sent_at:new Date().toISOString(),last_error:null,payload:{}}).eq("id",job.id);
       sent++;
     }catch(error){
       const attempts=Number(job.attempts||0)+1;
