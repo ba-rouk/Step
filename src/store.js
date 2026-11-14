@@ -92,6 +92,7 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
       const session=await sessionResponse.json().catch(()=>({}));
       if(!session.authenticated)return;
       await apiFetch("/api/profile/cart",{method:"PUT",body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
+      try { localStorage.removeItem(GUEST_CART_STORAGE_KEY); } catch {}
     } catch(error) { console.warn("Account cart save deferred:",error.message); }
   }
 
