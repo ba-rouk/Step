@@ -366,7 +366,7 @@ function watchStaffProfile() {
 async function requireProfile() {
   const staff = await getProfile();
   if (!staff) {
-    await supabase.auth.signOut({ scope: "global" });
+    await supabase.auth.signOut({ scope: "local" });
     location.replace("/staff/login?next=" + encodeURIComponent(PATH));
     return false;
   }
@@ -445,7 +445,7 @@ function matchesOrder(order, term, date) {
   return (!term || text.includes(term)) && (!date || dateKey(order.created_at) === date);
 }
 async function ordersPage() {
-  const orders = await queryRows(supabase.from("store_orders").select("*").order("created_at", { ascending: false }).limit(500));
+  const orders = await queryRows(supabase.from("store_orders").select("id,order_number,status,customer_name,customer_phone,customer_email,fulfillment,requested_date,requested_time,delivery_location,estimated_total,items,notes,created_at").order("created_at", { ascending: false }).limit(120));
   shell("Orders",
     '<section class="staff-panel"><div class="staff-panel-head"><div><p class="staff-eyebrow">ORDER MANAGEMENT</p><h2>Order inbox</h2></div><span class="staff-muted">' + orders.length + " records</span></div>" +
       '<div class="staff-filters"><label>Search<input id="order-search" type="search" placeholder="Order number, customer or phone"></label><label>Created date<input id="order-date" type="date"></label></div>' +
@@ -988,7 +988,7 @@ async function removeGalleryStorageObject(publicUrl) {
 }
 
 async function galleryPage() {
-  const items = await queryRows(supabase.from("gallery_items").select("*").order("sort_order").order("created_at", { ascending: false }));
+  const items = await queryRows(supabase.from("gallery_items").select("id,title,category,image_url,alt_text,caption,sort_order,is_published,created_at").order("sort_order").order("created_at", { ascending: false }));
   shell("Gallery",
     '<section class="staff-panel"><p class="staff-eyebrow">PUBLIC GALLERY</p><h2>Upload images</h2><form id="gallery-form" class="staff-form-grid">' +
       '<label class="wide">Images · compressed to WebP under 5 MB each<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple required></label>' +
@@ -1360,8 +1360,8 @@ async function teamPage() {
 }
 async function auditPage() {
   const [logs, team] = await Promise.all([
-    queryRows(supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(1000)),
-    queryRows(supabase.from("staff_profiles").select("user_id,full_name,email,role"))
+    queryRows(supabase.from("audit_log").select("actor_id,actor_role,action,created_at").order("created_at", { ascending: false }).limit(250)),
+    queryRows(supabase.from("staff_profiles").select("user_id,full_name,role"))
   ]);
   const teamByUser = new Map(team.map(member => [member.user_id, member]));
   shell("Audit log",
