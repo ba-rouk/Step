@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
-import { randomBytes } from "node:crypto";
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 async function hash(value:string){const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));return [...new Uint8Array(bytes)].map(x=>x.toString(16).padStart(2,"0")).join("");}
 Deno.serve(async req=>{
@@ -30,7 +29,7 @@ Deno.serve(async req=>{
   if(listError)throw listError;
   user=(list.users||[]).find((u:any)=>String(u.email||"").toLowerCase()===email)||null;
   if(!user){
-    const created=await db.auth.admin.createUser({email,email_confirm:true,password:randomBytes(32).toString("base64url"),user_metadata:{email_verified_via_code:true}});
+    const created=await db.auth.admin.createUser({email,email_confirm:true,password:Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,"0")).join(""),user_metadata:{email_verified_via_code:true}});
     if(created.error)throw created.error;
     user=created.data.user;
   }else{
