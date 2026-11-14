@@ -20,10 +20,16 @@ Deno.serve(async req=>{
   if(error||!order)return Response.json({error:"Order not found"},{status:404,headers:cors});
   const isGuestOrder=!order.customer_id&&order.status==="new"&&!order.push_notified_at&&Date.now()-new Date(order.created_at).getTime()<20*60*1000;
   const isCustomerOrder=Boolean(user&&order.customer_id===user.id);
-  if(!isGuestOrder&&!isCustomerOrder)return Response.json({error:"Not allowed to notify for this order"},{status:403,headers:cors});
+  let isAuthorizedGuest=isGuestOrder;
+  let isAuthorizedStaff=false;
+  if(user&&!isCustomerOrder){
+    const staffCheck=await db.from("staff_profiles").select("user_id").eq("user_id",user.id).eq("is_active",true).maybeSingle();
+    isAuthorizedStaff=Boolean(staffCheck.data);
+  }
+  if(!isAuthorizedGuest&&!isCustomerOrder&&!isAuthorizedStaff){
+    return Response.json({error:"Not allowed to notify for this order"},{status:403,headers:cors});
+  }
   const {data:staff}=await db.from("staff_profiles").select("user_id,phone,email").in("role",["manager","accountant","cashier"]).eq("is_active",true);
-  const isStaff=await db.from("staff_profiles").select("user_id").eq("user_id",user.id).eq("is_active",true).maybeSingle();
-  if(order.customer_id!==user.id&&!isStaff.data)return Response.json({error:"Not allowed to notify for this order"},{status:403,headers:cors});
   const recipients=(staff||[]).map(x=>x.user_id);
   const {data:subscriptions}=await db.from("push_subscriptions").select("*").in("user_id",recipients);
   const items=Array.isArray(order.items)?order.items:[];
