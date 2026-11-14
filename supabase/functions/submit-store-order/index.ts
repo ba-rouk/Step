@@ -97,7 +97,7 @@ Deno.serve(async req => {
   const ids = [...quantitiesById.keys()];
   const slugs = [...quantitiesBySlug.keys()];
   let query = db.from("store_products")
-    .select("id,slug,name,category_id,price,price_unit,price_unit_label,image_url,image_urls,category:store_categories!store_products_category_id_fkey(name)")
+    .select("id,slug,name,category_id,price,price_unit,price_unit_label,image_url,image_urls,category:store_categories!store_products_category_id_fkey(name),images:product_images!product_images_product_id_fkey(url,position)")
     .eq("is_available", true).eq("is_visible", true);
   if (ids.length && slugs.length) query = query.or("id.in.(" + ids.join(",") + "),slug.in.(" + slugs.join(",") + ")");
   else if (ids.length) query = query.in("id", ids);
@@ -114,10 +114,13 @@ Deno.serve(async req => {
     const unitPrice = product.price == null ? null : Number(product.price);
     if (!Number.isFinite(unitPrice)) priced = false;
     else total += unitPrice * quantity;
+    const firstImage = Array.isArray(product.images)
+      ? [...product.images].sort((a, b) => Number(a.position || 0) - Number(b.position || 0))[0]
+      : null;
     return {
       product_id: product.id, slug: product.slug, name: product.name,
       category: product.category?.name || "Menu", quantity,
-      image_url: product.image_url || product.image_urls?.[0] || null,
+      image_url: firstImage?.url || product.image_urls?.[0] || product.image_url || null,
       price_unit: product.price_unit || "unit",
       price_unit_label: product.price_unit_label || product.price_unit || "unit",
       unit_price: unitPrice,
