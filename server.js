@@ -166,7 +166,7 @@ async function readPublicCatalog({limit=12,offset=0,categorySlug="",productSlug=
   });
   if(categorySlug)params.set("category.slug","eq."+categorySlug);
   if(productSlug)params.set("slug","eq."+productSlug);
-  const cakeCategorySearch=!categorySlug&&/^(wedding\\s+)?cakes?$/i.test(term);
+  const cakeCategorySearch=!categorySlug&&/^(wedding\s+)?cakes?$/i.test(term);
   if(cakeCategorySearch)params.set("category.slug","eq.cake");
   else if(term)params.set("or","(name.ilike.*"+term+"*,description.ilike.*"+term+"*)");
   const fetchCatalogValue=async()=>{
@@ -445,10 +445,9 @@ async function api(req,res,url) {
       return sendJson(res,201,{order:saved});
     }catch(e){
       console.error("Order request:",e.status||502,e.message);
-      const status=e.status&&e.status<500?e.status:502;
-      const cause=String(e.message||"The order database rejected the request.").replace(/[\r\n]+/g," ").slice(0,240);
-      const suggestion=status===429?"Please wait before trying again.":status===502?"The order was not confirmed by the database; retry shortly or contact Step Town on WhatsApp.":"Check the required details and selected products, then retry.";
-      return sendJson(res,status,{error:"Order request failed: "+cause,suggestion});
+      const status=e.status===503?503:(e.status&&e.status<500?e.status:502);
+      const suggestion=status===429?"Please wait before trying again.":status===503?"The order service needs a private server configuration update. Please contact Step Town directly.":"We could not save the order just now. Please try again or contact Step Town on WhatsApp.";
+      return sendJson(res,status,{error:status===503?"Online ordering is temporarily unavailable.":status===429?"Too many order requests.":"We couldn't save your order right now.",suggestion});
     }
   }
   return sendJson(res,404,{error:"API endpoint not found."});
