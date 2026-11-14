@@ -148,7 +148,10 @@ async function fetchPublicMenu(options={}) {
   params.set("is_visible","eq.true");
   if(categorySlug)params.set("category.slug","eq."+categorySlug);
   if(productSlug)params.set("slug","eq."+productSlug);
-  if(search)params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*,category.name.ilike.*"+search+"*)");
+  if(search){
+    if(search.toLowerCase()===CAKE_CATEGORY_LABEL.toLowerCase())params.set("category.slug","eq.cake");
+    else params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*)");
+  }
   params.set("order","sort_order.asc,created_at.desc");
   const productsPromise=(async()=>{
     const response=await fetch(SUPABASE_URL+"/rest/v1/store_products?"+params.toString(),{
@@ -553,7 +556,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
         const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
         // Inject before </head> so this works with Vite's hashed production bundle
         // as well as the development /src/main.js entry.
-        html=html.replace(/<\\/head>/i,initial+'</head>');
+        html=html.replace(/<\/head>/i,initial+'</head>');
       }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
     }
     data=Buffer.from(html);
