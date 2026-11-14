@@ -969,7 +969,11 @@ async function galleryPage() {
           created_by: profile.user_id,
           updated_at: new Date().toISOString()
         });
-        if (error) throw error;
+        if (error) {
+          // Avoid orphaned Storage objects when a gallery row cannot be saved.
+          await supabase.storage.from("step-town-media").remove([imageUrl.public_id]);
+          throw error;
+        }
         await writeAudit("gallery_image_added", "gallery_item", null, { image_url: imageUrl.url, category: fields.get("category") });
       }
       notify(files.length + " gallery image(s) uploaded.");
