@@ -649,8 +649,8 @@ async function compressImageForUpload(file) {
       if (quality > 0.64) {
         quality = Math.max(0.64, quality - 0.07);
       } else {
-        width = Math.max(640, Math.round(width * 0.82));
-        height = Math.max(640, Math.round(height * 0.82));
+        width = Math.max(1, Math.round(width * 0.82));
+        height = Math.max(1, Math.round(height * 0.82));
         quality = 0.78;
       }
     }
