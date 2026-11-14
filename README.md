@@ -146,3 +146,69 @@ The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. 
 #### Supabase Auth URL Configuration
 
 In **Authentication → URL Configuration**, set **Site URL** to `https://steptown.onrender.com` and add `https://steptown.onrender.com/auth/callback` to the allowed redirect URLs. Remove malformed entries such as `https://tyuousqmpexrwmnmvxtd.supabase.co/steptown.onrender.com`. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
+
+
+## Guest cart, quick orders and email login
+
+The storefront uses two separate cart flows:
+
+- The product-card cart icon adds one item in place and updates the Cart badge. It does not navigate.
+- The product image and product text open `/cart?product=<slug>`. This quick-order form submits only that selected item and does not change the saved cart.
+- The Cart tab displays the editable saved cart. Guest carts are stored in `localStorage`; signed-in carts are persisted to `customer_cart_items`. A guest cart is merged into the account cart after sign-in.
+- `src/cart-config.js` contains the single `REQUIRE_LOGIN_FOR_CART_LIST` switch. It defaults to `false`; set it to `true` only if guests should be redirected to sign-in before seeing the saved-cart list. Quick order remains guest-accessible.
+
+### Email login and verification
+
+The primary customer sign-in is **Email me a login code**. Codes are six digits, hashed in `public.login_codes`, expire after 10 minutes, are single-use and lock after five incorrect attempts. The request endpoint responds identically for all syntactically valid addresses. Successful verification confirms the Supabase Auth email, creates the account if necessary, issues a normal Supabase session and claims only unassigned guest orders whose normalized email matches the verified address. An order already linked to a different user is never reassigned.
+
+Password sign-in remains available. An account with an unverified email sees a verification prompt instead of order history.
+
+### HTTPS email delivery (no SMTP)
+
+Render free web services block outbound SMTP ports 25, 465 and 587. Step Town therefore sends email only through the provider's HTTPS API; do not add Nodemailer SMTP transport or SMTP credentials.
+
+Set these values as **Supabase Edge Function secrets** (and the matching server-side values in Render where indicated):
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` (Edge Functions only; never expose to Vite/browser code)
+- `EMAIL_PROVIDER=resend` (supported values: `resend`, `brevo`, `postmark`, `mailgun`, `sendgrid`)
+- `EMAIL_API_KEY` (or `RESEND_API_KEY` for Resend)
+- `EMAIL_FROM` (must use a verified sender/domain)
+- `EMAIL_FROM_NAME=Step Town`
+- `APP_URL=https://steptown.onrender.com`
+- `LOGIN_CODE_PEPPER` (random secret, at least 32 bytes)
+- `EMAIL_OUTBOX_SECRET` (different random secret, at least 32 bytes)
+- For Mailgun only: `MAILGUN_DOMAIN`
+
+Generate independent secrets with `openssl rand -hex 32`. Keep service-role keys, provider keys and peppers out of Git and browser variables. `.env.example` contains placeholders only.
+
+#### Sender-domain setup (SPF and DKIM)
+
+1. Add and verify your sending domain in the chosen provider (Resend is the default).
+2. Publish the exact SPF TXT record supplied by the provider. If the domain already has SPF, merge the provider's include mechanism into the existing single SPF record; do not publish multiple SPF records.
+3. Publish every DKIM record supplied by the provider (usually one or more TXT or CNAME records).
+4. Add the provider's recommended DMARC TXT record. Start with a monitoring policy such as `p=none`, review aggregate reports, then tighten it after legitimate mail is passing.
+5. Wait for DNS propagation, verify the domain in the provider dashboard, and set `EMAIL_FROM` to an address on that domain.
+
+#### Sandbox testing
+
+Use the provider's sandbox/test mode and its permitted test recipient addresses first. For Resend, use the provider's test-mode API key and a verified test sender/recipient as required by the current Resend account. Confirm that the outbox records a successful send; simulate provider failures to verify exponential retries. Do not use real customer addresses until the sender domain is verified and deliverability has been tested.
+
+### Deploying the email and tracking Edge Functions
+
+After applying all migrations to the Step Town Supabase project, deploy:
+
+```bash
+supabase functions deploy submit-store-order
+supabase functions deploy request-login-code --no-verify-jwt
+supabase functions deploy verify-login-code --no-verify-jwt
+supabase functions deploy process-email-outbox --no-verify-jwt
+supabase functions deploy track-store-order --no-verify-jwt
+supabase functions deploy send-order-push
+```
+
+Set the secrets listed above with `supabase secrets set`. Schedule `process-email-outbox` to run every minute using a trusted scheduler, sending `Authorization: Bearer <EMAIL_OUTBOX_SECRET>`. The order and login-code endpoints also make an immediate best-effort outbox delivery attempt; the scheduled worker retries temporary failures. The outbox is the durable source of truth, so order saving does not depend on email delivery.
+
+### Order tracking and privacy
+
+Each order receives a cryptographically random 128-bit tracking token. The public `/order/<token>` page shows only the order number, status, items, estimated total and fulfilment/delivery details. It never returns the customer's phone number or email. Customer order history is available only after the Supabase Auth email is verified.
