@@ -74,7 +74,14 @@ grant execute on function public.consume_step_login_code(text, text, text) to se
 
 drop policy if exists "Customers read orders by account or exact email" on public.store_orders;
 create policy "Customers read verified customer orders" on public.store_orders for select to authenticated using (
-  user_id = (select auth.uid()) or customer_id = (select auth.uid()) or
-  (user_id is null and customer_id is null and customer_email_normalized is not null and customer_email_normalized = (select private.current_verified_customer_email()))
+  (
+    (user_id = (select auth.uid()) or customer_id = (select auth.uid()))
+    and (select private.current_verified_customer_email()) is not null
+  )
+  or (
+    user_id is null and customer_id is null
+    and customer_email_normalized is not null
+    and customer_email_normalized = (select private.current_verified_customer_email())
+  )
 );
 notify pgrst, 'reload schema';
