@@ -176,8 +176,8 @@ async function renderAlertControl() {
     return;
   }
   if (Notification.permission === "denied") {
-    host.innerHTML = '<button class="staff-alert-button is-blocked" type="button" id="staff-alert-help"><span class="staff-alert-dot"></span><span>Alerts blocked</span></button><p class="staff-alert-hint">Allow notifications in your browser or device settings, then reload.</p>';
-    $("#staff-alert-help")?.addEventListener("click", () => notify("Open your browser or device settings, allow notifications for steptown.onrender.com, then reload this page.", "warning"));
+    host.innerHTML = '<button class="staff-alert-button is-blocked" type="button" id="staff-alert-help"><span class="staff-alert-dot"></span><span>Alerts blocked</span></button>';
+    $("#staff-alert-help")?.addEventListener("click", () => window.alert("Notifications are blocked for this site. Open your browser site settings, allow notifications for steptown.onrender.com, then return here."));
     return;
   }
   try {
@@ -601,7 +601,7 @@ async function orderDetailPage(id) {
   $("#print-receipt").addEventListener("click", () => window.print());
 }
 async function uploadImage(file, folder, onProgress = () => {}) {
-  if (!file || !["image/jpeg","image/png","image/webp"].includes(file.type)) throw new Error("Choose a JPG, PNG or WEBP image.");
+  if (!file || !["image/jpeg","image/png","image/webp","image/avif"].includes(file.type)) throw new Error("Choose a JPG, PNG, WEBP or AVIF image.");
   if (file.size > 5 * 1024 * 1024) throw new Error(file.name + " exceeds 5 MB.");
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, 1600 / bitmap.width);
@@ -664,6 +664,7 @@ async function productsPage() {
         '<label>Product name<input name="name" maxlength="120" required value="' + esc(product?.name || "") + '"></label>' +
         '<label>Category<select name="category_id" required>' + categories.map(category => '<option value="' + category.id + '" ' + (product?.category_id === category.id ? "selected" : "") + ">" + esc(category.name) + "</option>").join("") + "</select></label>" +
         '<label>Price (RWF)<input name="price" type="number" min="0" step="1" value="' + (product?.price ?? "") + '" placeholder="Leave blank for quote"></label>' +
+        '<label id="price-unit-wrap" hidden>Price measured per<select name="price_unit"><option value="each">Each / unit</option><option value="kg">Kilogram (kg)</option><option value="g">Gram (g)</option><option value="litre">Litre</option><option value="pack">Pack</option><option value="dozen">Dozen</option><option value="serving">Serving</option><option value="custom">Other measure</option></select></label><label id="price-unit-custom-wrap" hidden>Custom measure<input name="price_unit_label" maxlength="24" value="' + esc(product?.price_unit_label || "") + '" placeholder="e.g. tray, metre"></label>' +
         '<label>Stock quantity<input name="stock_quantity" type="number" min="0" step="1" value="' + (product?.stock_quantity ?? "") + '" placeholder="Blank means not tracked"></label>' +
         '<label class="wide">Description<textarea name="description" rows="3">' + esc(product?.description || "") + "</textarea></label>" +
         '<div class="wide product-image-uploader"><label>Product photos · JPG, PNG or WEBP · 5 MB max each<input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div id="product-image-list" class="staff-product-image-list"></div><p class="staff-muted">Up to 10 images. Drag to reorder, or use the controls. The first image is the cover.</p></div>' +
@@ -716,6 +717,17 @@ async function productsPage() {
       renderImageList();
     };
     $('input[name="images"]', $("#product-form")).addEventListener("change", event => { addProductFiles(event.target.files); event.target.value=""; });
+    const syncPriceUnit = () => {
+      const category = categories.find(item => item.id === $("#product-form").elements.category_id.value);
+      const enabled = ["barbecue","cakes"].includes(String(category?.name || "").toLowerCase());
+      $("#price-unit-wrap").hidden = !enabled;
+      if (!enabled) { $("#product-form").elements.price_unit.value = "each"; $("#product-form").elements.price_unit_label.value = ""; }
+      $("#price-unit-custom-wrap").hidden = !enabled || $("#product-form").elements.price_unit.value !== "custom";
+    };
+    $("#product-form").elements.category_id.addEventListener("change", syncPriceUnit);
+    $("#product-form").elements.price_unit.addEventListener("change", () => { $("#price-unit-custom-wrap").hidden = $("#product-form").elements.price_unit.value !== "custom"; });
+    if (product?.price_unit) $("#product-form").elements.price_unit.value = product.price_unit;
+    syncPriceUnit();
     imageList.addEventListener("dragover", event => { if(event.dataTransfer?.files?.length) event.preventDefault(); });
     imageList.addEventListener("drop", event => {
       if(!event.dataTransfer?.files?.length) return;
@@ -729,6 +741,9 @@ async function productsPage() {
       const priceText = String(fields.get("price") || "").trim();
       const stockText = String(fields.get("stock_quantity") || "").trim();
       const price = priceText ? Number(priceText) : null;
+      const unit = String(fields.get("price_unit") || "each");
+      const unitLabel = unit === "custom" ? String(fields.get("price_unit_label") || "").trim().slice(0,24) : unit;
+      if (unit === "custom" && !unitLabel) { $("#product-message").textContent = "Enter the custom price measure."; return; }
       const stock = stockText ? Number(stockText) : null;
       if ((price !== null && (!Number.isFinite(price) || price < 0)) ||
           (stock !== null && (!Number.isInteger(stock) || stock < 0))) {
@@ -760,6 +775,8 @@ async function productsPage() {
           name: String(fields.get("name") || "").trim(),
           category_id: fields.get("category_id"),
           price,
+          price_unit: unit,
+          price_unit_label: unitLabel || null,
           description: String(fields.get("description") || "").trim() || null,
           image_urls: imageUrls,
           image_url: imageUrls[0] || null,
@@ -817,10 +834,10 @@ async function productsPage() {
     $("#products-table").innerHTML = visible.length ?
       '<div class="staff-table-wrap"><table><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Menu status</th><th>Actions</th></tr></thead><tbody>' +
       visible.map(item =>
-        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(item.store_categories?.name || "—") + "</td><td>" + money(item.price) + "</td>" +
+        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(item.store_categories?.name || "—") + "</td><td>" + money(item.price) + (item.price != null && item.price_unit && item.price_unit !== "each" ? " per " + esc(item.price_unit_label || item.price_unit) : "") + "</td>" +
         "<td>" + (item.stock_quantity == null ? (item.has_stock ? "In stock" : "Sold out") : item.stock_quantity) + "</td>" +
         "<td>" + ((item.is_visible && item.is_available && item.has_stock) ? "Published" : "Hidden / unavailable") + "</td>" +
-        '<td><div class="staff-row-actions"><a href="/staff/products/' + item.id + '/edit">Edit</a><button data-product-stock="' + item.id + '">' + (item.has_stock ? "Mark sold out" : "Mark in stock") + '</button><button data-product-visibility="' + item.id + '">' + (item.is_visible ? "Hide" : "Show") + '</button><button data-product-delete="' + item.id + '">Delete</button></div></td></tr>'
+        '<td><details class="staff-action-menu"><summary aria-label="Product actions">•••</summary><div class="staff-action-menu-pop"><a href="/staff/products/' + item.id + '/edit">Edit</a><button type="button" data-product-stock="' + item.id + '">' + (item.has_stock ? "Mark as sold" : "Mark in stock") + '</button><button type="button" data-product-visibility="' + item.id + '">' + (item.is_visible ? "Hide" : "Publish") + '</button><button type="button" data-product-delete="' + item.id + '">Delete</button></div></details></td></tr>'
       ).join("") + "</tbody></table></div>" : '<p class="staff-empty">No matching products.</p>';
     $$("[data-product-stock]").forEach(button => button.addEventListener("click", async () => {
       const item = products.find(row => row.id === button.dataset.productStock);
@@ -863,7 +880,7 @@ async function galleryPage() {
         '<article><img src="' + esc(item.image_url) + '" alt="' + esc(item.alt_text || item.title || "") + '">' +
           '<b>' + esc(item.title || "Gallery image") + "</b><small>" + esc(statusLabel(item.category)) + " · " + (item.is_published ? "Published" : "Hidden") + "</small>" +
           '<label class="staff-gallery-caption">Caption<input data-gallery-caption="' + item.id + '" value="' + esc(item.caption || "") + '" maxlength="500"></label>' +
-          '<div class="staff-row-actions"><button data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + ' aria-label="Move up">↑</button><button data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + ' aria-label="Move down">↓</button><button data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button data-gallery-delete="' + item.id + '">Delete</button></div>' +
+          '<details class="staff-action-menu"><summary aria-label="Gallery image actions">•••</summary><div class="staff-action-menu-pop"><button type="button" data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button type="button" data-gallery-delete="' + item.id + '">Delete</button><button type="button" data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + '>Move up</button><button type="button" data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + '>Move down</button></div></details>' +
         "</article>"
       ).join("") + "</div>" : '<p class="staff-empty">No gallery images yet.</p>') + "</section>");
   $("#gallery-form").addEventListener("submit", async event => {
@@ -883,7 +900,7 @@ async function galleryPage() {
         const { error } = await supabase.from("gallery_items").insert({
           title: file.name.replace(/\.[^.]+$/, "").slice(0, 120),
           category: fields.get("category"),
-          image_url: imageUrl,
+          image_url: imageUrl.url,
           alt_text: String(fields.get("alt_text") || "").trim() || file.name,
           caption: String(fields.get("caption") || "").trim() || null,
           sort_order: items.length + count,
@@ -892,7 +909,7 @@ async function galleryPage() {
           updated_at: new Date().toISOString()
         });
         if (error) throw error;
-        await writeAudit("gallery_image_added", "gallery_item", imageUrl, { category: fields.get("category") });
+        await writeAudit("gallery_image_added", "gallery_item", null, { image_url: imageUrl.url, category: fields.get("category") });
       }
       notify(files.length + " gallery image(s) uploaded.");
       await galleryPage();
@@ -929,8 +946,8 @@ async function galleryPage() {
     const file = input.files?.[0];
     if (!file) return;
     try {
-      const url = await uploadImage(file, "gallery");
-      const { error } = await supabase.from("gallery_items").update({ image_url: url, alt_text: file.name, updated_at: new Date().toISOString() }).eq("id", input.dataset.galleryReplace);
+      const uploaded = await uploadImage(file, "gallery");
+      const { error } = await supabase.from("gallery_items").update({ image_url: uploaded.url, alt_text: file.name, updated_at: new Date().toISOString() }).eq("id", input.dataset.galleryReplace);
       if (error) throw error;
       await writeAudit("gallery_image_replaced", "gallery_item", input.dataset.galleryReplace, {});
       notify("Gallery image replaced.");
