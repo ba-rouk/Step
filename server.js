@@ -545,7 +545,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   res.writeHead(200,headers);res.end(data);
 }
 async function handle(req,res){
-  const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname);
+  const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname).replace(/\/+$/,"")||"/";
   if(req.method==="GET"&&route==="/api/auth/google")return oauthStart(req,res,url);
   if(req.method==="GET"&&route==="/auth/callback")return oauthCallback(req,res,url);
   if(req.method==="GET"&&route==="/categories/wedding-cakes"){
