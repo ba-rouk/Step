@@ -162,8 +162,10 @@ function shell(title, body, subtitle = "") {
   });
   $("#staff-logout")?.addEventListener("click", async () => {
     $("#staff-logout").disabled = true;
-    try { await supabase.auth.signOut({ scope: "global" }); }
-    finally { location.replace("/staff/login"); }
+    try {
+      await disableAlerts({ quiet: true });
+      await supabase.auth.signOut({ scope: "local" });
+    } finally { location.replace("/staff/login"); }
   });
   renderAlertControl();
 }
@@ -172,19 +174,19 @@ async function renderAlertControl() {
   if (!host) return;
   const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   if (!supported) {
-    host.innerHTML = '<p class="staff-alert-hint">Push alerts are not supported in this browser.</p>';
+    host.innerHTML = '<p class="staff-alert-hint">Push alerts are not supported in this browser. On iPhone, install this site to your Home Screen and open it there first.</p>';
     return;
   }
   if (Notification.permission === "denied") {
-    host.innerHTML = '<button class="staff-alert-button is-blocked" type="button" id="staff-alert-help"><span class="staff-alert-dot"></span><span>Alerts blocked</span></button>';
-    $("#staff-alert-help")?.addEventListener("click", () => window.alert("Notifications are blocked for this site. Open your browser site settings, allow notifications for steptown.onrender.com, then return here."));
+    host.innerHTML = '<button class="staff-alert-button is-blocked" type="button" id="staff-alert-help"><span class="staff-alert-dot"></span><span>Alerts blocked · How to allow</span></button>';
+    $("#staff-alert-help")?.addEventListener("click", () => notify("In Chrome, open the site controls beside the address, choose Permissions → Notifications → Allow, then reload Step Town.", "warning"));
     return;
   }
   try {
     const registration = await navigator.serviceWorker.getRegistration("/");
     const subscription = await registration?.pushManager.getSubscription();
     if (subscription) {
-      host.innerHTML = '<button class="staff-alert-button is-on" type="button" id="staff-alert-off"><span class="staff-alert-dot"></span><span>Alerts on · Turn off</span></button><button class="staff-alert-test" type="button" id="staff-alert-test">Send test alert</button>';
+      host.innerHTML = '<span class="staff-alert-state is-on"><span class="staff-alert-dot"></span>Alerts on</span><button class="staff-alert-test" type="button" id="staff-alert-test">Send test alert</button><button class="staff-alert-button" type="button" id="staff-alert-off">Turn off alerts on this device</button>';
       $("#staff-alert-off")?.addEventListener("click", disableAlerts);
       $("#staff-alert-test")?.addEventListener("click", sendTestAlert);
     } else {
@@ -201,13 +203,34 @@ function decodeVapidKey(value) {
   const raw = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from(raw, char => char.charCodeAt(0));
 }
+function showAlertsEnabledPopup() {
+  document.querySelector("#staff-alert-enabled-dialog")?.remove();
+  const dialog = document.createElement("div");
+  dialog.id = "staff-alert-enabled-dialog";
+  dialog.className = "staff-alert-dialog-backdrop";
+  dialog.innerHTML = '<section class="staff-alert-dialog" role="dialog" aria-modal="true" aria-labelledby="staff-alert-enabled-title"><button type="button" class="staff-alert-dialog-close" aria-label="Close">×</button><p class="staff-eyebrow">DEVICE READY</p><h2 id="staff-alert-enabled-title">Alerts enabled on this device</h2><p>Step Town can now notify you when a customer places an order.</p><button type="button" class="staff-primary" id="staff-alert-dialog-test">Send test alert</button></section>';
+  document.body.append(dialog);
+  dialog.querySelector(".staff-alert-dialog-close").addEventListener("click", () => dialog.remove());
+  dialog.addEventListener("click", event => { if (event.target === dialog) dialog.remove(); });
+  dialog.querySelector("#staff-alert-dialog-test").addEventListener("click", async () => {
+    dialog.remove();
+    await sendTestAlert();
+  });
+}
 async function enableAlerts() {
+  if (!("Notification" in window)) { notify("This browser does not support web notifications. On iPhone, install Step Town to your Home Screen first.", "warning"); return; }
+  // Keep this as the first asynchronous operation in the real tap handler.
+  // Chrome will not show its native permission prompt if this is deferred.
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    await renderAlertControl();
+    notify(permission === "denied" ? "Alerts are blocked. Allow notifications in Chrome site settings." : "Notification permission was not granted.", "warning");
+    return;
+  }
   const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
   if (!publicKey) { notify("Push notifications are not configured on the site.", "warning"); return; }
   try {
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") { await renderAlertControl(); notify("Notification permission was not granted.", "warning"); return; }
-    const registration = await navigator.serviceWorker.register("/sw.js");
+    const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: decodeVapidKey(publicKey)
@@ -224,13 +247,13 @@ async function enableAlerts() {
     if (error) throw error;
     await writeAudit("push_alerts_enabled", "push_subscription", null, { user_agent: navigator.userAgent });
     await renderAlertControl();
-    notify("Push alerts are enabled on this device.");
+    showAlertsEnabledPopup();
   } catch (error) {
     console.error(error);
     notify("Could not enable alerts: " + error.message, "error");
   }
 }
-async function disableAlerts() {
+async function disableAlerts(options = {}) {
   try {
     const registration = await navigator.serviceWorker.getRegistration("/");
     const subscription = await registration?.pushManager.getSubscription();
@@ -241,9 +264,9 @@ async function disableAlerts() {
     }
     await writeAudit("push_alerts_disabled", "push_subscription");
     await renderAlertControl();
-    notify("Alerts are turned off on this device.");
+    if (!options.quiet) notify("Alerts are turned off on this device.");
   } catch (error) {
-    notify("Could not turn alerts off: " + error.message, "error");
+    if (!options.quiet) notify("Could not turn alerts off: " + error.message, "error");
   }
 }
 async function sendTestAlert() {
@@ -307,7 +330,7 @@ function loginView(message = "") {
         await supabase.auth.signOut({ scope: "global" });
         throw new Error("This account does not have active Step Town staff access. Contact your Manager.");
       }
-      await writeAudit("staff_login", "staff_profile", staff.id, {});
+      void writeAudit("staff_login", "staff_profile", staff.id, {}).catch(error => console.warn("Login audit deferred:", error));
       const next = new URLSearchParams(location.search).get("next");
       location.replace(next?.startsWith("/staff/") && !next.startsWith("//") ? next : "/staff/overview");
     } catch (error) {
