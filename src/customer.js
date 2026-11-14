@@ -63,6 +63,11 @@ if (isAuthRoute) {
     shell(
       '<h1>' + (registering ? "Create your account." : "Welcome back.") + '</h1>' +
       '<p class="customer-intro">' + (registering ? "Create a Step Town account to keep your orders and details together." : "Sign in to view your profile and order history, or send an order request.") + '</p>' +
+      '<form id="email-code-request" novalidate>' +
+      (registering ? '<label class="customer-field"><span>Full name</span><input name="name" type="text" autocomplete="name" minlength="2" maxlength="120" required placeholder="Your full name"></label>' : '') +
+      '<label class="customer-field"><span>Email address</span><input name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com"></label>' +
+      '<p class="customer-error" role="alert" aria-live="polite"></p><button class="customer-submit" type="submit">Email me a login code</button></form>' +
+      '<div class="customer-divider"><span>OR USE PASSWORD</span></div>' +
       '<form id="customer-auth-form" novalidate>' + fields +
       '<p class="customer-error" role="alert" aria-live="polite">' + escapeHtml(message) + '</p>' +
       '<button class="customer-submit" type="submit">' + (registering ? "Create account" : "Sign in") + '</button></form>' +
@@ -72,6 +77,26 @@ if (isAuthRoute) {
       '<p class="customer-note">Staff use the separate <a href="/staff/login">staff sign-in</a>.</p>',
       registering ? "JOIN THE STEP TOWN TABLE" : "YOUR STEP TOWN ACCOUNT"
     );
+    const codeRequest = app.querySelector("#email-code-request");
+    codeRequest?.addEventListener("submit", async event => {
+      event.preventDefault();
+      const error = codeRequest.querySelector(".customer-error");
+      if (!codeRequest.reportValidity()) return;
+      const values = Object.fromEntries(new FormData(codeRequest).entries());
+      const button = codeRequest.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.textContent = "Sending code…";
+      try {
+        const response = await apiFetch("/api/auth/email-code/request", {method:"POST",body:{email:values.email}});
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Please try again shortly.");
+        emailCodeVerificationForm(String(values.email).trim().toLowerCase(),String(values.name||""));
+      } catch (errorValue) {
+        error.textContent = errorValue.message || "We could not send a code. Please try again.";
+      } finally {
+        if (button.isConnected) {button.disabled=false;button.textContent="Email me a login code";}
+      }
+    });
     const form = app.querySelector("#customer-auth-form");
     wirePasswordToggles(form);
     form.addEventListener("submit", async (event) => {
@@ -106,6 +131,30 @@ if (isAuthRoute) {
           button.textContent = registering ? "Create account" : "Sign in";
         }
       }
+    });
+  }
+
+  function emailCodeVerificationForm(email, name) {
+    shell(
+      '<h1>Check your email.</h1><p class="customer-intro">If <strong>' + escapeHtml(email) + '</strong> can receive mail, a six-digit sign-in code has been sent. It expires in 10 minutes.</p>' +
+      '<form id="email-code-verify"><label class="customer-field"><span>Six-digit code</span><input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="000000"></label>' +
+      '<p class="customer-error" role="alert" aria-live="polite"></p><button class="customer-submit" type="submit">Verify and sign in</button></form>' +
+      '<p class="customer-note"><a href="/login?next=' + encodeURIComponent(safeNext) + '">Use another email address</a></p>',
+      "EMAIL VERIFICATION"
+    );
+    app.querySelector("#email-code-verify").addEventListener("submit", async event => {
+      event.preventDefault();
+      const form=event.currentTarget,error=form.querySelector(".customer-error");
+      if(!form.reportValidity())return;
+      const button=form.querySelector('button[type="submit"]');
+      button.disabled=true;button.textContent="Verifying…";
+      try{
+        const response=await apiFetch("/api/auth/email-code/verify",{method:"POST",body:{email,code:new FormData(form).get("code"),name,next:safeNext}});
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok){error.textContent=payload.error||"That code is invalid or expired.";return;}
+        window.location.assign(payload.next||safeNext);
+      }catch(errorValue){error.textContent=errorValue.message||"We could not verify that code. Please try again.";}
+      finally{if(button.isConnected){button.disabled=false;button.textContent="Verify and sign in";}}
     });
   }
 
