@@ -5,7 +5,7 @@ const cors={ "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Headers":"
 Deno.serve(async req=>{
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
   if(req.method!=="POST")return Response.json({error:"Method not allowed"},{status:405,headers:cors});
-  const token=(req.headers.get("Authorization")||"").replace(/^Bearer\\s+/i,"");
+  const token=(req.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"");
   const db=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{autoRefreshToken:false,persistSession:false}});
   let user=null;
   if(token){
