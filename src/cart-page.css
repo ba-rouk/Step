@@ -80,3 +80,11 @@ body.route-cart #cart-page,body.route-confirmation #order-confirmation-page{disp
  .cart-selected-image{width:76px;height:106px}
  .cart-item-footer{flex-wrap:wrap}
 }
+
+/* Quick-order and saved-cart sections remain visually distinct. */
+#quick-order-summary[hidden],#saved-cart-summary[hidden]{display:none!important}
+#quick-order-summary>.eyebrow,#saved-cart-summary>.eyebrow{margin:2px 4px 4px}
+.saved-cart-heading{margin:4px 4px 2px;color:#fff4eb;font:600 25px/1.1 var(--font-serif,"Source Serif 4",Georgia,serif)}
+.saved-cart-empty{margin:0 4px;color:rgba(255,239,228,.68);font-size:12px}
+.product-order-form label small{color:rgba(255,239,228,.58);font-size:10px;font-weight:450;line-height:1.5}
+.store-toast a{margin-left:10px;color:#ffbd8d;font-weight:800;text-decoration:underline;text-underline-offset:3px;pointer-events:auto}
