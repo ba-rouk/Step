@@ -291,6 +291,7 @@ async function enableAlerts() {
   }
 }
 async function removeDeviceAlertsForSignout() {
+  if (!("serviceWorker" in navigator) || !profile?.user_id) return;
   const registration = await navigator.serviceWorker.getRegistration("/");
   const subscription = await registration?.pushManager.getSubscription();
   if (!subscription) return;
