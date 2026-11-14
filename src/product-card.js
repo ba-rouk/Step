@@ -19,34 +19,16 @@ export function productSlug(product) {
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || product.id;
 }
 
-function responsiveImageSrcset(image, source) {
+function responsiveImageSrcset(image) {
   const savedVariants = image.variants && typeof image.variants === "object" ? image.variants : {};
-  const savedSet = Object.entries(savedVariants)
+  // Only use responsive variants that were actually generated and saved with
+  // the image. Do not synthesize Storage render URLs: image transformations are
+  // not enabled on every Supabase plan, and a broken srcset overrides the valid
+  // original public URL in the browser's image selection.
+  return Object.entries(savedVariants)
     .filter(([width, url]) => Number.isInteger(Number(width)) && safeImageUrl(url))
     .map(([width, url]) => safeImageUrl(url) + " " + Number(width) + "w")
     .join(", ");
-  if (savedSet) return savedSet;
-
-  // Supabase Storage renders resized WebP variants from the already-compressed
-  // source object, avoiding delivery of a 1600px image to a narrow phone card.
-  try {
-    const url = new URL(source);
-    const marker = "/storage/v1/object/public/";
-    const markerIndex = url.pathname.indexOf(marker);
-    if (markerIndex < 0) return "";
-    const renderPath = url.pathname.slice(0, markerIndex) +
-      "/storage/v1/render/image/public/" +
-      url.pathname.slice(markerIndex + marker.length);
-    return [480, 800, 1200].map(width => {
-      const variant = new URL(renderPath, url.origin);
-      variant.searchParams.set("width", String(width));
-      variant.searchParams.set("quality", "78");
-      variant.searchParams.set("format", "webp");
-      return variant.href + " " + width + "w";
-    }).join(", ");
-  } catch {
-    return "";
-  }
 }
 
 function productImages(product) {
@@ -90,7 +72,7 @@ export function renderProductCard(product, options = {}) {
   const slides = images.length
     ? images.map((image, index) => {
         const src = safeImageUrl(image.url);
-        const srcset = responsiveImageSrcset(image, src);
+        const srcset = responsiveImageSrcset(image);
         const loading = eager && index === 0
           ? 'loading="eager" fetchpriority="high"'
           : 'loading="lazy"';
