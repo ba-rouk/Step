@@ -706,7 +706,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
           .replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
         const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
         html=html.replace("<!--SERVER_QUICK_ORDER_PANEL-->",quickOrderMarkup(product));
-        html=html.replace(/<\\/head>/i,initial+"</head>");
+        html=html.replace(/<\/head>/i,initial+"</head>");
       }else{
         html=html.replace("<!--SERVER_QUICK_ORDER_PANEL-->","");
       }
@@ -717,7 +717,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
         const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
           .replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
         const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
-        html=html.replace(/<\\/head>/i,initial+"</head>");
+        html=html.replace(/<\/head>/i,initial+"</head>");
       }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
     }
     data=Buffer.from(html);
