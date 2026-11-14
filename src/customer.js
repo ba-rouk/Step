@@ -413,7 +413,7 @@ if (isAuthRoute) {
         const payload=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(payload.error||"A code could not be sent. Please try again.");
         emailCodeVerificationForm(email,"If this address can receive a code, it has been sent. Enter it below.");
-      }catch(error){error.textContent=error.message||"A code could not be sent. Please try again.";}
+      }catch(cause){error.textContent=cause.message||"A code could not be sent. Please try again.";}
       finally{if(button.isConnected){button.disabled=false;button.textContent="Send code";}}
     });
   }
