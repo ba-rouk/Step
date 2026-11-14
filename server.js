@@ -484,19 +484,19 @@ async function api(req,res,url) {
     if(!current)return sendJson(res,401,{error:"Please sign in to view your account."});
     try{
       if(route==="/api/profile"){
-        const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
-        return sendJson(res,200,{user:current.user,profile:rows[0]||null});
+        const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,email_verified_at,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
+        return sendJson(res,200,{user:current.user,profile:rows[0]||null,email_verified:Boolean(current.user.email_confirmed_at)});
       }
-      const select="id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location";
-      const byAccount=await sb("/rest/v1/store_orders?select="+select+"&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=100",{access:current.session.access_token});
       const email=String(current.user.email||"").trim().toLowerCase();
-      const byEmail=email
-        ? await sb("/rest/v1/store_orders?select="+select+"&customer_email=eq."+encodeURIComponent(email)+"&order=created_at.desc&limit=100",{access:current.session.access_token})
-        : [];
+      if(!current.user.email_confirmed_at)return sendJson(res,200,{verified:false,email,orders:[]});
+      try{await sb("/rest/v1/rpc/claim_verified_guest_orders",{method:"POST",access:current.session.access_token,body:{}});}catch(claimError){console.warn("Guest order claim deferred:",claimError.message);}
+      const select="id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location,tracking_token";
+      const byAccount=await sb("/rest/v1/store_orders?select="+select+"&or=(user_id.eq."+encodeURIComponent(current.user.id)+",customer_id.eq."+encodeURIComponent(current.user.id)+")&order=created_at.desc&limit=100",{access:current.session.access_token});
+      const byEmail=email?await sb("/rest/v1/store_orders?select="+select+"&customer_email_normalized=eq."+encodeURIComponent(email)+"&order=created_at.desc&limit=100",{access:current.session.access_token}):[];
       const unique=new Map();
-      for(const order of [...(byAccount||[]),...(byEmail||[])]) unique.set(order.id,order);
+      for(const order of [...(byAccount||[]),...(byEmail||[])])unique.set(order.id,order);
       const orders=[...unique.values()].sort((a,b)=>Date.parse(b.created_at||0)-Date.parse(a.created_at||0)).slice(0,100);
-      return sendJson(res,200,{orders});
+      return sendJson(res,200,{verified:true,email,orders});
     }catch(e){return sendJson(res,e.status||502,{error:"Your account data could not be loaded."});}
   }
 
