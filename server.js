@@ -303,7 +303,7 @@ async function api(req,res,url) {
     }catch(e){console.error("Public catalogue:",e.message);return sendJson(res,e.status||502,{error:"The menu could not be loaded."});}
   }
   if(req.method==="POST"&&route==="/api/catalog/invalidate"){
-    const accessToken=String(req.headers.authorization||"").replace(/^Bearer\\s+/i,"");
+    const accessToken=String(req.headers.authorization||"").replace(/^Bearer\s+/i,"");
     if(!accessToken)return sendJson(res,401,{error:"Staff authentication required."});
     try{
       const authResponse=await fetch(SUPABASE_URL+"/auth/v1/user",{headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+accessToken}});
