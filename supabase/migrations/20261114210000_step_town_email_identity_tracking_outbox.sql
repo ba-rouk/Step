@@ -118,7 +118,9 @@ create policy "Customers read orders by account or exact email"
     user_id=(select auth.uid())
     or customer_id=(select auth.uid())
     or (
-      customer_email_normalized is not null
+      user_id is null
+      and customer_id is null
+      and customer_email_normalized is not null
       and customer_email_normalized=(select private.current_verified_customer_email())
     )
   );
