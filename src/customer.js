@@ -320,6 +320,22 @@ if (isAuthRoute) {
         if(existing)existing.quantity=Math.min(20,Number(existing.quantity||1)+1);
         else saved.push(item);
         localStorage.setItem(key,JSON.stringify(saved));
+        const sessionResponse=await fetch("/api/session",{credentials:"same-origin"});
+        const session=await sessionResponse.json().catch(()=>({}));
+        if(session.authenticated&&session.user?.id){
+          const ownerKey="step-town-cart-owner-v1";
+          const owner=localStorage.getItem(ownerKey)||"";
+          const items=saved.map(row=>({product_id:row.product_id||row.id,quantity:row.quantity||1}));
+          const response=owner===session.user.id
+            ? await apiFetch("/api/profile/cart",{method:"PUT",body:{items}})
+            : await apiFetch("/api/profile/cart/merge",{method:"POST",body:{items:owner?[{product_id:item.product_id,quantity:1}]:items}});
+          if(response.ok){
+            localStorage.setItem(ownerKey,session.user.id);
+            const savedResponse=await fetch("/api/profile/cart",{credentials:"same-origin"});
+            const savedPayload=await savedResponse.json().catch(()=>({}));
+            if(savedResponse.ok&&Array.isArray(savedPayload.items))localStorage.setItem(key,JSON.stringify(savedPayload.items));
+          }
+        }
         const badge=document.querySelector("#mobile-cart-count");
         if(badge){const count=saved.reduce((sum,row)=>sum+Math.max(1,Number(row.quantity||1)),0);badge.textContent=count>99?"99+":String(count);badge.hidden=count<=0;}
         flashCartButton(add);
