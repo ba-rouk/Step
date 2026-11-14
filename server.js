@@ -493,7 +493,7 @@ async function api(req,res,url) {
         try{
           const response=await fetch(SUPABASE_URL+"/functions/v1/send-order-push",{
             method:"POST",
-            headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},
+            headers:{apikey:SUPABASE_KEY,...(current?.session?.access_token?{Authorization:"Bearer "+current.session.access_token}:{}),"Content-Type":"application/json"},
             body:JSON.stringify({order_id:saved.id})
           });
           alertQueued=response.ok;
