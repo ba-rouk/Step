@@ -152,15 +152,11 @@ DROP POLICY IF EXISTS "Customers remove from their own cart" ON public.customer_
 CREATE POLICY "Customers remove from their own cart" ON public.customer_cart_items
   FOR DELETE TO authenticated USING (user_id = auth.uid());
 
+-- Order writes must go through the rate-limited Node API using its server-only service key.
+-- The public key remains read-only for the menu and cannot insert orders directly.
 DROP POLICY IF EXISTS "Public visitors can submit store orders" ON public.store_orders;
-CREATE POLICY "Public visitors can submit store orders" ON public.store_orders
-  FOR INSERT TO anon, authenticated
-  WITH CHECK (
-    status = 'new'
-    AND char_length(btrim(customer_name)) BETWEEN 2 AND 120
-    AND char_length(btrim(customer_phone)) BETWEEN 7 AND 40
-    AND (order_description IS NULL OR char_length(order_description) <= 4000)
-  );
+REVOKE INSERT ON public.store_orders FROM anon, authenticated;
+GRANT INSERT, SELECT ON public.store_orders TO service_role;
 );
 ALTER TABLE public.store_orders DROP CONSTRAINT IF EXISTS store_orders_order_description_check;
 ALTER TABLE public.store_orders ADD CONSTRAINT store_orders_order_description_check
