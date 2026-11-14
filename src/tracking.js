@@ -1,5 +1,5 @@
 import "./tracking.css";
-const path=window.location.pathname.replace(/\\/+$/,"");
+const path=window.location.pathname.replace(/\/+$/,"");
 if(path.startsWith("/order/")&&path!=="/order/confirmation"){
   const token=path.split("/").filter(Boolean).at(-1);
   const main=document.querySelector("main");
