@@ -266,7 +266,7 @@ if (isAuthRoute) {
       toast.innerHTML='Added to cart <a href="/cart">View cart</a>';toast.classList.add("is-visible");
       clearTimeout(toast._stepTimer);toast._stepTimer=setTimeout(()=>toast.classList.remove("is-visible"),2400);
       void apiFetch("/api/session").then(r=>r.json()).then(session=>{
-        if(session.authenticated)return apiFetch("/api/profile/cart",{method:"PUT",body:{items:cart.map(row=>({product_id:row.product_id||row.id,quantity:row.quantity}))}});
+        if(session.authenticated)return apiFetch("/api/profile/cart",{method:"PUT",body:{items:cart.map(row=>({product_id:row.product_id||row.id,quantity:row.quantity}))}}).then(response=>{if(response.ok)try{localStorage.removeItem(GUEST_CART_STORAGE_KEY);}catch{};return response;});
       }).catch(error=>console.warn("Favourite cart sync deferred:",error.message));
     });
     app.querySelector("#customer-signout").addEventListener("click", async () => {
