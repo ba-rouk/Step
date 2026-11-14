@@ -142,7 +142,7 @@ async function fetchPublicMenu(options={}) {
   const search=String(options.search||"").trim().slice(0,80).replace(/[\\%_*(),]/g," ");
   const categoriesPromise=sb("/rest/v1/store_categories?select=id,name,slug,description,cover_image_url,sort_order,is_active&is_active=eq.true&order=sort_order.asc");
   const params=new URLSearchParams();
-  params.set("select","id,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_available,is_visible,slug,created_at,category:store_categories!store_products_category_id_fkey(id,name,slug),images:product_images!product_images_product_id_fkey(id,url,public_id,position,alt_text,variants)");
+  params.set("select","id,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_available,is_visible,slug,created_at,category:store_categories!store_products_category_id_fkey!inner(id,name,slug),images:product_images!product_images_product_id_fkey(id,url,public_id,position,alt_text,variants)");
   params.set("is_available","eq.true");
   params.set("is_visible","eq.true");
   if(categorySlug)params.set("category.slug","eq."+categorySlug);
@@ -151,7 +151,7 @@ async function fetchPublicMenu(options={}) {
   params.set("order","sort_order.asc,created_at.desc");
   const productsPromise=(async()=>{
     const response=await fetch(SUPABASE_URL+"/rest/v1/store_products?"+params.toString(),{
-      headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,Prefer:"count=exact",Range:offset+"-"+(offset+limit-1)}
+      headers:{apikey:SUPABASE_KEY,Prefer:"count=exact",Range:offset+"-"+(offset+limit-1)}
     });
     const raw=await response.text();
     let rows=[];try{rows=raw?JSON.parse(raw):[];}catch{throw new Error("The menu service returned invalid data.");}
@@ -493,7 +493,7 @@ async function api(req,res,url) {
         try{
           const response=await fetch(SUPABASE_URL+"/functions/v1/send-order-push",{
             method:"POST",
-            headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json"},
+            headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},
             body:JSON.stringify({order_id:saved.id})
           });
           alertQueued=response.ok;
