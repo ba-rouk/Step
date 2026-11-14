@@ -548,3 +548,61 @@ body.route-category-detail .product-grid,
   .product-dots button,
   .store-toast { transition: none !important; }
 }
+
+
+/* Final responsive contract: mobile is always a single full-width card column.
+   This high-specificity rule supersedes legacy product-grid declarations,
+   including the old mobile Categories two-column rule. */
+@media (max-width: 639px) {
+  html body main #menu #product-grid.product-grid,
+  html body.route-categories main #menu #product-grid.product-grid,
+  html body.route-category-detail main #menu #product-grid.product-grid,
+  html body #customer-account .customer-favourites-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: stretch;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+    margin-inline: 0 !important;
+    padding-inline: 0;
+  }
+
+  html body main #menu #product-grid.product-grid > .product-card:not(.product-card-detail),
+  html body #customer-account .customer-favourites-grid > .product-card:not(.product-card-detail) {
+    grid-column: 1 / -1 !important;
+    justify-self: stretch;
+    width: 100% !important;
+    min-width: 0;
+    max-width: none;
+    aspect-ratio: 4 / 5;
+    border-radius: 24px !important;
+  }
+
+  html body main #menu #product-grid.product-grid > .product-card:not(.product-card-detail) > .product-image,
+  html body #customer-account .customer-favourites-grid > .product-card:not(.product-card-detail) > .product-image {
+    height: 100%;
+    min-height: 0;
+    border-radius: 23px 23px 0 0;
+  }
+
+  html body main #menu #product-grid.product-grid > .product-card:not(.product-card-detail) > .product-image .product-image-strip,
+  html body #customer-account .customer-favourites-grid > .product-card:not(.product-card-detail) > .product-image .product-image-strip {
+    border-radius: inherit;
+  }
+}
+
+/* Preserve the requested tablet and desktop grid breakpoints. */
+@media (min-width: 640px) and (max-width: 1023px) {
+  #product-grid.product-grid:not(.product-detail-grid),
+  #customer-account .customer-favourites-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  #product-grid.product-grid:not(.product-detail-grid),
+  #customer-account .customer-favourites-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
