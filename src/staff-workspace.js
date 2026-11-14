@@ -70,6 +70,28 @@ async function writeAudit(action, entityType, entityId = null, details = {}) {
   });
   if (error) console.warn("Audit entry was not saved:", error.message);
 }
+async function invalidatePublicCatalog() {
+  try {
+    const csrfResponse = await fetch("/api/csrf", { credentials:"same-origin", cache:"no-store" });
+    const csrf = await csrfResponse.json().catch(() => ({}));
+    if (!csrfResponse.ok || !csrf.csrfToken) throw new Error("Catalogue cache token unavailable.");
+    const { data:{ session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const response = await fetch("/api/catalog/invalidate", {
+      method:"POST",
+      credentials:"same-origin",
+      headers:{
+        "Content-Type":"application/json",
+        "X-CSRF-Token":csrf.csrfToken,
+        Authorization:"Bearer "+session.access_token
+      },
+      body:"{}"
+    });
+    if (!response.ok) throw new Error("Catalogue cache invalidation failed.");
+  } catch (error) {
+    console.warn("The public catalogue cache will expire naturally:", error.message);
+  }
+}
 function downloadCsv(filename, rows) {
   const csv = rows.map(row => row.map(value => '"' + String(value ?? "").replace(/"/g, '""') + '"').join(",")).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -919,6 +941,7 @@ async function productsPage() {
         }
         await writeAudit("product_gallery_changed","store_product",savedId,{image_count:orderedImages.length,removed_count:removed.length});
         await writeAudit(isEdit?"product_updated":"product_created","store_product",savedId,{name:payload.name});
+        await invalidatePublicCatalog();
         location.assign("/staff/products");
       } catch (error) {
         $("#product-message").textContent = error.message || "Product could not be saved.";
@@ -951,21 +974,21 @@ async function productsPage() {
       const hasStock = !item.has_stock;
       const { error } = await supabase.from("store_products").update({ has_stock: hasStock, updated_by: profile.user_id, updated_at: new Date().toISOString() }).eq("id", item.id);
       if (error) notify(error.message, "error");
-      else { await writeAudit("product_stock_changed", "store_product", item.id, { has_stock: hasStock }); notify("Stock status updated."); await productsPage(); }
+      else { await writeAudit("product_stock_changed", "store_product", item.id, { has_stock: hasStock }); await invalidatePublicCatalog(); notify("Stock status updated."); await productsPage(); }
     }));
     $$("[data-product-visibility]").forEach(button => button.addEventListener("click", async () => {
       const item = products.find(row => row.id === button.dataset.productVisibility);
       const isVisible = !item.is_visible;
       const { error } = await supabase.from("store_products").update({ is_visible: isVisible, updated_by: profile.user_id, updated_at: new Date().toISOString() }).eq("id", item.id);
       if (error) notify(error.message, "error");
-      else { await writeAudit("product_visibility_changed", "store_product", item.id, { is_visible: isVisible }); notify("Menu visibility updated."); await productsPage(); }
+      else { await writeAudit("product_visibility_changed", "store_product", item.id, { is_visible: isVisible }); await invalidatePublicCatalog(); notify("Menu visibility updated."); await productsPage(); }
     }));
     $$("[data-product-delete]").forEach(button => button.addEventListener("click", async () => {
       if (!confirm("Permanently delete this menu item?")) return;
       const id = button.dataset.productDelete;
       const { error } = await supabase.from("store_products").delete().eq("id", id);
       if (error) notify(error.message, "error");
-      else { await writeAudit("product_deleted", "store_product", id, {}); notify("Product deleted."); await productsPage(); }
+      else { await writeAudit("product_deleted", "store_product", id, {}); await invalidatePublicCatalog(); notify("Product deleted."); await productsPage(); }
     }));
   };
   $("#product-search").addEventListener("input", render);
