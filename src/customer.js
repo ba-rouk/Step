@@ -255,6 +255,23 @@ if (isAuthRoute) {
     shell('<h1>Your cart history.</h1><p class="customer-intro">Saved and unfinished carts are kept separately from submitted orders.</p><div class="customer-order-list">' + cards + '</div><p class="customer-note"><a href="/profile">Back to profile</a> · <a href="/profile/orders">View order history</a></p>', "CART HISTORY");
   }
 
+  async function syncLocalCartHistory() {
+    let rows = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem("step-town-cart-history-v1") || "[]");
+      rows = Array.isArray(saved) ? saved : [];
+    } catch {}
+    if (!rows.length) return;
+    for (const snapshot of rows) {
+      const response = await apiFetch("/api/profile/cart-history", { method:"POST", body:snapshot });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Your guest cart history could not be transferred.");
+      }
+    }
+    try { localStorage.removeItem("step-town-cart-history-v1"); } catch {}
+  }
+
   async function loadProtectedView() {
     shell('<h1>Loading your account…</h1><p class="customer-intro">Checking your secure Step Town session.</p>', "SECURE ACCOUNT");
     try {
@@ -266,7 +283,10 @@ if (isAuthRoute) {
           return;
         }
         if (!response.ok) throw new Error(payload.error || "Cart history could not be loaded.");
-        renderCartHistory(payload);
+        await syncLocalCartHistory();
+        const refreshed = await apiFetch("/api/profile/cart-history");
+        const historyPayload = refreshed.ok ? await refreshed.json() : payload;
+        renderCartHistory(historyPayload);
       } else if (route === "/profile/orders") {
         const response = await apiFetch("/api/profile/orders");
         const payload = await response.json().catch(() => ({}));
@@ -275,6 +295,7 @@ if (isAuthRoute) {
           return;
         }
         if (!response.ok) throw new Error(payload.error || "Order history could not be loaded.");
+        await syncLocalCartHistory();
         renderOrders(payload);
       } else {
         const response = await apiFetch("/api/profile");
@@ -284,6 +305,7 @@ if (isAuthRoute) {
           return;
         }
         if (!response.ok) throw new Error(payload.error || "Your profile could not be loaded.");
+        await syncLocalCartHistory();
         const [savedResponse, productResponse] = await Promise.all([
           apiFetch("/api/profile/favourites"),
           fetch("/api/catalog", { credentials:"same-origin" })
