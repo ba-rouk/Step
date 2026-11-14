@@ -688,8 +688,8 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     const titleEnd=lowerHtml.indexOf("</title>",titleStart);
     if(titleStart>=0&&titleEnd>titleStart)html=html.slice(0,titleStart)+"<title>Step Town | "+pageTitle(pathname)+"</title>"+html.slice(titleEnd+8);
     if(decoded==="/cart"){
-      html=html.replace(/<body(\\s[^>]*)?>/i,(tag,attrs="")=>{
-        const next=String(attrs).replace(/\\sclass=["']([^"']*)["']/i,(_,value)=>' class="'+(value+" route-cart").trim()+'"');
+      html=html.replace(/<body(\s[^>]*)?>/i,(tag,attrs="")=>{
+        const next=String(attrs).replace(/\sclass=["']([^"']*)["']/i,(_,value)=>' class="'+(value+" route-cart").trim()+'"');
         return '<body'+(next===attrs?next+' class="route-cart"':next)+'>';
       });
       html=html.replace('id="cart-page" class="cart-page" hidden','id="cart-page" class="cart-page"');
@@ -714,15 +714,15 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
           .replace(/\u2028/g,"\\u2028")
           .replace(/\u2029/g,"\\u2029");
         const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
-        html=html.replace(/<\\/head>/i,initial+'</head>');
+        html=html.replace(/<\/head>/i,initial+'</head>');
         if(decoded==="/cart"&&productReference){
           if(quickProduct){
             const productPayload=JSON.stringify(quickProduct).replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
             const quickMarkup='<div id="quick-order-summary" class="cart-product-summary" aria-live="polite">'+serverQuickOrderMarkup(quickProduct)+'</div><script id="step-cart-product-data" type="application/json">'+productPayload+'</script>';
-            html=html.replace(/<div id="quick-order-summary" class="cart-product-summary" aria-live="polite" hidden><\\/div>/,quickMarkup);
+            html=html.replace(/<div id="quick-order-summary" class="cart-product-summary" aria-live="polite" hidden><\/div>/,quickMarkup);
           }else{
             const notFound='<div id="quick-order-summary" class="cart-product-summary" aria-live="polite"><div class="cart-empty"><strong>Product not found.</strong><p>This menu item may have been renamed or is no longer available.</p><a class="button button-dark" href="/categories">Browse the menu</a></div></div><script id="step-cart-product-error" type="application/json">true</script>';
-            html=html.replace(/<div id="quick-order-summary" class="cart-product-summary" aria-live="polite" hidden><\\/div>/,notFound);
+            html=html.replace(/<div id="quick-order-summary" class="cart-product-summary" aria-live="polite" hidden><\/div>/,notFound);
             html=html.replace('<form id="product-order-form" class="product-order-form" novalidate>','<form id="product-order-form" class="product-order-form" novalidate hidden>');
           }
         }
