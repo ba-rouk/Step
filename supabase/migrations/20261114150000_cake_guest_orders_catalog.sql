@@ -1,5 +1,7 @@
--- Step Town: canonical Cake category, catalog keys/indexes, guest orders and account carts.
--- Idempotent and data-preserving: move products before removing a duplicate legacy category.
+-- Step Town: canonical Cake category, public menu performance, guest orders and private carts.
+-- Safe to apply after the existing Step Town schema migrations.
+
+-- Rename the legacy category, merging it into an existing Cake category if one exists.
 DO $$
 DECLARE
   v_old_id uuid;
@@ -21,50 +23,67 @@ BEGIN
   IF v_old_id IS NOT NULL AND v_cake_id IS NOT NULL AND v_old_id <> v_cake_id THEN
     UPDATE public.store_products SET category_id = v_cake_id WHERE category_id = v_old_id;
     DELETE FROM public.store_categories WHERE id = v_old_id;
+    UPDATE public.store_categories SET name = 'Cake', slug = 'cake' WHERE id = v_cake_id;
   ELSIF v_old_id IS NOT NULL THEN
     UPDATE public.store_categories SET name = 'Cake', slug = 'cake' WHERE id = v_old_id;
   ELSIF v_cake_id IS NULL THEN
     INSERT INTO public.store_categories(name, slug, description, sort_order, is_active)
     VALUES ('Cake', 'cake', 'Made-to-order cakes for weddings and celebrations.', 3, true);
+  ELSE
+    UPDATE public.store_categories SET name = 'Cake', slug = 'cake' WHERE id = v_cake_id;
   END IF;
 END $$;
 
+-- Stable product URLs; existing product rows are preserved.
 ALTER TABLE public.store_products ADD COLUMN IF NOT EXISTS slug text;
 UPDATE public.store_products
-SET slug = COALESCE(NULLIF(slug, ''), trim(both '-' from regexp_replace(lower(name), '[^a-z0-9]+', '-', 'g')))
-WHERE slug IS NULL OR slug = '';
+SET slug = COALESCE(
+  NULLIF(btrim(slug), ''),
+  NULLIF(trim(both '-' from regexp_replace(lower(btrim(name)), '[^a-z0-9]+', '-', 'g')), ''),
+  'product-' || left(id::text, 8)
+)
+WHERE slug IS NULL OR btrim(slug) = '';
 
 WITH duplicates AS (
   SELECT id, slug,
-         row_number() OVER (PARTITION BY slug ORDER BY created_at, id) AS position
+         row_number() OVER (PARTITION BY slug ORDER BY created_at NULLS FIRST, id) AS position
   FROM public.store_products
 )
-UPDATE public.store_products p
-SET slug = CASE WHEN d.position = 1 THEN d.slug ELSE d.slug || '-' || left(p.id::text, 6) END
-FROM duplicates d
-WHERE p.id = d.id AND d.position > 1;
+UPDATE public.store_products AS product
+SET slug = product.slug || '-' || left(product.id::text, 8)
+FROM duplicates AS duplicate
+WHERE product.id = duplicate.id AND duplicate.position > 1;
 
 CREATE OR REPLACE FUNCTION public.set_store_product_slug()
-RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
 DECLARE
   v_base text;
 BEGIN
   IF NEW.slug IS NULL OR btrim(NEW.slug) = '' THEN
-    v_base := trim(both '-' from regexp_replace(lower(btrim(NEW.name)), '[^a-z0-9]+', '-', 'g'));
-    IF v_base = '' THEN v_base := 'product'; END IF;
+    v_base := NULLIF(trim(both '-' from regexp_replace(lower(btrim(NEW.name)), '[^a-z0-9]+', '-', 'g')), '');
+    IF v_base IS NULL THEN v_base := 'product'; END IF;
     NEW.slug := v_base;
-    IF EXISTS (SELECT 1 FROM public.store_products p WHERE p.slug = NEW.slug AND p.id IS DISTINCT FROM NEW.id) THEN
-      NEW.slug := v_base || '-' || left(COALESCE(NEW.id, gen_random_uuid())::text, 6);
+    IF EXISTS (
+      SELECT 1 FROM public.store_products AS existing
+      WHERE existing.slug = NEW.slug AND existing.id IS DISTINCT FROM NEW.id
+    ) THEN
+      NEW.slug := v_base || '-' || left(COALESCE(NEW.id, gen_random_uuid())::text, 8);
     END IF;
   END IF;
   RETURN NEW;
-END $$;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS store_products_set_slug ON public.store_products;
 CREATE TRIGGER store_products_set_slug
 BEFORE INSERT OR UPDATE OF name, slug ON public.store_products
 FOR EACH ROW EXECUTE FUNCTION public.set_store_product_slug();
 
-CREATE UNIQUE INDEX IF NOT EXISTS store_products_slug_uidx ON public.store_products (slug);
+CREATE UNIQUE INDEX IF NOT EXISTS store_products_slug_uidx
+  ON public.store_products (slug);
 CREATE INDEX IF NOT EXISTS store_products_public_menu_idx
   ON public.store_products (is_available, is_visible, sort_order, id);
 CREATE INDEX IF NOT EXISTS store_products_category_menu_idx
@@ -72,6 +91,7 @@ CREATE INDEX IF NOT EXISTS store_products_category_menu_idx
 CREATE INDEX IF NOT EXISTS product_images_product_position_idx
   ON public.product_images (product_id, position, id);
 
+-- Guest order fields and account ownership. Existing orders remain unchanged.
 ALTER TABLE public.store_orders
   ADD COLUMN IF NOT EXISTS customer_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS order_number text,
@@ -81,49 +101,72 @@ ALTER TABLE public.store_orders
 CREATE SEQUENCE IF NOT EXISTS public.step_town_order_number_seq START WITH 1001;
 SELECT setval(
   'public.step_town_order_number_seq',
-  GREATEST(1000, COALESCE(MAX(NULLIF(regexp_replace(order_number, '[^0-9]', '', 'g'), '')::bigint), 1000)),
+  GREATEST(
+    1000,
+    COALESCE(MAX(NULLIF(regexp_replace(order_number, '[^0-9]', '', 'g'), '')::bigint), 1000)
+  ),
   true
-) FROM public.store_orders;
+)
+FROM public.store_orders;
+
 UPDATE public.store_orders
 SET order_number = 'ST-' || nextval('public.step_town_order_number_seq')::text
 WHERE order_number IS NULL OR btrim(order_number) = '';
 
 CREATE OR REPLACE FUNCTION public.set_step_town_order_number()
-RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
 BEGIN
   IF NEW.order_number IS NULL OR btrim(NEW.order_number) = '' THEN
     NEW.order_number := 'ST-' || nextval('public.step_town_order_number_seq')::text;
   END IF;
   RETURN NEW;
-END $;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS store_orders_set_order_number ON public.store_orders;
 CREATE TRIGGER store_orders_set_order_number
 BEFORE INSERT ON public.store_orders
 FOR EACH ROW EXECUTE FUNCTION public.set_step_town_order_number();
+
 CREATE UNIQUE INDEX IF NOT EXISTS store_orders_order_number_uidx
-  ON public.store_orders(order_number);
+  ON public.store_orders (order_number);
 
 ALTER TABLE public.store_orders
   DROP CONSTRAINT IF EXISTS store_orders_requested_time_check;
 ALTER TABLE public.store_orders
   ADD CONSTRAINT store_orders_requested_time_check
-  CHECK (requested_time IS NULL OR requested_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]
-ALTER TABLE public.store_orders DROP CONSTRAINT IF EXISTS store_orders_order_description_check;
-ALTER TABLE public.store_orders ADD CONSTRAINT store_orders_order_description_check
+  CHECK (
+    requested_time IS NULL
+    OR requested_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+  );
+
+ALTER TABLE public.store_orders
+  DROP CONSTRAINT IF EXISTS store_orders_order_description_check;
+ALTER TABLE public.store_orders
+  ADD CONSTRAINT store_orders_order_description_check
   CHECK (order_description IS NULL OR char_length(order_description) <= 4000);
+
 CREATE INDEX IF NOT EXISTS store_orders_customer_created_idx
   ON public.store_orders (customer_id, created_at DESC);
 
+-- Customers may read only their own orders; staff access remains role-gated.
+ALTER TABLE public.store_orders ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.store_orders TO authenticated;
+
 DROP POLICY IF EXISTS "Customers read their own store orders" ON public.store_orders;
 CREATE POLICY "Customers read their own store orders"
   ON public.store_orders FOR SELECT TO authenticated
   USING (customer_id = auth.uid());
+
 DROP POLICY IF EXISTS "Active staff read store orders" ON public.store_orders;
 CREATE POLICY "Active staff read store orders"
   ON public.store_orders FOR SELECT TO authenticated
   USING (private.staff_has_role(ARRAY['manager','accountant','cashier']::text[]));
 
+-- Saved cart rows are private to the signed-in customer.
 CREATE TABLE IF NOT EXISTS public.customer_cart_items (
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   product_id uuid NOT NULL REFERENCES public.store_products(id) ON DELETE CASCADE,
@@ -131,58 +174,33 @@ CREATE TABLE IF NOT EXISTS public.customer_cart_items (
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, product_id)
 );
+
 ALTER TABLE public.customer_cart_items ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.customer_cart_items FROM anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.customer_cart_items TO authenticated;
+
 DROP POLICY IF EXISTS "Customers read their own cart" ON public.customer_cart_items;
-CREATE POLICY "Customers read their own cart" ON public.customer_cart_items
-  FOR SELECT TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "Customers read their own cart"
+  ON public.customer_cart_items FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+
 DROP POLICY IF EXISTS "Customers add to their own cart" ON public.customer_cart_items;
-CREATE POLICY "Customers add to their own cart" ON public.customer_cart_items
-  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Customers add to their own cart"
+  ON public.customer_cart_items FOR INSERT TO authenticated
+  WITH CHECK (user_id = auth.uid());
+
 DROP POLICY IF EXISTS "Customers update their own cart" ON public.customer_cart_items;
-CREATE POLICY "Customers update their own cart" ON public.customer_cart_items
-  FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Customers update their own cart"
+  ON public.customer_cart_items FOR UPDATE TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
 DROP POLICY IF EXISTS "Customers remove from their own cart" ON public.customer_cart_items;
-CREATE POLICY "Customers remove from their own cart" ON public.customer_cart_items
-  FOR DELETE TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "Customers remove from their own cart"
+  ON public.customer_cart_items FOR DELETE TO authenticated
+  USING (user_id = auth.uid());
 
--- Order writes must go through the rate-limited Node API using its server-only service key.
--- The public key remains read-only for the menu and cannot insert orders directly.
-DROP POLICY IF EXISTS "Public visitors can submit store orders" ON public.store_orders;
-REVOKE INSERT ON public.store_orders FROM anon, authenticated;
-GRANT INSERT, SELECT ON public.store_orders TO service_role;
-);
-ALTER TABLE public.store_orders DROP CONSTRAINT IF EXISTS store_orders_order_description_check;
-ALTER TABLE public.store_orders ADD CONSTRAINT store_orders_order_description_check
-  CHECK (order_description IS NULL OR char_length(order_description) <= 4000);
-CREATE INDEX IF NOT EXISTS store_orders_customer_created_idx
-  ON public.store_orders (customer_id, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS public.customer_cart_items (
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  product_id uuid NOT NULL REFERENCES public.store_products(id) ON DELETE CASCADE,
-  quantity integer NOT NULL DEFAULT 1 CHECK (quantity BETWEEN 1 AND 20),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (user_id, product_id)
-);
-ALTER TABLE public.customer_cart_items ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.customer_cart_items FROM anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.customer_cart_items TO authenticated;
-DROP POLICY IF EXISTS "Customers read their own cart" ON public.customer_cart_items;
-CREATE POLICY "Customers read their own cart" ON public.customer_cart_items
-  FOR SELECT TO authenticated USING (user_id = auth.uid());
-DROP POLICY IF EXISTS "Customers add to their own cart" ON public.customer_cart_items;
-CREATE POLICY "Customers add to their own cart" ON public.customer_cart_items
-  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
-DROP POLICY IF EXISTS "Customers update their own cart" ON public.customer_cart_items;
-CREATE POLICY "Customers update their own cart" ON public.customer_cart_items
-  FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
-DROP POLICY IF EXISTS "Customers remove from their own cart" ON public.customer_cart_items;
-CREATE POLICY "Customers remove from their own cart" ON public.customer_cart_items
-  FOR DELETE TO authenticated USING (user_id = auth.uid());
-
--- Order writes must go through the rate-limited Node API with its server-only service key.
+-- Public order creation is restricted to the validated, rate-limited Node API.
 DROP POLICY IF EXISTS "Public visitors can submit store orders" ON public.store_orders;
 REVOKE INSERT ON public.store_orders FROM anon, authenticated;
 GRANT INSERT, SELECT ON public.store_orders TO service_role;
