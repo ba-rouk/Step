@@ -13,7 +13,7 @@ Deno.serve(async req=>{
   const emailHash=await hash("email:"+email),ipHash=await hash("ip:"+ip);
   const [emailLimit,ipLimit]=await Promise.all([
     db.rpc("consume_step_order_rate_limit",{p_bucket_key:"login-email:"+emailHash,p_max_hits:3,p_window_seconds:3600}),
-    db.rpc("consume_step_order_rate_limit",{p_bucket_key:"login-ip:"+ipHash,p_max_hits:10,p_window_seconds:3600})
+    db.rpc("consume_step_order_rate_limit",{p_bucket_key:"login-ip:"+ipHash,p_max_hits:3,p_window_seconds:3600})
   ]);
   await db.from("email_verification_events").insert({email_normalized:email,event_type:"code_requested",ip_hash:ipHash});
   if(emailLimit.error||ipLimit.error||!emailLimit.data||!ipLimit.data)return json({message:"If the address can receive mail, a sign-in code will be sent shortly."});
