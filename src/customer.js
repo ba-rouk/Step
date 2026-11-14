@@ -4,7 +4,7 @@ import { renderProductCard } from "./product-card.js";
 import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
-const isAuthRoute = ["/login","/register","/profile","/profile/orders"].includes(route);
+const isAuthRoute = ["/login","/register","/profile","/profile/orders","/profile/cart-history"].includes(route);
 
 if (isAuthRoute) {
   document.body.classList.add("route-customer-page");
@@ -163,7 +163,7 @@ if (isAuthRoute) {
       '<h1>Your profile.</h1><p class="customer-intro">Your Step Town account and order details.</p>' +
       '<div class="customer-profile-details"><div><small>FULL NAME</small><strong>' + escapeHtml(name) + '</strong></div><div><small>PHONE NUMBER</small><strong>' + escapeHtml(phone) + '</strong></div></div>' +
       '<section class="customer-favourites"><h2>Your favourites</h2><div class="product-grid customer-favourites-grid" data-product-list="shared" data-product-view="favourites">' + favouritesMarkup + '</div></section>' +
-      '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/orders">View cart history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
+      '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/cart-history">View cart history</a><a class="customer-secondary" href="/profile/orders">View order history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
       '<p class="customer-error" id="customer-profile-error" role="alert"></p>',
       "MY STEP TOWN PROFILE"
     );
@@ -236,16 +236,38 @@ if (isAuthRoute) {
       return '<article class="customer-order-card"><div class="customer-order-top"><strong>' + escapeHtml(order.order_number || "Step Town order") + '</strong><span>' + escapeHtml(order.status || "new") + '</span></div><small>' + escapeHtml(order.created_at ? new Date(order.created_at).toLocaleDateString() : "") + ' · ' + escapeHtml(order.fulfillment || "") + '</small><p>' + summary + '</p>' + (order.order_description ? '<p class="customer-order-description"><strong>Describe your order</strong><br>' + escapeHtml(order.order_description) + '</p>' : '') + (order.notes ? '<p>' + escapeHtml(order.notes) + '</p>' : '') + '<b>' + escapeHtml(total) + '</b></article>';
     }).join("") : '<div class="customer-empty-orders"><strong>No orders yet.</strong><p>Your submitted order requests will appear here.</p><a href="/categories">Explore the menu</a></div>';
     shell(
-      '<h1>Your cart history.</h1><p class="customer-intro">Review the products, quantities, dates and status of your previous order requests.</p>' +
+      '<h1>Your orders.</h1><p class="customer-intro">Your submitted Step Town order requests.</p>' +
       '<div class="customer-order-list">' + cards + '</div><p class="customer-note"><a href="/profile">Back to profile</a></p>',
-      "CART HISTORY"
+      "ORDER HISTORY"
     );
+  }
+
+  function renderCartHistory(payload) {
+    const carts = Array.isArray(payload.carts) ? payload.carts : [];
+    const money = value => new Intl.NumberFormat("en-RW", { style:"currency", currency:"RWF", maximumFractionDigits:0 }).format(Number(value));
+    const cards = carts.length ? carts.map(cart => {
+      const items = Array.isArray(cart.items) ? cart.items : [];
+      const summary = items.map(item => escapeHtml(item.name || "Menu item") + " × " + Number(item.quantity || 1)).join(", ");
+      const total = cart.estimated_total == null ? "Quote to be confirmed" : money(cart.estimated_total);
+      const status = cart.status === "converted" ? "Ordered" : cart.status === "abandoned" ? "Unfinished" : "Saved cart";
+      return '<article class="customer-order-card"><div class="customer-order-top"><strong>' + status + '</strong><span>' + escapeHtml(status) + '</span></div><small>' + escapeHtml(cart.updated_at ? new Date(cart.updated_at).toLocaleString() : "") + '</small><p>' + summary + '</p><b>' + escapeHtml(total) + '</b></article>';
+    }).join("") : '<div class="customer-empty-orders"><strong>No saved carts yet.</strong><p>Products you add to your cart will be kept here, even if you do not submit an order.</p><a href="/categories">Explore the menu</a></div>';
+    shell('<h1>Your cart history.</h1><p class="customer-intro">Saved and unfinished carts are kept separately from submitted orders.</p><div class="customer-order-list">' + cards + '</div><p class="customer-note"><a href="/profile">Back to profile</a> · <a href="/profile/orders">View order history</a></p>', "CART HISTORY");
   }
 
   async function loadProtectedView() {
     shell('<h1>Loading your account…</h1><p class="customer-intro">Checking your secure Step Town session.</p>', "SECURE ACCOUNT");
     try {
-      if (route === "/profile/orders") {
+      if (route === "/profile/cart-history") {
+        const response = await apiFetch("/api/profile/cart-history");
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          window.location.replace("/login?next=" + encodeURIComponent(route));
+          return;
+        }
+        if (!response.ok) throw new Error(payload.error || "Cart history could not be loaded.");
+        renderCartHistory(payload);
+      } else if (route === "/profile/orders") {
         const response = await apiFetch("/api/profile/orders");
         const payload = await response.json().catch(() => ({}));
         if (response.status === 401) {
@@ -288,7 +310,7 @@ if (isAuthRoute) {
     if (route === "/login") authForm("login", authError);
     else authForm("register", authError);
   } else {
-    document.title = route === "/profile/orders" ? "Step Town | Order history" : "Step Town | Profile";
+    document.title = route === "/profile/orders" ? "Step Town | Order history" : route === "/profile/cart-history" ? "Step Town | Cart history" : "Step Town | Profile";
     loadProtectedView();
   }
 }
