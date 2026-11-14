@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { CAKE_CATEGORY_LABEL } from "./src/catalog-config.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
@@ -450,7 +451,7 @@ async function api(req,res,url) {
     if(quantitiesBySlug.size)filters.push("slug.in.("+[...quantitiesBySlug.keys()].join(",")+")");
     if(filters.length===1){
       const [field,value]=filters[0].split(".in.");
-      params.set(field,value);
+      params.set(field,"in."+value);
     }else{
       params.set("or","("+filters.join(",")+")");
     }
@@ -515,7 +516,7 @@ async function api(req,res,url) {
   return sendJson(res,404,{error:"API endpoint not found."});
 }
 function pageTitle(pathname){
-  const titles={"/":"Food · Celebrations · Cakes","/categories":"Categories","/categories/cake":"Cake","/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
+  const titles={"/":"Food · Celebrations · Cakes","/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
   if(pathname.startsWith("/categories/"))return "Menu category";
   if(pathname.startsWith("/staff"))return "Staff workspace";
   return titles[pathname]||"Food · Celebrations · Cakes";
