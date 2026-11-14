@@ -1,3 +1,5 @@
+import { normalizeCategoryLabel } from "./category-config.js";
+
 const escapeHtml = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 })[character]);
@@ -47,12 +49,12 @@ function formatPrice(value) {
  * search, Profile > Favourites, and the expanded product-detail route.
  */
 export function renderProductCard(product, options = {}) {
-  const categoryName = options.categoryName || product.category_name || "Menu";
+  const categoryName = normalizeCategoryLabel(options.categoryName || product.category_name || "Menu", product.category_slug);
   const liked = Boolean(options.liked);
   const detail = Boolean(options.detail);
   const eager = Boolean(options.eager);
   const extraClass = options.extraClass ? " " + escapeHtml(options.extraClass) : "";
-  const href = "/product/" + encodeURIComponent(productSlug(product));
+  const href = "/cart?product=" + encodeURIComponent(product.slug || productSlug(product));
   const images = productImages(product);
 
   const slides = images.length
