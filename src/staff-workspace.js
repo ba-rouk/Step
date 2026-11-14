@@ -600,18 +600,72 @@ async function orderDetailPage(id) {
   }));
   $("#print-receipt").addEventListener("click", () => window.print());
 }
+async function compressImageForUpload(file) {
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+  if (!file || !allowed.includes(file.type)) {
+    throw new Error("Choose a JPG, PNG, WEBP or AVIF image.");
+  }
+  // Allow larger originals because they are resized and recompressed before
+  // the Storage request. The uploaded WebP remains capped at 5 MB.
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error(file.name + " is larger than the 25 MB source-image limit.");
+  }
+
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+    let width = Math.max(1, Math.round(bitmap.width * Math.min(1, 1600 / bitmap.width)));
+    let height = Math.max(1, Math.round(bitmap.height * (width / bitmap.width)));
+    let quality = 0.84;
+    let blob = null;
+
+    for (let attempt = 0; attempt < 9; attempt++) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) throw new Error("This browser could not prepare the image for upload.");
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+      context.drawImage(bitmap, 0, 0, width, height);
+
+      blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (value) => value
+            ? resolve(value)
+            : reject(new Error("Image compression failed. Try another photo.")),
+          "image/webp",
+          quality
+        );
+      });
+
+      if (blob.type !== "image/webp") {
+        throw new Error("This browser cannot convert images to WebP. Update the browser and try again.");
+      }
+      if (blob.size <= 5 * 1024 * 1024) return blob;
+
+      if (quality > 0.64) {
+        quality = Math.max(0.64, quality - 0.07);
+      } else {
+        width = Math.max(640, Math.round(width * 0.82));
+        height = Math.max(640, Math.round(height * 0.82));
+        quality = 0.78;
+      }
+    }
+
+    if (!blob || blob.size > 5 * 1024 * 1024) {
+      throw new Error(file.name + " could not be compressed below 5 MB. Choose a smaller image.");
+    }
+    return blob;
+  } finally {
+    bitmap?.close?.();
+  }
+}
+
 async function uploadImage(file, folder, onProgress = () => {}) {
-  if (!file || !["image/jpeg","image/png","image/webp","image/avif"].includes(file.type)) throw new Error("Choose a JPG, PNG, WEBP or AVIF image.");
-  if (file.size > 5 * 1024 * 1024) throw new Error(file.name + " exceeds 5 MB.");
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / bitmap.width);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  const context = canvas.getContext("2d", { alpha: false });
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close?.();
-  const blob = await new Promise((resolve,reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("Image compression failed.")), "image/webp", .86));
+  const blob = await compressImageForUpload(file);
   const objectPath = folder + "/" + Date.now() + "-" + crypto.randomUUID() + ".webp";
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error("Your staff session expired. Sign in again before uploading.");
@@ -634,7 +688,12 @@ async function uploadImage(file, folder, onProgress = () => {}) {
     request.onabort = () => reject(new Error("Image upload was cancelled."));
     request.send(blob);
   });
-  return { url:supabase.storage.from("step-town-media").getPublicUrl(objectPath).data.publicUrl, public_id:objectPath };
+  return {
+    url: supabase.storage.from("step-town-media").getPublicUrl(objectPath).data.publicUrl,
+    public_id: objectPath,
+    size: blob.size,
+    content_type: blob.type
+  };
 }
 async function productsPage() {
   const segments = PATH.split("/").filter(Boolean);
@@ -667,7 +726,7 @@ async function productsPage() {
         '<label id="price-unit-wrap" hidden>Price measured per<select name="price_unit"><option value="unit">Each / unit</option><option value="kg">Kilogram (kg)</option><option value="g">Gram (g)</option><option value="litre">Litre</option><option value="dozen">Dozen</option><option value="serving">Serving</option><option value="tray">Tray</option><option value="other">Other measure</option></select></label><label id="price-unit-custom-wrap" hidden>Custom measure<input name="price_unit_label" maxlength="24" value="' + esc(product?.price_unit_label || "") + '" placeholder="e.g. tray, metre"></label>' +
         '<label>Stock quantity<input name="stock_quantity" type="number" min="0" step="1" value="' + (product?.stock_quantity ?? "") + '" placeholder="Blank means not tracked"></label>' +
         '<label class="wide">Description<textarea name="description" rows="3">' + esc(product?.description || "") + "</textarea></label>" +
-        '<div class="wide product-image-uploader"><label>Product photos · JPG, PNG or WEBP · 5 MB max each<input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div id="product-image-list" class="staff-product-image-list"></div><p class="staff-muted">Up to 10 images. Drag to reorder, or use the controls. The first image is the cover.</p></div>' +
+        '<div class="wide product-image-uploader"><label>Product photos · JPG, PNG or WEBP · up to 25 MB originals, compressed to 5 MB WebP<input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div id="product-image-list" class="staff-product-image-list"></div><p class="staff-muted">Up to 10 images. Drag to reorder, or use the controls. The first image is the cover.</p></div>' +
         '<label class="staff-check"><input type="checkbox" name="is_available" ' + (product?.is_available === false ? "" : "checked") + '> Available</label>' +
         '<label class="staff-check"><input type="checkbox" name="has_stock" ' + (product?.has_stock === false ? "" : "checked") + '> In stock</label>' +
         '<label class="staff-check"><input type="checkbox" name="is_visible" ' + (product?.is_visible === false ? "" : "checked") + '> Visible on public menu</label>' +
@@ -709,8 +768,8 @@ async function productsPage() {
     });
     const addProductFiles = files => {
       const incoming=Array.from(files||[]);
-      const invalid=incoming.find(file=>!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>5*1024*1024);
-      if(invalid){$("#product-message").textContent=invalid.size>5*1024*1024?invalid.name+" exceeds 5 MB.":"Only JPG, PNG and WEBP images are accepted.";return;}
+      const invalid=incoming.find(file=>!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>25*1024*1024);
+      if(invalid){$("#product-message").textContent=invalid.size>25*1024*1024?invalid.name+" exceeds 25 MB. Images are compressed to WebP below 5 MB before upload.":"Only JPG, PNG and WEBP images are accepted.";return;}
       if(currentImages.length+incoming.length>10){$("#product-message").textContent="A product can have at most 10 images. Remove an image before adding more.";return;}
       incoming.forEach(file=>currentImages.push({id:null,url:URL.createObjectURL(file),public_id:null,alt_text:file.name,file,progress:0}));
       $("#product-message").textContent=incoming.length+" image"+(incoming.length===1?"":"s")+" ready to upload.";
@@ -869,7 +928,7 @@ async function galleryPage() {
   const items = await queryRows(supabase.from("gallery_items").select("*").order("sort_order").order("created_at", { ascending: false }));
   shell("Gallery",
     '<section class="staff-panel"><p class="staff-eyebrow">PUBLIC GALLERY</p><h2>Upload images</h2><form id="gallery-form" class="staff-form-grid">' +
-      '<label class="wide">Images<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple required></label>' +
+      '<label class="wide">Images · compressed to WebP under 5 MB each<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple required></label>' +
       '<label>Category<select name="category"><option value="catering">Catering</option><option value="barbecue">Barbecue</option><option value="cakes">Cakes</option><option value="staff">Staff</option></select></label>' +
       '<label>Caption<input name="caption" maxlength="500" placeholder="Optional shared caption"></label>' +
       '<label class="wide">Alt text<input name="alt_text" maxlength="240" placeholder="Describe the image for accessibility"></label>' +
@@ -895,8 +954,8 @@ async function galleryPage() {
     try {
       for (const file of files) {
         count++;
-        $("#gallery-progress").textContent = "Uploading " + count + " of " + files.length + "…";
-        const imageUrl = await uploadImage(file, "gallery");
+        $("#gallery-progress").textContent = "Compressing " + count + " of " + files.length + " before upload…";
+        const imageUrl = await uploadImage(file, "gallery", percent => {\n          $("#gallery-progress").textContent = "Compressing and uploading " + count + " of " + files.length + " · " + percent + "%";\n        });
         const { error } = await supabase.from("gallery_items").insert({
           title: file.name.replace(/\.[^.]+$/, "").slice(0, 120),
           category: fields.get("category"),
