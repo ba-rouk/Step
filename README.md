@@ -134,7 +134,8 @@ Keep these values in the Render Web Service environment (never in browser code):
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (already used by the public catalogue and staff client).
 - `APP_URL=https://steptown.onrender.com`: pins OAuth callbacks to the production website origin.
 - `SESSION_SECRET`: a randomly generated secret of at least 32 bytes. Generate one with `openssl rand -hex 48`. Do not commit it or share it with the browser.
-- Optional server aliases: `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The server falls back to the existing `VITE_` values if these are omitted. A Supabase service-role key is not required by the customer API.
+- Optional aliases: `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The server falls back to the existing `VITE_` values if these are omitted.
+- `SUPABASE_SERVICE_ROLE_KEY`: required by the guest-capable order API for server-side order inserts and the private order-push invocation. Set it only as a Render secret; never add it to a `VITE_` variable or browser code.
 
 Enable **Phone** in Supabase Authentication providers and configure an SMS provider if phone confirmation is enabled. Set the site URL to `https://steptown.onrender.com`. Add `https://steptown.onrender.com/auth/callback` to the allowed Auth redirect URLs for Google OAuth. Phone/password authentication requires a verified phone number when SMS confirmation is enabled; Supabase recommends MFA because phone numbers can be recycled.
 
