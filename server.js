@@ -91,12 +91,17 @@ function csrfValid(req) {
   const x=Buffer.from(a),y=Buffer.from(b);
   return x.length===y.length&&timingSafeEqual(x,y);
 }
-function rateLimit(req,name,max,windowMs=900000) {
-  const ip=String(req.headers["x-forwarded-for"]||req.socket.remoteAddress||"unknown").split(",")[0].trim();
-  const key=name+":"+ip, now=Date.now(), bucket=limits.get(key);
+function rateLimitKey(key,max,windowMs=900000) {
+  const now=Date.now(),bucket=limits.get(key);
   if(!bucket||bucket.reset<=now){limits.set(key,{count:1,reset:now+windowMs});return true;}
   bucket.count++;
   return bucket.count<=max;
+}
+function requestIp(req) {
+  return String(req.headers["x-forwarded-for"]||req.socket.remoteAddress||"unknown").split(",")[0].trim();
+}
+function rateLimit(req,name,max,windowMs=900000) {
+  return rateLimitKey(name+":"+requestIp(req),max,windowMs);
 }
 async function body(req,max=32768) {
   const chunks=[];let size=0;
