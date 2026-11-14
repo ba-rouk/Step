@@ -357,11 +357,18 @@ async function staticPage(res,pathname){
   const staffRoute=decoded==="/staff"||decoded.startsWith("/staff/");
   let file=staffRoute?path.join(DIST,"staff.html"):(decoded==="/" ? path.join(DIST,"index.html") : path.resolve(DIST,"."+decoded));
   if(!staffRoute&&file!==DIST&&!file.startsWith(DIST+path.sep))return sendJson(res,400,{error:"Invalid path."});
+  const requestedExt=path.extname(file).toLowerCase();
   try{const stat=await fs.stat(file);if(stat.isDirectory())file=path.join(file,"index.html");}
-  catch{file=path.join(DIST,staffRoute?"staff.html":"index.html");}
+  catch{
+    // Never turn a missing script, stylesheet, manifest or image into index.html.
+    // That fallback caused /sw.js to be served as text/html, which Chrome rejects.
+    if(staffRoute){file=path.join(DIST,"staff.html");}
+    else if(decoded==="/"||requestedExt===".html"||!requestedExt){file=path.join(DIST,"index.html");}
+    else return sendJson(res,404,{error:"Static asset not found."});
+  }
   let data;
   try{data=await fs.readFile(file);}
-  catch{try{file=path.join(DIST,"index.html");data=await fs.readFile(file);}catch{return sendJson(res,503,{error:"The website is building. Refresh shortly."});}}
+  catch{return sendJson(res,staffRoute?503:404,{error:staffRoute?"The staff workspace is building. Refresh shortly.":"Static asset not found."});}
   const ext=path.extname(file).toLowerCase();
   const headers={"Content-Type":MIME[ext]||"application/octet-stream","X-Content-Type-Options":"nosniff","Referrer-Policy":"strict-origin-when-cross-origin","X-Frame-Options":"SAMEORIGIN","Cache-Control":ext===".html"?"no-store":"public, max-age=3600"};
   if(ext===".html"&&path.basename(file)==="index.html"){
