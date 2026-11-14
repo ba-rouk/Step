@@ -99,7 +99,7 @@ function rateLimitKey(key,max,windowMs=900000) {
   return bucket.count<=max;
 }
 function requestIp(req) {
-  return String(req.headers["x-forwarded-for"]||req.socket.remoteAddress||"unknown").split(",")[0].trim();
+  return String(req.headers["cf-connecting-ip"]||req.headers["x-real-ip"]||req.headers["x-forwarded-for"]||req.socket.remoteAddress||"unknown").split(",").at(-1).trim();
 }
 function rateLimit(req,name,max,windowMs=900000) {
   return rateLimitKey(name+":"+requestIp(req),max,windowMs);
@@ -148,7 +148,7 @@ async function fetchPublicMenu(options={}) {
   params.set("is_visible","eq.true");
   if(categorySlug)params.set("category.slug","eq."+categorySlug);
   if(productSlug)params.set("slug","eq."+productSlug);
-  if(search)params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*)");
+  if(search)params.set("or","(name.ilike.*"+search+"*,description.ilike.*"+search+"*,category.name.ilike.*"+search+"*)");
   params.set("order","sort_order.asc,created_at.desc");
   const productsPromise=(async()=>{
     const response=await fetch(SUPABASE_URL+"/rest/v1/store_products?"+params.toString(),{
