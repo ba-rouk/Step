@@ -237,7 +237,13 @@ function renderConfirmation() {
   const number=document.querySelector("#confirmed-order-number");
   if(number)number.textContent=params.get("order")||data.order_number||"";
   const details=document.querySelector("#confirmation-details");
-  if(details)details.textContent="Your request has been saved. Step Town will contact you to confirm availability and final pricing.";
+  if(details)details.textContent="Your request has been saved. Final pricing is confirmed by Step Town before your order is accepted.";
+  const summary=document.querySelector("#confirmation-order-summary");
+  if(summary){
+    const items=Array.isArray(data.items)?data.items:[];
+    const itemRows=items.map(item=>'<div class="confirmation-order-item"><span>'+html(item.name||"Menu item")+' × '+Math.max(1,Number(item.quantity||1))+'</span><strong>'+(item.line_total==null?"Price to be confirmed":money(item.line_total))+'</strong></div>').join("");
+    summary.innerHTML=itemRows+'<div class="confirmation-order-total"><span>Estimated total</span><strong>'+(data.estimated_total==null?"To be confirmed":money(data.estimated_total))+'</strong></div>';
+  }
   const track=document.querySelector("#confirmation-tracking-link");
   if(track&&data.tracking_token){track.href="/order/"+encodeURIComponent(data.tracking_token);track.hidden=false;}
   const create=document.querySelector("#confirmation-create-account");
