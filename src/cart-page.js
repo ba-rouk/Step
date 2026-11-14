@@ -197,10 +197,18 @@ async function initialiseCart() {
     if(requireLoginForCartList&&!signedIn){window.location.replace("/login?next="+encodeURIComponent("/cart"+window.location.search));return false;}
     if(signedIn){
       const accountCart=await getAccountCart();
-      const owner=localStorage.getItem(CART_OWNER_KEY)||"";
-      if(owner!==accountData.user.id){
+      let owner=localStorage.getItem(CART_OWNER_KEY)||"";
+      if(owner&&owner!==accountData.user.id){
+        // The previous snapshot belonged to another account, not a guest.
+        localStorage.removeItem(CART_KEY);
+        localStorage.removeItem(CART_OWNER_KEY);
+        localItems=[];
+        owner="";
+      }
+      if(!owner){
         cartItems=mergeCarts(accountCart,localItems);
-        await persistCart();
+        if(localItems.length)await persistCart();
+        else cartItems=accountCart;
       }else{
         cartItems=accountCart;
       }
