@@ -25,13 +25,9 @@ function productImages(product) {
         : [product.image_url]
       ).filter(Boolean).map((url) => typeof url === "string" ? { url } : url);
 
-  const seen = new Set();
-  return rows.filter((image) => {
-    const url = safeImageUrl(image && image.url);
-    if (!url || seen.has(url)) return false;
-    seen.add(url);
-    return true;
-  });
+  return rows
+    .map((image) => typeof image === "string" ? { url: image } : image)
+    .filter((image) => Boolean(safeImageUrl(image && image.url)));
 }
 
 function formatPrice(value) {
