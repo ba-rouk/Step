@@ -166,7 +166,9 @@ async function readPublicCatalog({limit=12,offset=0,categorySlug="",productSlug=
   });
   if(categorySlug)params.set("category.slug","eq."+categorySlug);
   if(productSlug)params.set("slug","eq."+productSlug);
-  if(term)params.set("or","(name.ilike.*"+term+"*,description.ilike.*"+term+"*)");
+  const cakeCategorySearch=!categorySlug&&/^(wedding\\s+)?cakes?$/i.test(term);
+  if(cakeCategorySearch)params.set("category.slug","eq.cake");
+  else if(term)params.set("or","(name.ilike.*"+term+"*,description.ilike.*"+term+"*)");
   const fetchCatalogValue=async()=>{
     const [rows,categories]=await Promise.all([
       sb("/rest/v1/store_products?"+params.toString()),
@@ -301,6 +303,10 @@ async function api(req,res,url) {
     }catch(e){console.error("Public catalogue:",e.message);return sendJson(res,e.status||502,{error:"The menu could not be loaded."});}
   }
   if(req.method==="POST"&&route==="/api/catalog/invalidate"){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Authentication required."});
+    const memberships=await sb("/rest/v1/staff_profiles?select=user_id&user_id=eq."+encodeURIComponent(current.user.id)+"&is_active=eq.true&role=in.(manager,accountant)",{access:current.session.access_token});
+    if(!memberships?.length)return sendJson(res,403,{error:"Only active product staff can invalidate the menu cache."});
     catalogCache.clear();
     return sendJson(res,200,{ok:true});
   }
@@ -432,7 +438,8 @@ async function api(req,res,url) {
       if(saved?.id){
         try{
           const headers={apikey:SUPABASE_KEY,"Content-Type":"application/json",Authorization:"Bearer "+SUPABASE_SERVICE_ROLE_KEY};
-          await fetch(SUPABASE_URL+"/functions/v1/send-order-push",{method:"POST",headers,body:JSON.stringify({order_id:saved.id})});
+          const pushResponse=await fetch(SUPABASE_URL+"/functions/v1/send-order-push",{method:"POST",headers,body:JSON.stringify({order_id:saved.id})});
+          if(!pushResponse.ok)console.warn("Order saved, but staff push dispatch returned",pushResponse.status,await pushResponse.text().catch(()=> ""));
         }catch(e){console.warn("Order saved; staff notification failed:",e.message);}
       }
       return sendJson(res,201,{order:saved});
