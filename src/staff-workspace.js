@@ -924,6 +924,27 @@ async function productsPage() {
   $("#product-category-filter").addEventListener("change", render);
   render();
 }
+function galleryStorageObjectPath(publicUrl) {
+  if (typeof publicUrl !== "string" || !publicUrl) return "";
+  try {
+    const url = new URL(publicUrl);
+    const marker = "/storage/v1/object/public/step-town-media/";
+    const position = url.pathname.indexOf(marker);
+    if (position < 0) return "";
+    const path = decodeURIComponent(url.pathname.slice(position + marker.length));
+    return path.startsWith("gallery/") && !path.split("/").includes("..") ? path : "";
+  } catch {
+    return "";
+  }
+}
+
+async function removeGalleryStorageObject(publicUrl) {
+  const path = galleryStorageObjectPath(publicUrl);
+  if (!path) return;
+  const { error } = await supabase.storage.from("step-town-media").remove([path]);
+  if (error) console.warn("Could not remove the gallery storage file:", error.message);
+}
+
 async function galleryPage() {
   const items = await queryRows(supabase.from("gallery_items").select("*").order("sort_order").order("created_at", { ascending: false }));
   shell("Gallery",
@@ -1011,9 +1032,14 @@ async function galleryPage() {
     const file = input.files?.[0];
     if (!file) return;
     try {
+      const current = items.find(item => item.id === input.dataset.galleryReplace);
       const uploaded = await uploadImage(file, "gallery");
       const { error } = await supabase.from("gallery_items").update({ image_url: uploaded.url, alt_text: file.name, updated_at: new Date().toISOString() }).eq("id", input.dataset.galleryReplace);
-      if (error) throw error;
+      if (error) {
+        await supabase.storage.from("step-town-media").remove([uploaded.public_id]);
+        throw error;
+      }
+      if (current?.image_url) await removeGalleryStorageObject(current.image_url);
       await writeAudit("gallery_image_replaced", "gallery_item", input.dataset.galleryReplace, {});
       notify("Gallery image replaced.");
       await galleryPage();
@@ -1022,9 +1048,14 @@ async function galleryPage() {
   $$("[data-gallery-delete]").forEach(button => button.addEventListener("click", async () => {
     if (!confirm("Delete this gallery item?")) return;
     const id = button.dataset.galleryDelete;
+    const item = items.find(row => row.id === id);
     const { error } = await supabase.from("gallery_items").delete().eq("id", id);
     if (error) notify(error.message, "error");
-    else { await writeAudit("gallery_image_deleted", "gallery_item", id, {}); await galleryPage(); }
+    else {
+      if (item?.image_url) await removeGalleryStorageObject(item.image_url);
+      await writeAudit("gallery_image_deleted", "gallery_item", id, {});
+      await galleryPage();
+    }
   }));
 }
 function enquiryTable(data) {
