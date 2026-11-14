@@ -75,7 +75,8 @@ async function getSelectedProduct(){
 async function getAccount(){
   const {response,data}=await jsonRequest("/api/profile");
   if(response.ok){accountUser=data;return data;}
-  return null;
+  if(response.status===401)return null;
+  throw new Error(data.error||"We couldn't verify your account. Check your connection and retry.");
 }
 function updateDeliveryField(){
   const select=document.querySelector("#order-fulfillment");
@@ -163,7 +164,14 @@ async function startCart(){
   renderProductSummary(selectedProduct);
   updateDeliveryField();
   document.querySelector("#order-fulfillment")?.addEventListener("change",updateDeliveryField);
-  const account=await getAccount();
+  let account=null;
+  let accountCheckFailed=false;
+  try{account=await getAccount();}
+  catch(error){
+    accountCheckFailed=true;
+    const status=document.querySelector("#product-order-error");
+    if(status)status.textContent=error.message||"We couldn't verify your account. Your selected product will stay on this page.";
+  }
   if(account){
     const name=form.elements.customer_name,phone=form.elements.customer_phone;
     const savedName=account.profile?.full_name||account.user?.user_metadata?.full_name||account.user?.user_metadata?.name;
@@ -172,7 +180,7 @@ async function startCart(){
     if(savedPhone&&phone)phone.value=savedPhone;
   }
   await renderSavedCart();
-  if(params.get("product")){
+  if(params.get("product")&&!accountCheckFailed){
     if(accountUser&&selectedProduct){
       try{
         await rememberSelectedProduct();
