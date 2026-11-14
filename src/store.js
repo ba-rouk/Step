@@ -86,14 +86,17 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
     catch (error) { console.warn("Guest cart could not be saved:", error); return false; }
   }
 
+  let accountCartWrite = Promise.resolve();
   async function persistAccountCartOnly() {
-    try {
-      const sessionResponse=await fetch("/api/session",{credentials:"same-origin"});
-      const session=await sessionResponse.json().catch(()=>({}));
-      if(!session.authenticated)return;
-      await apiFetch("/api/profile/cart",{method:"PUT",body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
-      try { localStorage.removeItem(GUEST_CART_STORAGE_KEY); } catch {}
-    } catch(error) { console.warn("Account cart save deferred:",error.message); }
+    const snapshot = cart.map(item => ({ product_id: item.product_id, quantity: item.quantity }));
+    accountCartWrite = accountCartWrite.catch(() => {}).then(async () => {
+      const sessionResponse = await fetch("/api/session", { credentials: "same-origin" });
+      const session = await sessionResponse.json().catch(() => ({}));
+      if (!session.authenticated) return;
+      await apiFetch("/api/profile/cart", { method: "PUT", body: { items: snapshot } });
+    });
+    try { await accountCartWrite; }
+    catch (error) { console.warn("Account cart save deferred:", error.message); }
   }
 
   async function syncAccountCart() {
@@ -110,12 +113,11 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
         if (!id) continue;
         const previous = merged.get(id);
         merged.set(id, {...(previous || item), ...item, product_id:id,
-          quantity:Math.min(20,(previous?.quantity || 0)+(Number(item.quantity)||1))});
+          quantity:Math.max(1,Math.min(20,Math.max(Number(previous?.quantity)||0,Number(item.quantity)||1)))});
       }
       cart = [...merged.values()].slice(0,50);
       saveCart();
       await apiFetch("/api/profile/cart", {method:"PUT",body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
-      try { localStorage.removeItem(GUEST_CART_STORAGE_KEY); } catch {}
       renderCart();
     } catch (error) { console.warn("Cart account sync deferred:",error.message); }
   }

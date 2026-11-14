@@ -1052,7 +1052,7 @@ async function galleryPage() {
     $("#staff-gallery-lightbox-count").textContent = (lightboxIndex + 1) + " / " + items.length;
     if (!lightbox.open) lightbox.showModal();
   };
-  $("[data-gallery-preview]").forEach(button => button.addEventListener("click", () => showGalleryImage(Number(button.dataset.galleryPreview))));
+  $$("[data-gallery-preview]").forEach(button => button.addEventListener("click", () => showGalleryImage(Number(button.dataset.galleryPreview))));
   $(".staff-gallery-lightbox-close")?.addEventListener("click", () => lightbox.close());
   $(".staff-gallery-lightbox-prev")?.addEventListener("click", () => showGalleryImage(lightboxIndex - 1));
   $(".staff-gallery-lightbox-next")?.addEventListener("click", () => showGalleryImage(lightboxIndex + 1));

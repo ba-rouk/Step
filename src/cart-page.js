@@ -48,7 +48,7 @@ function merge(primary,secondary) {
   for(const raw of [...primary,...secondary]){
     const item=normalize(raw);if(!item)continue;
     const old=map.get(item.product_id);
-    map.set(item.product_id,old?{...old,...item,quantity:Math.min(20,old.quantity+item.quantity)}:item);
+    map.set(item.product_id,old?{...old,...item,quantity:Math.max(old.quantity,item.quantity)}:item);
   }
   return [...map.values()].slice(0,50);
 }
