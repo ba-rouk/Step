@@ -402,11 +402,25 @@ async function startCart() {
   try {
     const signedIn = await getAccount();
     if (signedIn) {
-      await syncGuestCartHistory();
+      // Cart-history transfer is best-effort and must never prevent the active cart loading.
+      try {
+        await syncGuestCartHistory();
+      } catch (historyError) {
+        console.warn("Previous cart history could not be transferred yet:", historyError.message);
+        if (status) status.textContent = "Your active cart will still load. Older cart history could not be synced yet.";
+      }
+
       const accountCart = await getAccountCart();
       cartItems = mergeCarts(accountCart, cartItems);
-      if (cartItems.length) await persistCart();
-      else {
+      if (cartItems.length) {
+        try {
+          await persistCart();
+        } catch (saveError) {
+          saveGuestCart();
+          console.warn("The cart was restored but account synchronisation is incomplete:", saveError.message);
+          if (status) status.textContent = "Your cart was restored, but account synchronisation needs another try.";
+        }
+      } else {
         try { localStorage.removeItem(cartKey); } catch {}
       }
     }
