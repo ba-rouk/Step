@@ -542,8 +542,9 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     if(menuPage){
       try{
         const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
-        const productSlug=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
-        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:productSlug});
+        const productReference=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
+        const isProductId=/^[0-9a-f-]{36}$/i.test(productReference);
+        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:isProductId?"":productReference,productId:isProductId?productReference:""});
         const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
           .replace(/</g,"\\u003c")
           .replace(/\u2028/g,"\\u2028")
