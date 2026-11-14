@@ -457,6 +457,81 @@ async function emailCodeRoutes(req,res,url) {
   return sendJson(res,404,{error:"Email verification endpoint not found."});
 }
 
+async function emailChangeRoutes(req,res,url) {
+  const current=await currentUser(req,res);
+  if(!current)return sendJson(res,401,{error:"Please sign in to change your account email."});
+  const route=url.pathname;
+  const b=await body(req,4096);
+  const email=String(b.email||"").trim().toLowerCase();
+  if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return sendJson(res,400,{error:"Enter a valid email address."});
+  if(email===String(current.user.email||"").trim().toLowerCase())return sendJson(res,400,{error:"That is already your account email."});
+  const ipHash=createHash("sha256").update("ip:"+requestIp(req)).digest("hex");
+  const emailHash=createHash("sha256").update("email-change:"+email).digest("hex");
+
+  if(route==="/api/profile/email/change-request"){
+    try{
+      const [ipLimit,emailLimit]=await Promise.all([
+        serviceRequest("/rest/v1/rpc/consume_step_order_rate_limit",{method:"POST",body:{p_bucket_key:"email-change-ip:"+ipHash,p_max_hits:3,p_window_seconds:3600}}),
+        serviceRequest("/rest/v1/rpc/consume_step_order_rate_limit",{method:"POST",body:{p_bucket_key:"email-change:"+emailHash,p_max_hits:3,p_window_seconds:3600}})
+      ]);
+      if(!ipLimit||!emailLimit){await verificationEvent(email,"rate_limited",req,current.user.id);return sendJson(res,202,{ok:true,message:"If this address can be verified, we have sent a code."});}
+      const code=String(100000+(randomBytes(4).readUInt32BE(0)%900000));
+      await serviceRequest("/rest/v1/login_codes?email=eq."+encodeURIComponent(email)+"&purpose=eq.email_change&consumed_at=is.null",{
+        method:"PATCH",body:{consumed_at:new Date().toISOString()},headers:{Prefer:"return=minimal"}
+      });
+      await serviceRequest("/rest/v1/login_codes",{method:"POST",body:{
+        email,code_hash:emailCodeHash(email,code),purpose:"email_change",user_id:current.user.id,
+        expires_at:new Date(Date.now()+10*60*1000).toISOString(),attempts:0
+      },headers:{Prefer:"return=minimal"}});
+      await serviceRequest("/rest/v1/email_jobs",{method:"POST",body:{
+        job_type:"login_code",recipient:email,payload:{encrypted_code:seal({code,email,purpose:"email_change"})}
+      },headers:{Prefer:"return=minimal"}});
+      await verificationEvent(email,"code_sent",req,current.user.id);
+      void processEmailOutbox();
+      return sendJson(res,202,{ok:true,message:"If this address can be verified, we have sent a code."});
+    }catch(error){
+      console.error("Account email change code request:",error.message);
+      await verificationEvent(email,"code_send_failed",req,current.user.id);
+      return sendJson(res,202,{ok:true,message:"If this address can be verified, we have sent a code."});
+    }
+  }
+
+  if(route==="/api/profile/email/change-verify"){
+    const code=String(b.code||"").trim();
+    if(!/^\d{6}$/.test(code))return sendJson(res,400,{error:"Enter the six-digit code."});
+    try{
+      const pending=await serviceRequest("/rest/v1/login_codes?select=user_id&email=eq."+encodeURIComponent(email)+"&purpose=eq.email_change&consumed_at=is.null&order=created_at.desc&limit=1");
+      if(!pending?.length||pending[0].user_id!==current.user.id)return sendJson(res,400,{error:"That code is incorrect, expired or already used."});
+      const consumed=await serviceRequest("/rest/v1/rpc/consume_step_login_code",{
+        method:"POST",body:{p_email:email,p_code_hash:emailCodeHash(email,code),p_purpose:"email_change"}
+      });
+      if(consumed!=="ok"){
+        const event=consumed==="expired"?"code_expired":consumed==="locked"?"code_locked":"code_invalid";
+        await verificationEvent(email,event,req,current.user.id);
+        return sendJson(res,400,{error:consumed==="locked"?"Too many incorrect attempts. Request a new code.":consumed==="expired"?"That code has expired. Request a new one.":"That code is incorrect or has already been used."});
+      }
+      await adminAuth("users/"+encodeURIComponent(current.user.id),{method:"PUT",body:{email,email_confirm:true}});
+      const refreshed=await sb("/auth/v1/token?grant_type=refresh_token",{method:"POST",body:{refresh_token:current.session.refresh_token}});
+      if(!refreshed?.access_token)throw new Error("The verified session could not be refreshed.");
+      setSession(res,req,refreshed);
+      await serviceRequest("/rest/v1/customer_profiles?on_conflict=user_id",{
+        method:"POST",body:{user_id:current.user.id,email_verified_at:new Date().toISOString()},
+        headers:{Prefer:"resolution=merge-duplicates,return=minimal"}
+      });
+      await serviceRequest("/rest/v1/store_orders?customer_email_normalized=eq."+encodeURIComponent(email)+"&user_id=is.null&customer_id=is.null",{
+        method:"PATCH",body:{user_id:current.user.id,customer_id:current.user.id},headers:{Prefer:"return=minimal"}
+      });
+      await verificationEvent(email,"email_changed",req,current.user.id);
+      return sendJson(res,200,{ok:true,next:safeNext(b.next||"/profile/orders")});
+    }catch(error){
+      console.error("Account email change verification:",error.status||502,error.message);
+      const status=error.status===422?409:error.status&&error.status<500?error.status:502;
+      return sendJson(res,status,{error:status===409?"That email address is already linked to another account.":"The email address could not be changed. Please try again."});
+    }
+  }
+  return sendJson(res,404,{error:"Email change endpoint not found."});
+}
+
 async function api(req,res,url) {
   const route=url.pathname;
   if(req.method==="GET"&&route==="/api/csrf"){
@@ -502,6 +577,8 @@ async function api(req,res,url) {
   }
   if(req.method==="POST"&&(route==="/api/auth/email-code"||route==="/api/auth/verify-email-code"))
     return emailCodeRoutes(req,res,url);
+  if(req.method==="POST"&&(route==="/api/profile/email/change-request"||route==="/api/profile/email/change-verify"))
+    return emailChangeRoutes(req,res,url);
   if(req.method==="POST"&&route.startsWith("/api/auth/"))return authRoutes(req,res,url);
 
   if((req.method==="GET"||req.method==="POST")&&route==="/api/profile/cart-history"){
