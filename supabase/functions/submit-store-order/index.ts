@@ -159,7 +159,7 @@ Deno.serve(async req => {
 
   // Email delivery is durable: queue it independently so an email outage never
   // rolls back the successfully saved order.
-  const trackingUrl = (Deno.env.get("APP_URL") || "https://steptown.onrender.com").replace(/\\/+$/, "") + "/order/" + saved.tracking_token;
+  const trackingUrl = (Deno.env.get("APP_URL") || "https://steptown.onrender.com").replace(/\/+$/, "") + "/order/" + saved.tracking_token;
   const emailJob = await db.from("email_outbox").insert({
     recipient: email,
     template_key: "order_confirmation",
