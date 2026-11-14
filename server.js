@@ -329,7 +329,7 @@ async function api(req,res,url) {
     }
   }
   if(req.method==="POST"&&route==="/api/catalog/invalidate"){
-    const token=String(req.headers.authorization||"").replace(/^Bearer\\s+/i,"");
+    const token=String(req.headers.authorization||"").replace(/^Bearer\s+/i,"");
     if(!token)return sendJson(res,401,{error:"Staff authentication is required."});
     try{
       const user=await sb("/auth/v1/user",{access:token});
@@ -427,8 +427,8 @@ async function api(req,res,url) {
 
     const date=b.requested_date?String(b.requested_date):null;
     const time=b.requested_time?String(b.requested_time):null;
-    if(date&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid preferred date."});
-    if(time&&!/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(time))return sendJson(res,400,{error:"Choose a valid preferred time."});
+    if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid preferred date."});
+    if(time&&!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))return sendJson(res,400,{error:"Choose a valid preferred time."});
 
     const incoming=Array.isArray(b.items)?b.items:(b.product_slug?[{slug:b.product_slug,quantity:b.quantity||1}]:[]);
     if(!incoming.length||incoming.length>50)return sendJson(res,400,{error:"Choose at least one menu item before sending your order."});
@@ -546,9 +546,9 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
         const productSlug=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
         const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:productSlug});
         const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
-          .replace(/</g,"\\\\u003c")
-          .replace(/\\u2028/g,"\\\\u2028")
-          .replace(/\\u2029/g,"\\\\u2029");
+          .replace(/</g,"\\u003c")
+          .replace(/\u2028/g,"\\u2028")
+          .replace(/\u2029/g,"\\u2029");
         const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
         html=html.replace('<script type="module" src="/src/main.js"></script>',initial+'<script type="module" src="/src/main.js"></script>');
       }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
