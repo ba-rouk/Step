@@ -3,7 +3,7 @@ import { apiFetch } from "./api.js";
 import { renderProductCard } from "./product-card.js";
 import { renderProductPage } from "./product-page.js";
 import { normalizeCategoryLabel } from "./catalog-config.js";
-import { bindProductGallery, showProductToast } from "./product-gallery.js";
+import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -47,8 +47,10 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   const routeSearchMount = document.querySelector(".route-search-mount");
   const routeSearch = document.querySelector(".storefront-hero .menu-search");
   if (categoryRoute && routeSearchMount && routeSearch) routeSearchMount.append(routeSearch);
-  let cart = [];
+  let cart = loadCart();
   let lastCartTrigger = mobileCartOpen || cartOpen;
+  let accountCartReady = false;
+  let accountCartSync = null;
 
   function escapeHtml(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, (character) => ({
@@ -73,14 +75,64 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   }
 
   function loadCart() {
-    // Guest carts are one-time page handoffs, never persistent browser storage.
-    try { window.localStorage.removeItem("step-town-cart-v1"); } catch {}
-    return [];
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("step-town-cart-v1") || "[]");
+      if (!Array.isArray(saved)) return [];
+      return saved.map(item => ({
+        ...item,
+        product_id:String(item.product_id || item.id || ""),
+        quantity:Math.max(1,Math.min(20,Math.floor(Number(item.quantity || 1)))),
+        price:item.price == null || item.price === "" ? null : Number(item.price)
+      })).filter(item => item.product_id).slice(0,50);
+    } catch { return []; }
   }
 
   function saveCart() {
-    // This page keeps cart UI state in memory only. /cart owns authenticated persistence.
+    try { window.localStorage.setItem("step-town-cart-v1", JSON.stringify(cart)); }
+    catch (error) { console.warn("The local cart could not be saved:", error); }
+    renderCart();
+    if (accountCartReady) {
+      void apiFetch("/api/profile/cart", {
+        method:"PUT",
+        body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}
+      }).catch(error=>console.warn("Account cart sync deferred:",error.message));
+    }
     return true;
+  }
+
+  async function syncAccountCart() {
+    if (accountCartSync) return accountCartSync;
+    accountCartSync=(async()=>{
+      try {
+        const sessionResponse=await fetch("/api/session",{credentials:"same-origin"});
+        const session=await sessionResponse.json().catch(()=>({}));
+        if(!session.authenticated||!session.user?.id)return;
+        const ownerKey="step-town-cart-owner-v1";
+        const previousOwner=localStorage.getItem(ownerKey)||"";
+        const isGuestSnapshot=previousOwner!==session.user.id;
+        if(isGuestSnapshot&&cart.length){
+          const mergeResponse=await apiFetch("/api/profile/cart/merge",{
+            method:"POST",
+            body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}
+          });
+          if(!mergeResponse.ok)throw new Error("Guest cart merge could not be completed.");
+        }
+        const response=await fetch("/api/profile/cart",{credentials:"same-origin"});
+        const payload=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(payload.error||"Saved account cart could not be loaded.");
+        cart=(payload.items||[]).map(item=>({
+          ...item,product_id:String(item.product_id||item.id),
+          category_name:item.category_name||item.category?.name||"Menu",
+          quantity:Math.max(1,Math.min(20,Math.floor(Number(item.quantity||1)))),
+          price:item.price==null||item.price===""?null:Number(item.price)
+        })).filter(item=>item.product_id).slice(0,50);
+        localStorage.setItem(ownerKey,session.user.id);
+        localStorage.setItem("step-town-cart-v1",JSON.stringify(cart));
+        accountCartReady=true;
+        renderCart();
+      }catch(error){console.warn("Account cart sync deferred:",error.message);}
+    })().finally(()=>{accountCartSync=null;});
+    return accountCartSync;
   }
 
   function categoryName(categoryId) {
@@ -230,7 +282,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
     if (lastCartTrigger?.isConnected) lastCartTrigger.focus();
   }
 
-  function addProduct(productId) {
+  function addProduct(productId, button) {
     const product = products.find((item) => String(item.id) === String(productId));
     if (!product?.id) {
       showProductToast("This menu item is unavailable. Refresh the menu and try again.");
@@ -258,13 +310,15 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
       quantity: 1
     };
 
-    try {
-      window.sessionStorage.setItem(cartHandoffKey, JSON.stringify([item]));
-    } catch {
-      showProductToast("Your browser could not open the cart. Please try again.");
-      return;
+    const existing=cart.find(entry=>entry.product_id===item.product_id);
+    if(existing) existing.quantity=Math.min(20,existing.quantity+1);
+    else {
+      if(cart.length>=50){showProductToast("Your cart can contain up to 50 different items.");return;}
+      cart.push(item);
     }
-    window.location.assign("/cart");
+    saveCart();
+    flashCartButton(button);
+    showProductToast("Added to cart",{href:"/cart",label:"View cart"});
   }
 
   const menuPageSize = 12;
@@ -411,6 +465,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   // Category cards and filter chips navigate to real /categories/:slug routes.
 
   bindProductGallery(productGrid);
+  void syncAccountCart();
   productGrid.addEventListener("click", (event) => {
     const favourite = event.target.closest("[data-favourite]");
     if (favourite) {
@@ -430,7 +485,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
     if (button) {
       event.preventDefault();
       event.stopPropagation();
-      addProduct(button.dataset.addProduct);
+      addProduct(button.dataset.addProduct,button);
     }
   });
   if (searchInput) searchInput.addEventListener("input", () => {
