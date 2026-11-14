@@ -2243,3 +2243,50 @@ body.route-customer-page .customer-error {
   font: 500 13px/1.55 var(--body, Inter, sans-serif);
 }
 .gallery-grid[aria-busy="true"] { min-height: 180px; }
+
+
+/* Home photo slots: no placeholder labels; show an actual barbecue photograph. */
+.image-slot-content { display: none !important; }
+.image-slot--barbecue {
+  background-image: linear-gradient(180deg,rgba(20,14,10,.04),rgba(20,14,10,.2)),url("https://images.pexels.com/photos/9200392/pexels-photo-9200392.jpeg?auto=compress&cs=tinysrgb&w=1400") !important;
+  background-size: cover !important;
+  background-position: center 52% !important;
+}
+.image-slot--barbecue::before,
+.image-slot--barbecue::after { content: none !important; }
+
+/* Public gallery full-screen viewer. */
+.live-gallery-image { cursor: zoom-in; }
+.public-gallery-lightbox {
+  position: fixed;
+  inset: 0;
+  width: min(96vw, 1200px);
+  max-width: none;
+  height: min(92dvh, 900px);
+  max-height: none;
+  margin: auto;
+  padding: 54px 64px 42px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 22px;
+  color: #fff;
+  background: rgba(18,15,13,.97);
+  box-shadow: 0 24px 90px rgba(0,0,0,.55);
+}
+.public-gallery-lightbox::backdrop { background: rgba(8,7,6,.88); backdrop-filter: blur(8px); }
+.public-gallery-full-image { display:block; width:100%; height:100%; object-fit:contain; }
+.public-gallery-close,.public-gallery-prev,.public-gallery-next {
+  position:absolute; z-index:2; display:grid; place-items:center;
+  width:44px; height:44px; padding:0; border:1px solid rgba(255,255,255,.25);
+  border-radius:50%; color:#fff; background:rgba(0,0,0,.78); cursor:pointer;
+  font:400 30px/1 var(--font-sans);
+}
+.public-gallery-close { top:12px; right:12px; }
+.public-gallery-prev { left:12px; top:50%; transform:translateY(-50%); }
+.public-gallery-next { right:12px; top:50%; transform:translateY(-50%); }
+.public-gallery-count { position:absolute; bottom:10px; left:0; right:0; margin:0; text-align:center; color:#fff; font:600 12px var(--font-sans); }
+@media(max-width:640px) {
+  .public-gallery-lightbox { width:100vw; height:100dvh; padding:64px 12px 54px; border:0; border-radius:0; }
+  .public-gallery-prev { left:8px; }
+  .public-gallery-next { right:8px; }
+}
