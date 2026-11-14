@@ -374,6 +374,16 @@ body.route-category-detail .product-grid,
   box-sizing: border-box;
 }
 
+.product-card-bottom .product-price-link {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+  white-space: nowrap;
+}
+
 .product-card-bottom > strong,
 .product-price {
   display: block;
@@ -564,9 +574,9 @@ body.route-category-detail .product-grid,
 
   .product-card-copy { padding: 12px 13px; }
   .product-card-copy h4 { font-size: clamp(17px, 4.5vw, 20px); }
-  .product-description { font-size: 10.5px; line-height: 1.36; }
+  .product-description { font-size: 10.5px; line-height: 16px; }
   .product-card-bottom > strong,
-  .product-price { font-size: 13px; }
+  .product-price { font-size: 13px; line-height: 16px; }
   .product-image-bottom { right: 12px; bottom: 12px; left: 12px; }
   .product-category { max-width: 100%; padding: 6px 8px; font-size: 8px; }
   .product-dots { gap: 4px; padding: 5px 6px; }
