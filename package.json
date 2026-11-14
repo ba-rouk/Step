@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "node --check server.js && node --check src/api.js && node --check src/customer.js && node --check src/store.js && node --check src/staff.js && node --check src/staff-workspace.js && node --check script.js && vite build",
     "preview": "node --env-file-if-exists=.env server.js",
-    "start": "node --env-file-if-exists=.env server.js"
+    "start": "node --env-file-if-exists=.env server.js",
+    "vite:preview": "vite preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.4"
