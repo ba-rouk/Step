@@ -2,6 +2,7 @@ import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { CAKE_CATEGORY } from "./src/category-config.js";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -462,7 +463,7 @@ async function api(req,res,url) {
 }
 function pageTitle(pathname){
   const titles={"/":"Food · Celebrations · Cakes","/categories":"Categories","/gallery":"Gallery","/cart":"Cart","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
-  if(pathname==="/categories/cake")return "Cake";
+  if(pathname==="/categories/"+CAKE_CATEGORY.slug)return CAKE_CATEGORY.label;
   if(pathname.startsWith("/categories/"))return "Menu category";
   if(pathname.startsWith("/staff"))return "Staff workspace";
   return titles[pathname]||"Food · Celebrations · Cakes";
