@@ -86,6 +86,15 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
     catch (error) { console.warn("Guest cart could not be saved:", error); return false; }
   }
 
+  async function persistAccountCartOnly() {
+    try {
+      const sessionResponse=await fetch("/api/session",{credentials:"same-origin"});
+      const session=await sessionResponse.json().catch(()=>({}));
+      if(!session.authenticated)return;
+      await apiFetch("/api/profile/cart",{method:"PUT",body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
+    } catch(error) { console.warn("Account cart save deferred:",error.message); }
+  }
+
   async function syncAccountCart() {
     try {
       const sessionResponse = await fetch("/api/session", {credentials:"same-origin"});
@@ -291,7 +300,7 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
     else { showProductToast("Your cart can contain up to 50 different products."); return; }
     if (!saveCart()) { showProductToast("Your cart could not be saved. Check your browser storage."); return; }
     renderCart();
-    void syncAccountCart();
+    void persistAccountCartOnly();
 
   }
 
