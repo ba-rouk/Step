@@ -403,63 +403,113 @@ async function api(req,res,url) {
   }
 
   if(req.method==="POST"&&route==="/api/orders"){
-    if(!rateLimit(req,"orders",8))return sendJson(res,429,{error:"Too many order requests. Please try again later."});
+    const b=await body(req,16000);
+    if(!rateLimit(req,"orders-ip",8,900000))return sendJson(res,429,{error:"Too many order requests from this connection. Try again in 15 minutes."});
+    if(String(b.website||b.company_website||"").trim())return sendJson(res,400,{error:"We could not process this request. Please try again."});
+
     const current=await currentUser(req,res);
-    if(!current)return sendJson(res,401,{error:"Sign in before sending an order request."});
-    const b=await body(req),name=String(b.customer_name||current.user.user_metadata?.full_name||"").trim();
-    const phone=phoneNumber(b.customer_phone||current.user.phone),fulfillment=String(b.fulfillment||"pickup");
-    const email=String(b.customer_email||current.user.email||"").trim();
-    if(email&&(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return sendJson(res,400,{error:"Enter a valid email address or leave it blank."});
-    const incoming=Array.isArray(b.items)?b.items:[];
-    if(name.length<2||name.length>120)return sendJson(res,400,{error:"Enter your name before sending the request."});
-    if(!phone)return sendJson(res,400,{error:"Enter a valid contact phone number."});
-    if(!["pickup","delivery","event"].includes(fulfillment))return sendJson(res,400,{error:"Choose a valid fulfilment option."});
-    if(!incoming.length||incoming.length>50)return sendJson(res,400,{error:"Your cart must contain between 1 and 50 items."});
-    const quantities=new Map();
+    const name=String(b.customer_name||current?.user.user_metadata?.full_name||current?.user.user_metadata?.name||"").trim();
+    const phone=phoneNumber(b.customer_phone||current?.user.phone);
+    const email=String(b.customer_email||current?.user.email||"").trim();
+    const fulfillment=String(b.fulfillment||"pickup");
+    const description=String(b.order_description||"").trim();
+    const notes=String(b.notes||"").trim();
+    const location=String(b.delivery_location||"").trim();
+
+    if(name.length<2||name.length>120)return sendJson(res,400,{error:"Enter your name (2–120 characters)."});
+    if(!phone)return sendJson(res,400,{error:"Enter a valid phone number, including the +250 country code."});
+    if(!rateLimitKey("orders-phone:"+phone,5,900000))return sendJson(res,429,{error:"Too many orders have been sent from this phone number. Try again in 15 minutes."});
+    if(email&&(email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)))return sendJson(res,400,{error:"Enter a valid email address or leave it blank."});
+    if(!["pickup","delivery"].includes(fulfillment))return sendJson(res,400,{error:"Choose pickup or delivery for this order."});
+    if(fulfillment==="delivery"&&location.length<3)return sendJson(res,400,{error:"Add the delivery location before sending."});
+    if(location.length>180||description.length>5000||notes.length>3000)return sendJson(res,400,{error:"One of your order details is too long. Shorten it and try again."});
+
+    const date=b.requested_date?String(b.requested_date):null;
+    const time=b.requested_time?String(b.requested_time):null;
+    if(date&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid preferred date."});
+    if(time&&!/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(time))return sendJson(res,400,{error:"Choose a valid preferred time."});
+
+    const incoming=Array.isArray(b.items)?b.items:(b.product_slug?[{slug:b.product_slug,quantity:b.quantity||1}]:[]);
+    if(!incoming.length||incoming.length>50)return sendJson(res,400,{error:"Choose at least one menu item before sending your order."});
+    const quantitiesById=new Map(),quantitiesBySlug=new Map();
     for(const item of incoming){
-      const id=String(item.product_id||""),qty=Number(item.quantity);
-      if(!/^[0-9a-f-]{36}$/i.test(id)||!Number.isInteger(qty)||qty<1||qty>20)return sendJson(res,400,{error:"A cart item is invalid. Refresh the menu and try again."});
-      quantities.set(id,Math.min(20,(quantities.get(id)||0)+qty));
+      const quantity=Number(item.quantity||1);
+      const id=String(item.product_id||item.id||"");
+      const slug=String(item.slug||item.product_slug||"").trim().slice(0,160);
+      if(!Number.isInteger(quantity)||quantity<1||quantity>20)return sendJson(res,400,{error:"Each product quantity must be between 1 and 20."});
+      if(id&&/^[0-9a-f-]{36}$/i.test(id))quantitiesById.set(id,Math.min(20,(quantitiesById.get(id)||0)+quantity));
+      else if(slug&&/^[a-z0-9-]+$/i.test(slug))quantitiesBySlug.set(slug,Math.min(20,(quantitiesBySlug.get(slug)||0)+quantity));
+      else return sendJson(res,400,{error:"A selected product is invalid. Refresh the menu and try again."});
     }
-    const ids=[...quantities.keys()];
+    const params=new URLSearchParams();
+    params.set("select","id,category_id,name,description,price,price_unit,price_unit_label,slug,category:store_categories!store_products_category_id_fkey(name,slug)");
+    params.set("is_available","eq.true");
+    params.set("is_visible","eq.true");
+    const filters=[];
+    if(quantitiesById.size)filters.push("id.in.("+[...quantitiesById.keys()].join(",")+")");
+    if(quantitiesBySlug.size)filters.push("slug.in.("+[...quantitiesBySlug.keys()].join(",")+")");
+    if(filters.length===1){
+      const [field,value]=filters[0].split(".in.");
+      params.set(field,value);
+    }else{
+      params.set("or","("+filters.join(",")+")");
+    }
     try{
-      const products=await sb("/rest/v1/store_products?select=id,category_id,name,price,price_unit,price_unit_label&is_available=eq.true&is_visible=eq.true&id=in.("+ids.join(",")+")",{access:current.session.access_token});
-      if(products.length!==ids.length)return sendJson(res,400,{error:"Some items are no longer available. Review your cart."});
-      const catIds=[...new Set(products.map(p=>p.category_id))];
-      const cats=await sb("/rest/v1/store_categories?select=id,name&id=in.("+catIds.join(",")+")",{access:current.session.access_token});
-      const names=new Map(cats.map(c=>[c.id,c.name]));
+      const products=await sb("/rest/v1/store_products?"+params.toString(),{access:current?.session.access_token});
+      const expected=quantitiesById.size+quantitiesBySlug.size;
+      if(products.length!==expected)return sendJson(res,400,{error:"One or more selected products are no longer available. Refresh the menu and try again."});
       let priced=true,total=0;
-      const clean=products.map(p=>{
-        const qty=quantities.get(p.id),price=p.price==null?null:Number(p.price);
-        if(!Number.isFinite(price))priced=false;else total+=price*qty;
-        return {product_id:p.id,name:p.name,category:names.get(p.category_id)||"Menu",quantity:qty,price_unit:p.price_unit||"unit",price_unit_label:p.price_unit_label||p.price_unit||"unit",unit_price:price,line_total:price==null?null:price*qty};
+      const clean=products.map(product=>{
+        const quantity=quantitiesById.get(product.id)||quantitiesBySlug.get(product.slug)||1;
+        const price=product.price==null?null:Number(product.price);
+        if(!Number.isFinite(price))priced=false;else total+=price*quantity;
+        return {
+          product_id:product.id,slug:product.slug,name:product.name,
+          category:product.category?.name||"Menu",quantity,
+          price_unit:product.price_unit||"unit",
+          price_unit_label:product.price_unit_label||product.price_unit||"unit",
+          unit_price:price,line_total:price==null?null:price*quantity
+        };
       });
-      const date=b.requested_date?String(b.requested_date):null;
-      if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return sendJson(res,400,{error:"Choose a valid requested date."});
       const order={
-        customer_id:current.user.id,customer_name:name,customer_phone:phone,customer_email:email||null,
-        fulfillment,requested_date:date,requested_time:b.requested_time?String(b.requested_time).slice(0,5):null,
-        delivery_location:b.delivery_location?String(b.delivery_location).trim().slice(0,180):null,
-        notes:b.notes?String(b.notes).trim().slice(0,3000):null,
-        items:clean,estimated_total:priced?total:null,price_needs_confirmation:!priced
+        customer_id:current?.user.id||null,
+        customer_name:name,customer_phone:phone,customer_email:email||null,
+        fulfillment,requested_date:date,requested_time:time,
+        delivery_location:location||null,
+        order_description:description||null,
+        notes:notes||null,
+        items:clean,
+        estimated_total:priced?total:null,
+        price_needs_confirmation:!priced,
+        status:"new"
       };
-      const rows=await sb("/rest/v1/store_orders?select=id,order_number,estimated_total,created_at",{method:"POST",access:current.session.access_token,body:order,headers:{Prefer:"return=representation"}});
-      const saved=rows[0];
+      const savedRows=await sb("/rest/v1/store_orders?select=id,order_number,estimated_total,created_at",{
+        method:"POST",access:current?.session.access_token,body:order,
+        headers:{Prefer:"return=representation"}
+      });
+      const saved=savedRows[0];
+      let alertQueued=false;
       if(saved?.id){
         try{
-          await fetch(SUPABASE_URL+"/functions/v1/send-order-push",{
-            method:"POST",headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+current.session.access_token,"Content-Type":"application/json"},
+          const response=await fetch(SUPABASE_URL+"/functions/v1/send-order-push",{
+            method:"POST",
+            headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json"},
             body:JSON.stringify({order_id:saved.id})
           });
-        }catch(e){console.warn("Order saved; staff notification failed:",e.message);}
+          alertQueued=response.ok;
+          if(!response.ok)console.warn("Order saved; push alert returned",response.status);
+        }catch(error){console.warn("Order saved; staff notification failed:",error.message);}
       }
-      return sendJson(res,201,{order:saved});
-    }catch(e){
-      console.error("Order request:",e.status||502,e.message);
-      const status=e.status&&e.status<500?e.status:502;
-      const cause=String(e.message||"The order database rejected the request.").replace(/[\r\n]+/g," ").slice(0,240);
-      const suggestion=status===400?"Check the customer details and make sure every cart item is still available.":status===401?"Sign in again, then submit the order once more.":status===403?"Your account does not have permission to submit this request. Contact Step Town support.":status===429?"Wait 15 minutes before sending another order request.":status===502?"The order service could not complete its database request. Retry shortly; if it persists, staff should inspect the Supabase database logs.":"Check the form details and retry. If the problem continues, contact Step Town with this error.";
-      return sendJson(res,status,{error:"Order request failed: "+cause,suggestion,code:e.code||null});
+      return sendJson(res,201,{
+        ok:true,
+        order:{order_number:saved?.order_number||null,estimated_total:saved?.estimated_total??null,created_at:saved?.created_at||null},
+        alert_queued:alertQueued
+      });
+    }catch(error){
+      console.error("Order request:",error.status||502,error.message);
+      const status=error.status&&error.status<500?error.status:502;
+      const message=status===400?"Some order details were invalid. Check the form and try again.":status===403?"The order service could not accept this request. Refresh the page and retry.":status===429?"Too many requests. Wait before sending another order.":"We could not save your order just now. Please retry or contact Step Town on WhatsApp.";
+      return sendJson(res,status,{error:message});
     }
   }
   return sendJson(res,404,{error:"API endpoint not found."});
