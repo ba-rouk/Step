@@ -73,8 +73,95 @@ CREATE INDEX IF NOT EXISTS product_images_product_position_idx
   ON public.product_images (product_id, position, id);
 
 ALTER TABLE public.store_orders
+  ADD COLUMN IF NOT EXISTS customer_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS order_number text,
   ADD COLUMN IF NOT EXISTS order_description text,
   ADD COLUMN IF NOT EXISTS requested_time text;
+
+CREATE SEQUENCE IF NOT EXISTS public.step_town_order_number_seq START WITH 1001;
+SELECT setval(
+  'public.step_town_order_number_seq',
+  GREATEST(1000, COALESCE(MAX(NULLIF(regexp_replace(order_number, '[^0-9]', '', 'g'), '')::bigint), 1000)),
+  true
+) FROM public.store_orders;
+UPDATE public.store_orders
+SET order_number = 'ST-' || nextval('public.step_town_order_number_seq')::text
+WHERE order_number IS NULL OR btrim(order_number) = '';
+
+CREATE OR REPLACE FUNCTION public.set_step_town_order_number()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $
+BEGIN
+  IF NEW.order_number IS NULL OR btrim(NEW.order_number) = '' THEN
+    NEW.order_number := 'ST-' || nextval('public.step_town_order_number_seq')::text;
+  END IF;
+  RETURN NEW;
+END $;
+DROP TRIGGER IF EXISTS store_orders_set_order_number ON public.store_orders;
+CREATE TRIGGER store_orders_set_order_number
+BEFORE INSERT ON public.store_orders
+FOR EACH ROW EXECUTE FUNCTION public.set_step_town_order_number();
+CREATE UNIQUE INDEX IF NOT EXISTS store_orders_order_number_uidx
+  ON public.store_orders(order_number);
+
+ALTER TABLE public.store_orders
+  DROP CONSTRAINT IF EXISTS store_orders_requested_time_check;
+ALTER TABLE public.store_orders
+  ADD CONSTRAINT store_orders_requested_time_check
+  CHECK (requested_time IS NULL OR requested_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]
+ALTER TABLE public.store_orders DROP CONSTRAINT IF EXISTS store_orders_order_description_check;
+ALTER TABLE public.store_orders ADD CONSTRAINT store_orders_order_description_check
+  CHECK (order_description IS NULL OR char_length(order_description) <= 4000);
+CREATE INDEX IF NOT EXISTS store_orders_customer_created_idx
+  ON public.store_orders (customer_id, created_at DESC);
+
+GRANT SELECT ON public.store_orders TO authenticated;
+DROP POLICY IF EXISTS "Customers read their own store orders" ON public.store_orders;
+CREATE POLICY "Customers read their own store orders"
+  ON public.store_orders FOR SELECT TO authenticated
+  USING (customer_id = auth.uid());
+DROP POLICY IF EXISTS "Active staff read store orders" ON public.store_orders;
+CREATE POLICY "Active staff read store orders"
+  ON public.store_orders FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.staff_profiles p
+    WHERE p.user_id = auth.uid()
+      AND p.is_active = true
+      AND p.role IN ('manager','accountant','cashier')
+  ));
+
+CREATE TABLE IF NOT EXISTS public.customer_cart_items (
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  product_id uuid NOT NULL REFERENCES public.store_products(id) ON DELETE CASCADE,
+  quantity integer NOT NULL DEFAULT 1 CHECK (quantity BETWEEN 1 AND 20),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, product_id)
+);
+ALTER TABLE public.customer_cart_items ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.customer_cart_items FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.customer_cart_items TO authenticated;
+DROP POLICY IF EXISTS "Customers read their own cart" ON public.customer_cart_items;
+CREATE POLICY "Customers read their own cart" ON public.customer_cart_items
+  FOR SELECT TO authenticated USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "Customers add to their own cart" ON public.customer_cart_items;
+CREATE POLICY "Customers add to their own cart" ON public.customer_cart_items
+  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "Customers update their own cart" ON public.customer_cart_items;
+CREATE POLICY "Customers update their own cart" ON public.customer_cart_items
+  FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "Customers remove from their own cart" ON public.customer_cart_items;
+CREATE POLICY "Customers remove from their own cart" ON public.customer_cart_items
+  FOR DELETE TO authenticated USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Public visitors can submit store orders" ON public.store_orders;
+CREATE POLICY "Public visitors can submit store orders" ON public.store_orders
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (
+    status = 'new'
+    AND char_length(btrim(customer_name)) BETWEEN 2 AND 120
+    AND char_length(btrim(customer_phone)) BETWEEN 7 AND 40
+    AND (order_description IS NULL OR char_length(order_description) <= 4000)
+  );
+);
 ALTER TABLE public.store_orders DROP CONSTRAINT IF EXISTS store_orders_order_description_check;
 ALTER TABLE public.store_orders ADD CONSTRAINT store_orders_order_description_check
   CHECK (order_description IS NULL OR char_length(order_description) <= 4000);
