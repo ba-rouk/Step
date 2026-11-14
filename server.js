@@ -2,8 +2,9 @@ import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { CAKE_CATEGORY_LABEL } from "./src/catalog-config.js";
+import { startOutboxWorker } from "./server/outbox-worker.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
@@ -11,6 +12,9 @@ const PORT = Number(process.env.PORT || 10000);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
 const APP_URL = String(process.env.APP_URL || "https://steptown.onrender.com").replace(/\/+$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const EMAIL_CODE_PEPPER = process.env.EMAIL_CODE_PEPPER || SUPABASE_SERVICE_ROLE_KEY;
+const REQUIRE_LOGIN_FOR_CART_LIST = String(process.env.REQUIRE_LOGIN_FOR_CART_LIST || "false").toLowerCase() === "true";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
 const KEY = SESSION_SECRET ? createHash("sha256").update(SESSION_SECRET).digest() : null;
 const SESSION_COOKIE = "step_customer_session";
@@ -128,6 +132,42 @@ async function sb(endpoint,opts={}) {
   if(!r.ok){const e=new Error(data.msg||data.message||data.error_description||data.error||"Supabase request failed.");e.status=r.status;throw e;}
   return data;
 }
+async function sbAdmin(endpoint,opts={}) {
+  if(!SUPABASE_URL||!SUPABASE_SERVICE_ROLE_KEY)throw new Error("Supabase service-role configuration is missing.");
+  const response=await fetch(SUPABASE_URL+endpoint,{
+    method:opts.method||"GET",
+    headers:{apikey:SUPABASE_SERVICE_ROLE_KEY,Authorization:"Bearer "+SUPABASE_SERVICE_ROLE_KEY,...(opts.body!==undefined?{"Content-Type":"application/json"}:{}),...(opts.headers||{})},
+    ...(opts.body!==undefined?{body:JSON.stringify(opts.body)}:{})
+  });
+  const text=await response.text();let data={};try{data=text?JSON.parse(text):{};}catch{data={message:text};}
+  if(!response.ok){const error=new Error(data.msg||data.message||data.error_description||data.error||"Supabase admin request failed.");error.status=response.status;throw error;}
+  return data;
+}
+function sha256(value){return createHash("sha256").update(String(value)).digest("hex");}
+function emailCodeHash(email,code){return sha256(EMAIL_CODE_PEPPER+":"+String(email).toLowerCase()+":"+String(code));}
+async function verificationEvent(email,eventType,req,userId=null,details={}) {
+  try {
+    await sbAdmin("/rest/v1/login_verification_events",{method:"POST",body:{
+      email_hash:sha256("email:"+String(email).toLowerCase()),
+      event_type:eventType,
+      user_id:userId,
+      ip_hash:sha256("ip:"+requestIp(req)),
+      details
+    },headers:{Prefer:"return=minimal"}});
+  } catch(error){console.warn("Email verification audit could not be written:",error.message);}
+}
+async function claimGuestOrders(userId,email) {
+  const endpoint="/rest/v1/store_orders?user_id=is.null&customer_email_normalized=eq."+encodeURIComponent(String(email).toLowerCase())+
+    "&or="+encodeURIComponent("(customer_id.is.null,customer_id.eq."+userId+")");
+  await sbAdmin(endpoint,{method:"PATCH",body:{user_id:userId,customer_id:userId},headers:{Prefer:"return=minimal"}});
+}
+async function markCustomerEmailVerified(user,email) {
+  const fullName=String(user.user_metadata?.full_name||user.user_metadata?.name||"").trim();
+  await sbAdmin("/rest/v1/customer_profiles?on_conflict=user_id",{method:"POST",body:{
+    user_id:user.id,full_name:fullName||null,phone:user.phone||null,email_verified_at:new Date().toISOString()
+  },headers:{Prefer:"resolution=merge-duplicates,return=minimal"}});
+  await claimGuestOrders(user.id,email);
+}
 
 const publicMenuCache = new Map();
 const publicMenuInflight = new Map();
@@ -234,6 +274,97 @@ async function authRoutes(req,res,url) {
   if(!csrfValid(req))return sendJson(res,403,{error:"Your security check expired. Refresh and try again."});
   if(!configured())return sendJson(res,503,{error:"Customer sign-in is not configured on the server."});
   const route=url.pathname;
+  if(route==="/api/auth/email-code/request"){
+    const b=await body(req,5000);
+    const email=String(b.email||"").trim().toLowerCase();
+    if(email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))
+      return sendJson(res,400,{error:"Enter a valid email address."});
+    if(!SUPABASE_SERVICE_ROLE_KEY||!EMAIL_CODE_PEPPER)
+      return sendJson(res,503,{error:"Email sign-in is not configured yet. Please try again later."});
+    const active=await currentUser(req,res);
+    const purpose=active&&String(active.user.email||"").toLowerCase()!==email?"email_change":"login";
+    if(purpose==="email_change"&&!active)
+      return sendJson(res,401,{error:"Sign in before changing your account email."});
+    const targetUserId=purpose==="email_change"?active.user.id:null;
+    try{
+      const ipBucket=await sbAdmin("/rest/v1/rpc/consume_step_order_rate_limit",{method:"POST",body:{
+        p_bucket_key:"login-ip:"+sha256("ip:"+requestIp(req)),p_max_hits:3,p_window_seconds:3600
+      }});
+      const emailBucket=await sbAdmin("/rest/v1/rpc/consume_step_order_rate_limit",{method:"POST",body:{
+        p_bucket_key:"login-email:"+sha256("email:"+email),p_max_hits:3,p_window_seconds:3600
+      }});
+      if(!ipBucket||!emailBucket){
+        await verificationEvent(email,"request_rate_limited",req,targetUserId);
+        return sendJson(res,202,{ok:true,purpose,message:"If this address can receive Step Town sign-in codes, a six-digit code is on its way."});
+      }
+      let code="";
+      if(purpose==="login"){
+        const generated=await sbAdmin("/auth/v1/admin/generate_link",{method:"POST",body:{type:"magiclink",email}});
+        code=String(generated?.properties?.email_otp||"");
+      }else{
+        code=String(randomInt(0,1000000)).padStart(6,"0");
+      }
+      if(!/^\\d{6}$/.test(code))throw new Error("The email provider did not produce a six-digit code.");
+      const expiresAt=new Date(Date.now()+10*60*1000).toISOString();
+      await sbAdmin("/rest/v1/login_codes",{method:"POST",body:{
+        email,purpose,target_user_id:targetUserId,code_hash:emailCodeHash(email,code),expires_at:expiresAt,
+        attempts:0,ip_hash:sha256("ip:"+requestIp(req))
+      },headers:{Prefer:"return=minimal"}});
+      await sbAdmin("/rest/v1/email_outbox",{method:"POST",body:{
+        job_type:"login_code",recipient:email,payload:{code,expiresMinutes:10}
+      },headers:{Prefer:"return=minimal"}});
+      await verificationEvent(email,"code_requested",req,targetUserId,{purpose});
+      return sendJson(res,202,{ok:true,purpose,message:"If this address can receive Step Town sign-in codes, a six-digit code is on its way."});
+    }catch(error){
+      await verificationEvent(email,"request_failed",req,targetUserId);
+      console.error("Email code request:",error.message);
+      return sendJson(res,503,{error:"We could not send a sign-in code right now. Please try again shortly."});
+    }
+  }
+  if(route==="/api/auth/email-code/verify"){
+    const b=await body(req,5000);
+    const email=String(b.email||"").trim().toLowerCase();
+    const code=String(b.code||"").trim();
+    const purpose=String(b.purpose||"login");
+    if(email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||!/^[0-9]{6}$/.test(code)||!["login","email_change"].includes(purpose))
+      return sendJson(res,400,{error:"Enter the email address and six-digit code."});
+    if(!SUPABASE_SERVICE_ROLE_KEY||!EMAIL_CODE_PEPPER)
+      return sendJson(res,503,{error:"Email sign-in is not configured yet. Please try again later."});
+    const active=await currentUser(req,res);
+    if(purpose==="email_change"&&!active)return sendJson(res,401,{error:"Your session expired. Sign in and request a new email verification code."});
+    const targetUserId=purpose==="email_change"?active.user.id:null;
+    try{
+      const consumed=await sbAdmin("/rest/v1/rpc/consume_step_login_code",{method:"POST",body:{
+        p_email:email,p_code_hash:emailCodeHash(email,code),p_purpose:purpose,p_target_user_id:targetUserId
+      }});
+      if(consumed!=="ok"){
+        const event=consumed==="expired"?"code_expired":consumed==="locked"?"code_locked":consumed==="used"?"code_reused":"code_rejected";
+        await verificationEvent(email,event,req,targetUserId,{result:consumed});
+        const message=consumed==="expired"?"That code has expired. Request a new one.":consumed==="locked"?"Too many incorrect attempts. Request a new code.":"That code is not valid. Check it and try again.";
+        return sendJson(res,400,{error:message});
+      }
+      if(purpose==="login"){
+        const session=await sb("/auth/v1/verify",{method:"POST",body:{email,token:code,type:"magiclink"}});
+        if(!session.access_token||!session.user)throw new Error("The sign-in code could not be confirmed.");
+        setSession(res,req,session);
+        await profileUpsert(session,session.user,session.user.user_metadata?.full_name||session.user.user_metadata?.name,session.user.phone||null);
+        await markCustomerEmailVerified(session.user,email);
+        await verificationEvent(email,"code_verified",req,session.user.id,{purpose});
+        return sendJson(res,200,{authenticated:true,next:safeNext(b.next||"/profile")});
+      }
+      await sbAdmin("/auth/v1/admin/users/"+encodeURIComponent(active.user.id),{
+        method:"PUT",body:{email,email_confirm:true}
+      });
+      await markCustomerEmailVerified(active.user,email);
+      setSession(res,req,active.session);
+      await verificationEvent(email,"email_change_verified",req,active.user.id,{purpose});
+      return sendJson(res,200,{authenticated:true,next:safeNext(b.next||"/profile")});
+    }catch(error){
+      await verificationEvent(email,"code_verification_failed",req,targetUserId);
+      console.error("Email code verification:",error.message);
+      return sendJson(res,400,{error:"We could not verify that code. Request a new code and try again."});
+    }
+  }
   if(route==="/api/auth/register"){
     if(!rateLimit(req,"register",5))return sendJson(res,429,{error:"Too many registration attempts. Try again in 15 minutes."});
     const b=await body(req),name=String(b.name||"").trim(),phone=phoneNumber(b.phone),password=String(b.password||"");
@@ -312,6 +443,24 @@ async function oauthCallback(req,res,url) {
 }
 async function api(req,res,url) {
   const route=url.pathname;
+  if(req.method==="GET"&&route==="/api/config")return sendJson(res,200,{REQUIRE_LOGIN_FOR_CART_LIST});
+  if(req.method==="GET"&&route.startsWith("/api/orders/track/")){
+    const trackingToken=route.slice("/api/orders/track/".length);
+    if(!/^[a-f0-9]{32}$/i.test(trackingToken))return sendJson(res,404,{error:"This tracking link is not valid."});
+    try{
+      const rows=await sbAdmin("/rest/v1/store_orders?select=order_number,status,items,estimated_total,fulfillment,requested_date,requested_time,delivery_location,created_at&tracking_token=eq."+encodeURIComponent(trackingToken)+"&limit=1");
+      if(!rows?.length)return sendJson(res,404,{error:"This order could not be found."});
+      const row=rows[0];
+      const items=(Array.isArray(row.items)?row.items:[]).map(item=>({
+        name:String(item.name||"Menu item"),quantity:Number(item.quantity||1),
+        price_unit_label:String(item.price_unit_label||item.price_unit||"unit"),
+        unit_price:item.unit_price??null,line_total:item.line_total??null
+      }));
+      return sendJson(res,200,{order:{order_number:row.order_number,status:row.status,items,estimated_total:row.estimated_total,
+        fulfillment:row.fulfillment,requested_date:row.requested_date,requested_time:row.requested_time,
+        delivery_location:row.delivery_location,created_at:row.created_at}});
+    }catch(error){console.error("Order tracking:",error.message);return sendJson(res,502,{error:"Order status could not be loaded right now."});}
+  }
   if(req.method==="GET"&&route==="/api/csrf"){
     const token=randomBytes(32).toString("base64url");
     appendCookie(res,cookie(CSRF_COOKIE,token,req,{httpOnly:false,maxAge:28800,sameSite:"Strict"}));
@@ -447,24 +596,42 @@ async function api(req,res,url) {
     if(!current)return sendJson(res,401,{error:"Please sign in to view your account."});
     try{
       if(route==="/api/profile"){
-        const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
+        const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,email_verified_at,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
         return sendJson(res,200,{user:current.user,profile:rows[0]||null});
       }
-      const select="id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location";
-      const byAccount=await sb("/rest/v1/store_orders?select="+select+"&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=100",{access:current.session.access_token});
+      const profiles=await sbAdmin("/rest/v1/customer_profiles?select=email_verified_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1");
+      const verified=Boolean(profiles?.[0]?.email_verified_at&&current.user.email_confirmed_at);
+      if(!verified)return sendJson(res,200,{verified:false,orders:[]});
+      const select="id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location,tracking_token";
+      const userId=encodeURIComponent(current.user.id);
       const email=String(current.user.email||"").trim().toLowerCase();
-      const byEmail=email
-        ? await sb("/rest/v1/store_orders?select="+select+"&customer_email=eq."+encodeURIComponent(email)+"&order=created_at.desc&limit=100",{access:current.session.access_token})
-        : [];
+      const byUser=await sbAdmin("/rest/v1/store_orders?select="+select+"&user_id=eq."+userId+"&order=created_at.desc&limit=100");
+      const byLegacy=await sbAdmin("/rest/v1/store_orders?select="+select+"&customer_id=eq."+userId+"&order=created_at.desc&limit=100");
+      const byEmail=email?await sbAdmin("/rest/v1/store_orders?select="+select+"&customer_email_normalized=eq."+encodeURIComponent(email)+"&order=created_at.desc&limit=100"):[];
       const unique=new Map();
-      for(const order of [...(byAccount||[]),...(byEmail||[])]) unique.set(order.id,order);
+      for(const order of [...(byUser||[]),...(byLegacy||[]),...(byEmail||[])])unique.set(order.id,order);
       const orders=[...unique.values()].sort((a,b)=>Date.parse(b.created_at||0)-Date.parse(a.created_at||0)).slice(0,100);
-      return sendJson(res,200,{orders});
+      return sendJson(res,200,{verified:true,orders});
     }catch(e){return sendJson(res,e.status||502,{error:"Your account data could not be loaded."});}
   }
 
+  if(req.method==="GET"&&route.startsWith("/api/profile/orders/")){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Please sign in to view your account."});
+    try{
+      const profiles=await sbAdmin("/rest/v1/customer_profiles?select=email_verified_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1");
+      if(!profiles?.[0]?.email_verified_at||!current.user.email_confirmed_at)return sendJson(res,403,{verified:false,error:"Verify your email to see your orders."});
+      const orderId=route.slice("/api/profile/orders/".length);
+      if(!/^[0-9a-f-]{36}$/i.test(orderId))return sendJson(res,404,{error:"Order not found."});
+      const rows=await sbAdmin("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,order_description,notes,delivery_location,tracking_token,user_id,customer_id& id=eq.".replace("& id","&id")+encodeURIComponent(orderId)+"&limit=1");
+      const order=rows?.[0];
+      if(!order||![current.user.id].includes(order.user_id)&&![current.user.id].includes(order.customer_id))return sendJson(res,404,{error:"Order not found."});
+      delete order.user_id;delete order.customer_id;
+      return sendJson(res,200,{order});
+    }catch(error){return sendJson(res,502,{error:"Order details could not be loaded."});}
+  }
   if(req.method==="POST"&&route==="/api/orders"){
-    const b=await body(req,16000);
+    const b=await body(req,24000);
     if(!rateLimit(req,"orders-ip",8,900000))return sendJson(res,429,{error:"Too many order requests from this connection. Try again in 15 minutes."});
     if(String(b.website||b.company_website||"").trim())return sendJson(res,400,{error:"We could not process this request. Please try again."});
 
@@ -530,21 +697,8 @@ async function api(req,res,url) {
         const status=[400,401,403,413,429].includes(response.status)?response.status:502;
         return sendJson(res,status,{error:result.error||"We could not save your order just now. Please try again."});
       }
-      if(current?.session?.access_token){
-        const orderedProductIds=[...new Set(normalizedItems.map(item=>item.product_id).filter(Boolean))];
-        if(orderedProductIds.length){
-          try{
-            await sb("/rest/v1/customer_cart_items?user_id=eq."+encodeURIComponent(current.user.id)+"&product_id=in.("+orderedProductIds.map(encodeURIComponent).join(",")+")",{
-              method:"DELETE",
-              access:current.session.access_token,
-              headers:{Prefer:"return=minimal"}
-            });
-          }catch(cartError){
-            console.warn("Could not clear ordered products from the saved cart:",cartError.message);
-          }
-        }
-      }
-      return sendJson(res,201,{
+      // Quick-order submissions are isolated from the saved cart. The cart page
+      // clears its own list only after a cart-wide order is accepted.\n      return sendJson(res,201,{
         ok:true,
         order:result.order||null,
         alert_queued:Boolean(result.alert_queued)
@@ -635,6 +789,10 @@ async function handle(req,res){
     try{return await api(req,res,url);}
     catch(e){console.error("API:",e);return sendJson(res,e.status||500,{error:e.status===413?e.message:"The request could not be completed."});}
   }
+  if(req.method==="GET"&&route==="/cart"&&REQUIRE_LOGIN_FOR_CART_LIST){
+    const current=await currentUser(req,res);
+    if(!current){res.writeHead(303,{Location:"/login?next="+encodeURIComponent("/cart"+url.search),"Cache-Control":"no-store"});return res.end();}
+  }
   if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders")){
     const current=await currentUser(req,res);
     if(!current){appendCookie(res,clearCookie(SESSION_COOKIE,req,true));res.writeHead(303,{Location:"/login?next="+encodeURIComponent(route+url.search),"Cache-Control":"no-store"});return res.end();}
@@ -649,4 +807,5 @@ async function handle(req,res){
 if(PROD&&!KEY)console.warn("SESSION_SECRET is missing: customer login remains disabled until configured.");
 const server=http.createServer((req,res)=>{res.setHeader("X-Content-Type-Options","nosniff");res.setHeader("Referrer-Policy","strict-origin-when-cross-origin");res.setHeader("X-Frame-Options","SAMEORIGIN");void handle(req,res).catch(e=>{console.error("Unhandled request:",e);if(!res.headersSent)sendJson(res,500,{error:"Unexpected server error."});else res.end();});});
 server.listen(PORT,"0.0.0.0",()=>console.log("Step Town server listening on "+PORT));
+startOutboxWorker();
 setInterval(()=>{const now=Date.now();for(const [key,b] of limits)if(b.reset<=now)limits.delete(key);},60000).unref();
