@@ -163,7 +163,7 @@ if (isAuthRoute) {
       '<h1>Your profile.</h1><p class="customer-intro">Your Step Town account and order details.</p>' +
       '<div class="customer-profile-details"><div><small>FULL NAME</small><strong>' + escapeHtml(name) + '</strong></div><div><small>PHONE NUMBER</small><strong>' + escapeHtml(phone) + '</strong></div></div>' +
       '<section class="customer-favourites"><h2>Your favourites</h2><div class="product-grid customer-favourites-grid" data-product-list="shared" data-product-view="favourites">' + favouritesMarkup + '</div></section>' +
-      '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/cart-history">View cart history</a><a class="customer-secondary" href="/profile/orders">View order history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
+      '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/orders">View order history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
       '<p class="customer-error" id="customer-profile-error" role="alert"></p>',
       "MY STEP TOWN PROFILE"
     );
@@ -192,27 +192,30 @@ if (isAuthRoute) {
       if (!add) return;
       const product = favouriteProducts.find(item => item.id === add.dataset.addProduct);
       if (!product) return;
-      let cart = [];
-      try { cart = JSON.parse(localStorage.getItem("step-town-cart-v1") || "[]"); } catch {}
-      const existing = cart.find(item => item.product_id === product.id);
-      if (existing) existing.quantity = Math.min(20, existing.quantity + 1);
-      else cart.push({
-        product_id: product.id,
-        name: product.name,
-        category_name: product.category_name || "Menu",
-        price: product.price == null ? null : Number(product.price),
-        image_url: product.images?.[0]?.url || product.image_urls?.[0] || product.image_url || "",
+      const firstImage = Array.isArray(product.images) ? product.images[0] : null;
+      const image = (typeof firstImage === "string" ? firstImage : firstImage?.url) ||
+        (Array.isArray(product.image_urls) ? product.image_urls[0] : "") ||
+        product.image_url || "";
+      const rawPrice = product.price;
+      const price = rawPrice == null || rawPrice === "" ? null : Number(rawPrice);
+      const item = {
+        product_id: String(product.id),
+        slug: String(product.slug || ""),
+        name: String(product.name || "Menu item"),
+        description: String(product.description || ""),
+        category_name: product.category_name || product.category?.name || "Menu",
+        price: Number.isFinite(price) ? price : null,
+        price_unit: String(product.price_unit || "unit"),
+        price_unit_label: String(product.price_unit_label || product.price_unit || "unit"),
+        image_url: image,
         quantity: 1
-      });
-      localStorage.setItem("step-town-cart-v1", JSON.stringify(cart));
-      const count = cart.reduce((sum,item) => sum + Number(item.quantity || 0), 0);
-      const badge = document.querySelector("#mobile-cart-count");
-      if (badge) {
-        badge.textContent = count > 99 ? "99+" : String(count);
-        badge.hidden = count === 0;
+      };
+      try {
+        sessionStorage.setItem("step-town-cart-handoff-v1", JSON.stringify([item]));
+        window.location.assign("/cart");
+      } catch {
+        showProductToast("Your browser could not open the cart. Please try again.");
       }
-      flashCartButton(add);
-      showProductToast("Added to your cart");
     });
     app.querySelector("#customer-signout").addEventListener("click", async () => {
       const button = app.querySelector("#customer-signout");
@@ -229,65 +232,58 @@ if (isAuthRoute) {
 
   function renderOrders(payload) {
     const orders = Array.isArray(payload.orders) ? payload.orders : [];
+    const money = value => new Intl.NumberFormat("en-RW", {
+      style: "currency", currency: "RWF", maximumFractionDigits: 0
+    }).format(Number(value));
     const cards = orders.length ? orders.map((order) => {
       const items = Array.isArray(order.items) ? order.items : [];
-      const summary = items.map((item) => escapeHtml(item.name || "Menu item") + " × " + Number(item.quantity || 1)).join(", ");
-      const total = order.estimated_total == null ? "Quote to be confirmed" : new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(Number(order.estimated_total));
-      return '<article class="customer-order-card"><div class="customer-order-top"><strong>' + escapeHtml(order.order_number || "Step Town order") + '</strong><span>' + escapeHtml(order.status || "new") + '</span></div><small>' + escapeHtml(order.created_at ? new Date(order.created_at).toLocaleDateString() : "") + ' · ' + escapeHtml(order.fulfillment || "") + '</small><p>' + summary + '</p>' + (order.order_description ? '<p class="customer-order-description"><strong>Describe your order</strong><br>' + escapeHtml(order.order_description) + '</p>' : '') + (order.notes ? '<p>' + escapeHtml(order.notes) + '</p>' : '') + '<b>' + escapeHtml(total) + '</b></article>';
+      const itemMarkup = items.map(item => {
+        const name = String(item.name || "Menu item");
+        const imageValue = String(item.image_url || "");
+        const image = /^https?:\/\//i.test(imageValue) ? imageValue : "";
+        const quantity = Math.max(1, Number(item.quantity || 1));
+        const unitPrice = item.unit_price ?? item.price ?? null;
+        const lineTotal = item.line_total ?? (
+          unitPrice == null || !Number.isFinite(Number(unitPrice)) ? null : Number(unitPrice) * quantity
+        );
+        const priceLabel = unitPrice == null || !Number.isFinite(Number(unitPrice))
+          ? "Quote to be confirmed"
+          : money(unitPrice) + " per " + escapeHtml(item.price_unit_label || item.price_unit || "unit");
+        const totalLabel = lineTotal == null || !Number.isFinite(Number(lineTotal))
+          ? ""
+          : money(lineTotal);
+        return '<div class="customer-order-item">' +
+          (image ? '<img src="' + escapeHtml(image) + '" alt="' + escapeHtml(name) + '" loading="lazy">' : '') +
+          '<div class="customer-order-item-copy"><strong>' + escapeHtml(name) + '</strong>' +
+          '<small>' + quantity + ' × ' + priceLabel + '</small></div>' +
+          (totalLabel ? '<b>' + escapeHtml(totalLabel) + '</b>' : '') +
+          '</div>';
+      }).join("");
+      const total = order.estimated_total == null
+        ? "Quote to be confirmed"
+        : money(order.estimated_total);
+      return '<article class="customer-order-card"><div class="customer-order-top"><strong>' +
+        escapeHtml(order.order_number || "Step Town order") + '</strong><span>' +
+        escapeHtml(order.status || "new") + '</span></div><small>' +
+        escapeHtml(order.created_at ? new Date(order.created_at).toLocaleDateString() : "") +
+        ' · ' + escapeHtml(order.fulfillment || "") + '</small>' +
+        '<div class="customer-order-items">' + itemMarkup + '</div>' +
+        (order.order_description ? '<p class="customer-order-description"><strong>Describe your order</strong><br>' + escapeHtml(order.order_description) + '</p>' : '') +
+        (order.notes ? '<p>' + escapeHtml(order.notes) + '</p>' : '') +
+        '<b>' + escapeHtml(total) + '</b></article>';
     }).join("") : '<div class="customer-empty-orders"><strong>No orders yet.</strong><p>Your submitted order requests will appear here.</p><a href="/categories">Explore the menu</a></div>';
     shell(
-      '<h1>Your orders.</h1><p class="customer-intro">Your submitted Step Town order requests.</p>' +
+      '<h1>Your orders.</h1><p class="customer-intro">Your submitted Step Town orders, including requests made as a guest using this account email.</p>' +
       '<div class="customer-order-list">' + cards + '</div><p class="customer-note"><a href="/profile">Back to profile</a></p>',
       "ORDER HISTORY"
     );
   }
 
-  function renderCartHistory(payload) {
-    const carts = Array.isArray(payload.carts) ? payload.carts : [];
-    const money = value => new Intl.NumberFormat("en-RW", { style:"currency", currency:"RWF", maximumFractionDigits:0 }).format(Number(value));
-    const cards = carts.length ? carts.map(cart => {
-      const items = Array.isArray(cart.items) ? cart.items : [];
-      const summary = items.map(item => escapeHtml(item.name || "Menu item") + " × " + Number(item.quantity || 1)).join(", ");
-      const total = cart.estimated_total == null ? "Quote to be confirmed" : money(cart.estimated_total);
-      const status = cart.status === "converted" ? "Ordered" : cart.status === "abandoned" ? "Unfinished" : "Saved cart";
-      return '<article class="customer-order-card"><div class="customer-order-top"><strong>' + status + '</strong><span>' + escapeHtml(status) + '</span></div><small>' + escapeHtml(cart.updated_at ? new Date(cart.updated_at).toLocaleString() : "") + '</small><p>' + summary + '</p><b>' + escapeHtml(total) + '</b></article>';
-    }).join("") : '<div class="customer-empty-orders"><strong>No saved carts yet.</strong><p>Products you add to your cart will be kept here, even if you do not submit an order.</p><a href="/categories">Explore the menu</a></div>';
-    shell('<h1>Your cart history.</h1><p class="customer-intro">Saved and unfinished carts are kept separately from submitted orders.</p><div class="customer-order-list">' + cards + '</div><p class="customer-note"><a href="/profile">Back to profile</a> · <a href="/profile/orders">View order history</a></p>', "CART HISTORY");
-  }
-
-  async function syncLocalCartHistory() {
-    let rows = [];
-    try {
-      const saved = JSON.parse(localStorage.getItem("step-town-cart-history-v1") || "[]");
-      rows = Array.isArray(saved) ? saved : [];
-    } catch {}
-    if (!rows.length) return;
-    for (const snapshot of rows) {
-      const response = await apiFetch("/api/profile/cart-history", { method:"POST", body:snapshot });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Your guest cart history could not be transferred.");
-      }
-    }
-    try { localStorage.removeItem("step-town-cart-history-v1"); } catch {}
-  }
 
   async function loadProtectedView() {
     shell('<h1>Loading your account…</h1><p class="customer-intro">Checking your secure Step Town session.</p>', "SECURE ACCOUNT");
     try {
-      if (route === "/profile/cart-history") {
-        const response = await apiFetch("/api/profile/cart-history");
-        const payload = await response.json().catch(() => ({}));
-        if (response.status === 401) {
-          window.location.replace("/login?next=" + encodeURIComponent(route));
-          return;
-        }
-        if (!response.ok) throw new Error(payload.error || "Cart history could not be loaded.");
-        await syncLocalCartHistory();
-        const refreshed = await apiFetch("/api/profile/cart-history");
-        const historyPayload = refreshed.ok ? await refreshed.json() : payload;
-        renderCartHistory(historyPayload);
-      } else if (route === "/profile/orders") {
+      if (route === "/profile/cart-history" || route === "/profile/orders") {
         const response = await apiFetch("/api/profile/orders");
         const payload = await response.json().catch(() => ({}));
         if (response.status === 401) {
@@ -295,7 +291,6 @@ if (isAuthRoute) {
           return;
         }
         if (!response.ok) throw new Error(payload.error || "Order history could not be loaded.");
-        await syncLocalCartHistory();
         renderOrders(payload);
       } else {
         const response = await apiFetch("/api/profile");
@@ -305,7 +300,6 @@ if (isAuthRoute) {
           return;
         }
         if (!response.ok) throw new Error(payload.error || "Your profile could not be loaded.");
-        await syncLocalCartHistory();
         const [savedResponse, productResponse] = await Promise.all([
           apiFetch("/api/profile/favourites"),
           fetch("/api/catalog", { credentials:"same-origin" })
@@ -326,7 +320,6 @@ if (isAuthRoute) {
       shell('<h1>Account unavailable.</h1><p class="customer-intro">' + escapeHtml(cause.message || "Please refresh and try again.") + '</p><a class="customer-submit" href="/login?next=' + encodeURIComponent(route) + '">Sign in again</a>', "SECURE ACCOUNT");
     }
   }
-
   if (route === "/login" || route === "/register") {
     document.title = route === "/register" ? "Step Town | Create an account" : "Step Town | Customer login";
     if (route === "/login") authForm("login", authError);

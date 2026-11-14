@@ -450,8 +450,16 @@ async function api(req,res,url) {
         const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
         return sendJson(res,200,{user:current.user,profile:rows[0]||null});
       }
-      const orders=await sb("/rest/v1/store_orders?select=id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=50",{access:current.session.access_token});
-      return sendJson(res,200,{orders:orders||[]});
+      const select="id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location";
+      const byAccount=await sb("/rest/v1/store_orders?select="+select+"&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=100",{access:current.session.access_token});
+      const email=String(current.user.email||"").trim().toLowerCase();
+      const byEmail=email
+        ? await sb("/rest/v1/store_orders?select="+select+"&customer_email=eq."+encodeURIComponent(email)+"&order=created_at.desc&limit=100",{access:current.session.access_token})
+        : [];
+      const unique=new Map();
+      for(const order of [...(byAccount||[]),...(byEmail||[])]) unique.set(order.id,order);
+      const orders=[...unique.values()].sort((a,b)=>Date.parse(b.created_at||0)-Date.parse(a.created_at||0)).slice(0,100);
+      return sendJson(res,200,{orders});
     }catch(e){return sendJson(res,e.status||502,{error:"Your account data could not be loaded."});}
   }
 
@@ -463,7 +471,7 @@ async function api(req,res,url) {
     const current=await currentUser(req,res);
     const name=String(b.customer_name||current?.user.user_metadata?.full_name||current?.user.user_metadata?.name||"").trim();
     const phone=phoneNumber(b.customer_phone||current?.user.phone);
-    const email=String(b.customer_email||current?.user.email||"").trim();
+    const email=String(current?.user.email||b.customer_email||"").trim().toLowerCase();
     const fulfillment=String(b.fulfillment||"pickup");
     const description=String(b.order_description||"").trim();
     const notes=String(b.notes||"").trim();
@@ -472,7 +480,7 @@ async function api(req,res,url) {
     if(name.length<2||name.length>120)return sendJson(res,400,{error:"Enter your name (2–120 characters)."});
     if(!phone)return sendJson(res,400,{error:"Enter a valid phone number, including the +250 country code."});
     if(!rateLimitKey("orders-phone:"+phone,5,900000))return sendJson(res,429,{error:"Too many orders have been sent from this phone number. Try again in 15 minutes."});
-    if(email&&(email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)))return sendJson(res,400,{error:"Enter a valid email address or leave it blank."});
+    if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return sendJson(res,400,{error:"Enter a valid email address so you can find this order when you sign in."});
     if(!["pickup","delivery","event"].includes(fulfillment))return sendJson(res,400,{error:"Choose pickup, delivery or event service for this order."});
     if((fulfillment==="delivery"||fulfillment==="event")&&location.length<3)return sendJson(res,400,{error:"Add the delivery or event location before sending."});
     if(location.length>180||description.length>5000||notes.length>3000)return sendJson(res,400,{error:"One of your order details is too long. Shorten it and try again."});
@@ -551,7 +559,7 @@ async function api(req,res,url) {
   return sendJson(res,404,{error:"API endpoint not found."});
 }
 function pageTitle(pathname){
-  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Cart history","/login":"Customer login","/register":"Create an account"};
+  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
   if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
   if(pathname.startsWith("/categories/")){
     const slug=pathname.split("/").filter(Boolean).at(-1);

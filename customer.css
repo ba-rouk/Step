@@ -98,6 +98,13 @@ body.route-customer-page body.route-customer-page body.route-customer-page body.
 .customer-order-top strong { color: #fff; font-size: 13px; }
 .customer-order-top span { color: #ffc18d; font-size: 10px; font-weight: 800; text-transform: capitalize; }
 .customer-order-card small { color: rgba(255,255,255,.6); }
+.customer-order-items { display: grid; gap: 8px; }
+.customer-order-item { display: flex; align-items: center; gap: 10px; min-width: 0; padding-top: 9px; border-top: 1px solid rgba(255,255,255,.1); }
+.customer-order-item > img { width: 54px; height: 54px; flex: 0 0 54px; border-radius: 9px; object-fit: cover; background: rgba(255,255,255,.08); }
+.customer-order-item-copy { display: grid; flex: 1; min-width: 0; gap: 4px; }
+.customer-order-item-copy strong { color: #fff; font-size: 12px; line-height: 1.35; }
+.customer-order-item-copy small { color: rgba(255,255,255,.62); font-size: 10px; line-height: 1.4; }
+.customer-order-item > b { color: rgba(255,255,255,.9); flex: 0 0 auto; font-size: 11px; text-align: right; }
 .customer-order-card p { color: rgba(255,255,255,.8); margin: 0; font-size: 12px; line-height: 1.5; }
 .customer-order-card > b { color: #ffc18d; font-size: 13px; }
 .customer-empty-orders { padding: 24px; text-align: center; border: 1px solid rgba(255,255,255,.16); border-radius: 15px; background: rgba(255,255,255,.07); }

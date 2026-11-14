@@ -28,7 +28,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   const fulfillmentInput = document.querySelector("#checkout-fulfillment");
   const locationInput = document.querySelector("#checkout-location");
   const checkoutDate = document.querySelector("#checkout-date");
-  const storageKey = "step-town-cart-v1";
+  const cartHandoffKey = "step-town-cart-handoff-v1";
 
   if (!categoryShowcase || !productGrid || !cartDrawer || !checkoutForm) return;
 
@@ -47,7 +47,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   const routeSearchMount = document.querySelector(".route-search-mount");
   const routeSearch = document.querySelector(".storefront-hero .menu-search");
   if (categoryRoute && routeSearchMount && routeSearch) routeSearchMount.append(routeSearch);
-  let cart = loadCart();
+  let cart = [];
   let lastCartTrigger = mobileCartOpen || cartOpen;
 
   function escapeHtml(value) {
@@ -73,32 +73,14 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   }
 
   function loadCart() {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
-      if (!Array.isArray(saved)) return [];
-      return saved.filter((item) => item && typeof item.product_id === "string" && Number(item.quantity) > 0)
-        .slice(0, 50)
-        .map((item) => ({
-          product_id: item.product_id,
-          name: String(item.name || "Menu item").slice(0, 120),
-          category_name: String(item.category_name || "").slice(0, 80),
-          price: item.price == null ? null : Number(item.price),
-          price_unit: String(item.price_unit || "unit"),
-          price_unit_label: String(item.price_unit_label || item.price_unit || "unit"),
-          image_url: safeImageUrl(item.image_url),
-          quantity: Math.min(20, Math.max(1, Math.floor(Number(item.quantity))))
-        }));
-    } catch {
-      return [];
-    }
+    // Guest carts are one-time page handoffs, never persistent browser storage.
+    try { window.localStorage.removeItem("step-town-cart-v1"); } catch {}
+    return [];
   }
 
   function saveCart() {
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(cart));
-    } catch {
-      if (cartPricingNote) cartPricingNote.textContent = "Your browser could not save this cart between visits.";
-    }
+    // This page keeps cart UI state in memory only. /cart owns authenticated persistence.
+    return true;
   }
 
   function categoryName(categoryId) {
@@ -249,10 +231,40 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
   }
 
   function addProduct(productId) {
-    const product = products.find((item) => item.id === productId);
-    if (!product) return;
-    const reference = product.id || product.slug;
-    window.location.assign("/cart?product=" + encodeURIComponent(reference));
+    const product = products.find((item) => String(item.id) === String(productId));
+    if (!product?.id) {
+      showProductToast("This menu item is unavailable. Refresh the menu and try again.");
+      return;
+    }
+
+    const productImages = Array.isArray(product.images) ? product.images : [];
+    const firstImage = productImages[0];
+    const image = (typeof firstImage === "string" ? firstImage : firstImage?.url) ||
+      (Array.isArray(product.image_urls) ? product.image_urls[0] : "") ||
+      product.image_url || "";
+    const rawPrice = product.price;
+    const price = rawPrice === null || rawPrice === undefined || rawPrice === ""
+      ? null : Number(rawPrice);
+    const item = {
+      product_id: String(product.id),
+      slug: String(product.slug || ""),
+      name: String(product.name || "Menu item"),
+      description: String(product.description || ""),
+      category_name: categoryName(product.category_id),
+      price: Number.isFinite(price) ? price : null,
+      price_unit: String(product.price_unit || "unit"),
+      price_unit_label: String(product.price_unit_label || product.price_unit || "unit"),
+      image_url: safeImageUrl(image),
+      quantity: 1
+    };
+
+    try {
+      window.sessionStorage.setItem(cartHandoffKey, JSON.stringify([item]));
+    } catch {
+      showProductToast("Your browser could not open the cart. Please try again.");
+      return;
+    }
+    window.location.assign("/cart");
   }
 
   const menuPageSize = 12;
@@ -484,7 +496,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
     const order = {
       customer_name: String(formData.get("customer_name") || "").trim(),
       customer_phone: String(formData.get("customer_phone") || "").trim(),
-      customer_email: String(formData.get("customer_email") || "").trim() || null,
+      customer_email: String(formData.get("customer_email") || "").trim(),
       fulfillment: String(formData.get("fulfillment") || "pickup"),
       requested_date: String(formData.get("requested_date") || "") || null,
       delivery_location: String(formData.get("delivery_location") || "").trim() || null,
@@ -520,6 +532,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
         "Order: " + (savedOrder.order_number || "New order request"),
         "Name: " + order.customer_name,
         "Phone: " + order.customer_phone,
+        "Email: " + order.customer_email,
         "Fulfilment: " + order.fulfillment,
         order.requested_date ? "Requested date: " + order.requested_date : "",
         order.delivery_location ? "Location: " + order.delivery_location : "",
