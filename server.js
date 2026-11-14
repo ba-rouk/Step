@@ -517,6 +517,7 @@ async function api(req,res,url) {
 }
 function pageTitle(pathname){
   const titles={"/":"Food · Celebrations · Cakes","/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/login":"Customer login","/register":"Create an account"};
+  if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
   if(pathname.startsWith("/categories/"))return "Menu category";
   if(pathname.startsWith("/staff"))return "Staff workspace";
   return titles[pathname]||"Food · Celebrations · Cakes";
