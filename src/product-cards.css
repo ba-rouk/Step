@@ -620,15 +620,15 @@ body.route-category-detail .product-grid,
 .product-image-link { touch-action: pan-x pan-y pinch-zoom; }
 .product-image-strip > img { pointer-events: none; }
 
-/* Lift the price row and its short separator; the cart action is the image icon. */
+/* Lift the price row and its short separator; cart actions stay on the image icon. */
 .product-card-bottom {
-  margin-top: 4px !important;
-  padding-top: 4px !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
   min-height: 18px;
 }
 .product-card-bottom::before { top: 0; }
 .product-card-detail .product-card-bottom {
-  margin-top: 4px !important;
-  padding-top: 8px !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
 }
 .product-detail-add { display: none !important; }

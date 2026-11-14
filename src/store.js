@@ -329,13 +329,6 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 
   bindProductGallery(productGrid);
   productGrid.addEventListener("click", (event) => {
-    const imageAdd = event.target.closest("[data-image-cart]");
-    if (imageAdd) {
-      event.preventDefault();
-      addProduct(imageAdd.dataset.imageCart);
-      window.location.assign("/cart");
-      return;
-    }
     const favourite = event.target.closest("[data-favourite]");
     if (favourite) {
       const key = "step-town-favourites-v1";

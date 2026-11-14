@@ -104,8 +104,8 @@ export function renderProductCard(product, options = {}) {
     ' data-image-count="' + images.length + '">' +
 
       '<div class="product-image">' +
-        '<a class="product-open product-image-link" href="/cart" data-image-cart="' + escapeHtml(product.id) + '"' +
-          ' aria-label="Add ' + title + ' to cart">' +
+        '<a class="product-open product-image-link" href="' + href + '"' +
+          ' aria-label="View ' + title + '">' +
           '<div class="product-image-strip" tabindex="0" role="region"' +
             ' aria-label="' + title + ' photos" aria-roledescription="carousel">' +
             slides +
