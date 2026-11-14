@@ -176,8 +176,8 @@ async function renderAlertControl() {
     return;
   }
   if (Notification.permission === "denied") {
-    host.innerHTML = '<button class="staff-alert-button is-blocked" type="button" id="staff-alert-help"><span class="staff-alert-dot"></span><span>Alerts blocked</span></button><p class="staff-alert-hint">Allow notifications in your browser or device settings, then reload.</p>';
-    $("#staff-alert-help")?.addEventListener("click", () => notify("Open your browser or device settings, allow notifications for steptown.onrender.com, then reload this page.", "warning"));
+    host.innerHTML = '<button class="staff-alert-button is-blocked" type="button" id="staff-alert-help"><span class="staff-alert-dot"></span><span>Alerts blocked</span></button>';
+    $("#staff-alert-help")?.addEventListener("click", () => notify("Notifications are blocked for this site. Open your browser site settings, allow notifications for steptown.onrender.com, then reload.", "warning"));
     return;
   }
   try {
@@ -202,11 +202,11 @@ function decodeVapidKey(value) {
   return Uint8Array.from(raw, char => char.charCodeAt(0));
 }
 async function enableAlerts() {
-  const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-  if (!publicKey) { notify("Push notifications are not configured on the site.", "warning"); return; }
   try {
     const permission = await Notification.requestPermission();
-    if (permission !== "granted") { await renderAlertControl(); notify("Notification permission was not granted.", "warning"); return; }
+    if (permission !== "granted") { await renderAlertControl(); notify("Notification permission was not granted. Allow notifications in your browser's site settings to enable alerts.", "warning"); return; }
+    const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+    if (!publicKey) { notify("Browser permission is enabled, but Step Town push delivery is not configured yet.", "warning"); return; }
     const registration = await navigator.serviceWorker.register("/sw.js");
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
@@ -659,11 +659,15 @@ async function productsPage() {
   }
   if (isNew || isEdit) {
     const title = isNew ? "Add product" : "Edit product";
+    const selectedCategoryName = categories.find(category => category.id === product?.category_id)?.name || "";
+    const showPriceUnit = /barbecue|cake/i.test(selectedCategoryName);
     shell(title,
       '<section class="staff-panel"><form id="product-form" class="staff-form-grid">' +
         '<label>Product name<input name="name" maxlength="120" required value="' + esc(product?.name || "") + '"></label>' +
         '<label>Category<select name="category_id" required>' + categories.map(category => '<option value="' + category.id + '" ' + (product?.category_id === category.id ? "selected" : "") + ">" + esc(category.name) + "</option>").join("") + "</select></label>" +
         '<label>Price (RWF)<input name="price" type="number" min="0" step="1" value="' + (product?.price ?? "") + '" placeholder="Leave blank for quote"></label>' +
+        '<label id="product-price-unit-wrap" ' + (showPriceUnit ? "" : "hidden") + '>Price per<select name="price_unit"><option value="unit" ' + ((product?.price_unit || "unit") === "unit" ? "selected" : "") + '>Unit</option><option value="kg" ' + (product?.price_unit === "kg" ? "selected" : "") + '>Kilogram (kg)</option><option value="g" ' + (product?.price_unit === "g" ? "selected" : "") + '>Gram (g)</option><option value="litre" ' + (product?.price_unit === "litre" ? "selected" : "") + '>Litre</option><option value="dozen" ' + (product?.price_unit === "dozen" ? "selected" : "") + '>Dozen</option><option value="serving" ' + (product?.price_unit === "serving" ? "selected" : "") + '>Serving</option><option value="tray" ' + (product?.price_unit === "tray" ? "selected" : "") + '>Tray</option><option value="other" ' + (product?.price_unit === "other" ? "selected" : "") + '>Other measure</option></select></label>' +
+        '<label id="product-price-unit-custom-wrap" ' + (product?.price_unit === "other" ? "" : "hidden") + '>Custom measure<input name="price_unit_label" maxlength="32" value="' + esc(product?.price_unit_label || "") + '" placeholder="e.g. plate, skewer, bottle"></label>' +
         '<label>Stock quantity<input name="stock_quantity" type="number" min="0" step="1" value="' + (product?.stock_quantity ?? "") + '" placeholder="Blank means not tracked"></label>' +
         '<label class="wide">Description<textarea name="description" rows="3">' + esc(product?.description || "") + "</textarea></label>" +
         '<div class="wide product-image-uploader"><label>Product photos · JPG, PNG or WEBP · 5 MB max each<input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div id="product-image-list" class="staff-product-image-list"></div><p class="staff-muted">Up to 10 images. Drag to reorder, or use the controls. The first image is the cover.</p></div>' +
@@ -673,6 +677,25 @@ async function productsPage() {
         '<div class="staff-form-actions wide"><a class="staff-quiet" href="/staff/products">Cancel</a><button class="staff-primary" type="submit">' + (isNew ? "Publish product" : "Save changes") + "</button></div>" +
         '<p id="product-message" class="staff-muted wide" role="status"></p>' +
       "</form></section>");
+    const categoryInput = $('select[name="category_id"]', $("#product-form"));
+    const priceUnitWrap = $("#product-price-unit-wrap");
+    const priceUnitSelect = $('select[name="price_unit"]', $("#product-form"));
+    const customUnitWrap = $("#product-price-unit-custom-wrap");
+    const customUnitInput = $('input[name="price_unit_label"]', $("#product-form"));
+    const updatePriceUnitControls = () => {
+      const name = categories.find(category => category.id === categoryInput.value)?.name || "";
+      const relevant = /barbecue|cake/i.test(name);
+      priceUnitWrap.hidden = !relevant;
+      if (!relevant) {
+        priceUnitSelect.value = "unit";
+        customUnitInput.value = "";
+      }
+      customUnitWrap.hidden = !relevant || priceUnitSelect.value !== "other";
+      customUnitInput.required = relevant && priceUnitSelect.value === "other";
+    };
+    categoryInput.addEventListener("change", updatePriceUnitControls);
+    priceUnitSelect.addEventListener("change", updatePriceUnitControls);
+    updatePriceUnitControls();
     currentImages = currentImages.map(image => ({ ...image }));
     const imageList = $("#product-image-list");
     const renderImageList = () => {
@@ -735,6 +758,10 @@ async function productsPage() {
         $("#product-message").textContent = "Enter a valid price and stock quantity.";
         return;
       }
+      if (fields.get("price_unit") === "other" && !String(fields.get("price_unit_label") || "").trim()) {
+        $("#product-message").textContent = "Enter the custom price measure (for example, plate or bottle).";
+        return;
+      }
       const submit = $("button[type=submit]", form);
       submit.disabled = true;
       try {
@@ -760,6 +787,8 @@ async function productsPage() {
           name: String(fields.get("name") || "").trim(),
           category_id: fields.get("category_id"),
           price,
+          price_unit: String(fields.get("price_unit") || "unit"),
+          price_unit_label: String(fields.get("price_unit") || "unit") === "other" ? String(fields.get("price_unit_label") || "").trim() : null,
           description: String(fields.get("description") || "").trim() || null,
           image_urls: imageUrls,
           image_url: imageUrls[0] || null,
@@ -820,7 +849,7 @@ async function productsPage() {
         "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(item.store_categories?.name || "—") + "</td><td>" + money(item.price) + "</td>" +
         "<td>" + (item.stock_quantity == null ? (item.has_stock ? "In stock" : "Sold out") : item.stock_quantity) + "</td>" +
         "<td>" + ((item.is_visible && item.is_available && item.has_stock) ? "Published" : "Hidden / unavailable") + "</td>" +
-        '<td><div class="staff-row-actions"><a href="/staff/products/' + item.id + '/edit">Edit</a><button data-product-stock="' + item.id + '">' + (item.has_stock ? "Mark sold out" : "Mark in stock") + '</button><button data-product-visibility="' + item.id + '">' + (item.is_visible ? "Hide" : "Show") + '</button><button data-product-delete="' + item.id + '">Delete</button></div></td></tr>'
+        '<td><details class="staff-action-menu"><summary aria-label="Product actions">⋯</summary><div class="staff-action-menu-panel"><a href="/staff/products/' + item.id + '/edit">Edit</a><button data-product-stock="' + item.id + '">' + (item.has_stock ? "Mark sold out" : "Mark in stock") + '</button><button data-product-visibility="' + item.id + '">' + (item.is_visible ? "Hide" : "Show") + '</button><button data-product-delete="' + item.id + '">Delete</button></div></details></td></tr>'
       ).join("") + "</tbody></table></div>" : '<p class="staff-empty">No matching products.</p>';
     $$("[data-product-stock]").forEach(button => button.addEventListener("click", async () => {
       const item = products.find(row => row.id === button.dataset.productStock);
@@ -852,7 +881,7 @@ async function galleryPage() {
   const items = await queryRows(supabase.from("gallery_items").select("*").order("sort_order").order("created_at", { ascending: false }));
   shell("Gallery",
     '<section class="staff-panel"><p class="staff-eyebrow">PUBLIC GALLERY</p><h2>Upload images</h2><form id="gallery-form" class="staff-form-grid">' +
-      '<label class="wide">Images<input name="images" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple required></label>' +
+      '<label class="wide">Images · JPG, PNG or WEBP · 5 MB max each<input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple required></label>' +
       '<label>Category<select name="category"><option value="catering">Catering</option><option value="barbecue">Barbecue</option><option value="cakes">Cakes</option><option value="staff">Staff</option></select></label>' +
       '<label>Caption<input name="caption" maxlength="500" placeholder="Optional shared caption"></label>' +
       '<label class="wide">Alt text<input name="alt_text" maxlength="240" placeholder="Describe the image for accessibility"></label>' +
@@ -863,7 +892,7 @@ async function galleryPage() {
         '<article><img src="' + esc(item.image_url) + '" alt="' + esc(item.alt_text || item.title || "") + '">' +
           '<b>' + esc(item.title || "Gallery image") + "</b><small>" + esc(statusLabel(item.category)) + " · " + (item.is_published ? "Published" : "Hidden") + "</small>" +
           '<label class="staff-gallery-caption">Caption<input data-gallery-caption="' + item.id + '" value="' + esc(item.caption || "") + '" maxlength="500"></label>' +
-          '<div class="staff-row-actions"><button data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + ' aria-label="Move up">↑</button><button data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + ' aria-label="Move down">↓</button><button data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button data-gallery-delete="' + item.id + '">Delete</button></div>' +
+          '<div class="staff-row-actions"><button data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + ' aria-label="Move up">↑</button><button data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + ' aria-label="Move down">↓</button></div><details class="staff-action-menu"><summary aria-label="Gallery image actions">⋯</summary><div class="staff-action-menu-panel"><button data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp"></label><button data-gallery-delete="' + item.id + '">Delete</button></div></details>' +
         "</article>"
       ).join("") + "</div>" : '<p class="staff-empty">No gallery images yet.</p>') + "</section>");
   $("#gallery-form").addEventListener("submit", async event => {
@@ -879,11 +908,13 @@ async function galleryPage() {
       for (const file of files) {
         count++;
         $("#gallery-progress").textContent = "Uploading " + count + " of " + files.length + "…";
-        const imageUrl = await uploadImage(file, "gallery");
+        const uploaded = await uploadImage(file, "gallery", percent => {
+          $("#gallery-progress").textContent = "Compressing and uploading " + count + " of " + files.length + "… " + percent + "%";
+        });
         const { error } = await supabase.from("gallery_items").insert({
           title: file.name.replace(/\.[^.]+$/, "").slice(0, 120),
           category: fields.get("category"),
-          image_url: imageUrl,
+          image_url: uploaded.url,
           alt_text: String(fields.get("alt_text") || "").trim() || file.name,
           caption: String(fields.get("caption") || "").trim() || null,
           sort_order: items.length + count,
@@ -892,7 +923,7 @@ async function galleryPage() {
           updated_at: new Date().toISOString()
         });
         if (error) throw error;
-        await writeAudit("gallery_image_added", "gallery_item", imageUrl, { category: fields.get("category") });
+        await writeAudit("gallery_image_added", "gallery_item", uploaded.public_id, { category: fields.get("category"), compressed: true });
       }
       notify(files.length + " gallery image(s) uploaded.");
       await galleryPage();
@@ -929,8 +960,8 @@ async function galleryPage() {
     const file = input.files?.[0];
     if (!file) return;
     try {
-      const url = await uploadImage(file, "gallery");
-      const { error } = await supabase.from("gallery_items").update({ image_url: url, alt_text: file.name, updated_at: new Date().toISOString() }).eq("id", input.dataset.galleryReplace);
+      const uploaded = await uploadImage(file, "gallery");
+      const { error } = await supabase.from("gallery_items").update({ image_url: uploaded.url, alt_text: file.name, updated_at: new Date().toISOString() }).eq("id", input.dataset.galleryReplace);
       if (error) throw error;
       await writeAudit("gallery_image_replaced", "gallery_item", input.dataset.galleryReplace, {});
       notify("Gallery image replaced.");
@@ -1101,7 +1132,7 @@ async function teamPage() {
       teamCache.map(member =>
         "<tr><td><b>" + esc(member.full_name) + "</b><small>" + esc(member.phone || "No phone") + "</small></td><td>" + esc(ROLE_LABEL[member.role]) + "</td><td>" + esc(member.email) + "</td>" +
         "<td>" + esc(teamCache.find(x => x.id === member.reports_to)?.full_name || "—") + "</td><td>" + (member.is_active ? "Active" : "Inactive") + "</td><td>" +
-        (member.role !== "manager" ? '<div class="staff-row-actions"><button data-team-edit="' + member.user_id + '">Edit</button><button data-team-reset="' + member.user_id + '">Reset password</button><button data-team-toggle="' + member.user_id + '" data-active="' + member.is_active + '">' + (member.is_active ? "Deactivate" : "Reactivate") + "</button></div>" : "Current Manager") +
+        (member.role !== "manager" ? '<details class="staff-action-menu"><summary aria-label="Staff actions">⋯</summary><div class="staff-action-menu-panel"><button data-team-edit="' + member.user_id + '">Edit</button><button data-team-reset="' + member.user_id + '">Reset password</button><button data-team-toggle="' + member.user_id + '" data-active="' + member.is_active + '">' + (member.is_active ? "Deactivate" : "Reactivate") + "</button></div></details>" : "Current Manager") +
         "</td></tr>"
       ).join("") + "</tbody></table></div>" : '<p class="staff-empty">No additional staff accounts yet.</p>') +
     "</section>" +
