@@ -1,3 +1,4 @@
+import { normalizeCategoryLabel } from "./catalog-config.js";
 import { supabase, supabaseConfigured } from "./supabase.js";
 import "../staff.css";
 
@@ -498,6 +499,7 @@ async function orderDetailPage(id) {
       "<h3>Items ordered</h3><div class=\"staff-items\">" + items.map(item =>
         "<p><b>" + Number(item.quantity || 1) + " × " + esc(item.name) + "</b><span>" + money(item.line_total) + "</span></p>"
       ).join("") + "</div>" +
+      (order.order_description ? '<div class="staff-notes"><p class="staff-eyebrow">DESCRIBE YOUR ORDER</p>' + esc(order.order_description) + "</div>" : "") +
       '<p class="staff-notes">' + esc(order.notes || "No additional customer notes.") + "</p>" +
       (order.cancellation_reason ? '<p class="staff-cancel-reason"><b>Cancellation reason:</b> ' + esc(order.cancellation_reason) + "</p>" : "") +
     "</section>" +
@@ -767,7 +769,7 @@ async function productsPage() {
     shell(title,
       '<section class="staff-panel"><form id="product-form" class="staff-form-grid">' +
         '<label>Product name<input name="name" maxlength="120" required value="' + esc(product?.name || "") + '"></label>' +
-        '<label>Category<select name="category_id" required>' + categories.map(category => '<option value="' + category.id + '" ' + (product?.category_id === category.id ? "selected" : "") + ">" + esc(category.name) + "</option>").join("") + "</select></label>" +
+        '<label>Category<select name="category_id" required>' + categories.map(category => '<option value="' + category.id + '" ' + (product?.category_id === category.id ? "selected" : "") + ">" + esc(normalizeCategoryLabel(category.name)) + "</option>").join("") + "</select></label>" +
         '<label>Price (RWF)<input name="price" type="number" min="0" step="1" value="' + (product?.price ?? "") + '" placeholder="Leave blank for quote"></label>' +
         '<label id="price-unit-wrap" hidden>Price measured per<select name="price_unit"><option value="unit">Each / unit</option><option value="kg">Kilogram (kg)</option><option value="g">Gram (g)</option><option value="litre">Litre</option><option value="dozen">Dozen</option><option value="serving">Serving</option><option value="tray">Tray</option><option value="other">Other measure</option></select></label><label id="price-unit-custom-wrap" hidden>Custom measure<input name="price_unit_label" maxlength="24" value="' + esc(product?.price_unit_label || "") + '" placeholder="e.g. tray, metre"></label>' +
         '<label>Stock quantity<input name="stock_quantity" type="number" min="0" step="1" value="' + (product?.stock_quantity ?? "") + '" placeholder="Blank means not tracked"></label>' +
@@ -928,18 +930,18 @@ async function productsPage() {
   }
   shell("Products",
     '<section class="staff-panel"><div class="staff-panel-head"><div><p class="staff-eyebrow">PUBLIC MENU</p><h2>Menu catalogue</h2></div><a class="staff-primary" href="/staff/products/new">Add product</a></div>' +
-      '<div class="staff-filters"><label>Search products<input id="product-search" type="search" placeholder="Product name"></label><label>Category<select id="product-category-filter"><option value="all">All categories</option>' + categories.map(category => '<option value="' + category.id + '">' + esc(category.name) + '</option>').join("") + '</select></label></div><div id="products-table"></div></section>');
+      '<div class="staff-filters"><label>Search products<input id="product-search" type="search" placeholder="Product name"></label><label>Category<select id="product-category-filter"><option value="all">All categories</option>' + categories.map(category => '<option value="' + category.id + '">' + esc(normalizeCategoryLabel(category.name)) + '</option>').join("") + '</select></label></div><div id="products-table"></div></section>');
   const render = () => {
     const term = ($("#product-search").value || "").toLowerCase();
     const categoryId = $("#product-category-filter").value;
     const visible = products.filter(item =>
       (categoryId === "all" || item.category_id === categoryId) &&
-      (item.name + " " + (item.store_categories?.name || "")).toLowerCase().includes(term)
+      (item.name + " " + normalizeCategoryLabel(item.store_categories?.name || "")).toLowerCase().includes(term)
     );
     $("#products-table").innerHTML = visible.length ?
       '<div class="staff-table-wrap"><table><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Menu status</th><th>Actions</th></tr></thead><tbody>' +
       visible.map(item =>
-        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(item.store_categories?.name || "—") + "</td><td>" + money(item.price) + (item.price != null && item.price_unit && item.price_unit !== "unit" ? " per " + esc(item.price_unit_label || item.price_unit) : "") + "</td>" +
+        "<tr><td><b>" + esc(item.name) + "</b></td><td>" + esc(normalizeCategoryLabel(item.store_categories?.name || "—")) + "</td><td>" + money(item.price) + (item.price != null && item.price_unit && item.price_unit !== "unit" ? " per " + esc(item.price_unit_label || item.price_unit) : "") + "</td>" +
         "<td>" + (item.stock_quantity == null ? (item.has_stock ? "In stock" : "Sold out") : item.stock_quantity) + "</td>" +
         "<td>" + ((item.is_visible && item.is_available && item.has_stock) ? "Published" : "Hidden / unavailable") + "</td>" +
         '<td><details class="staff-action-menu"><summary aria-label="Product actions">•••</summary><div class="staff-action-menu-pop"><a href="/staff/products/' + item.id + '/edit">Edit</a><button type="button" data-product-stock="' + item.id + '">' + (item.has_stock ? "Mark as sold" : "Mark in stock") + '</button><button type="button" data-product-visibility="' + item.id + '">' + (item.is_visible ? "Hide" : "Publish") + '</button><button type="button" data-product-delete="' + item.id + '">Delete</button></div></details></td></tr>'
@@ -1218,7 +1220,7 @@ async function reportsPage() {
         const name = String(item.name || "Item");
         const quantity = Number(item.quantity || 0);
         sellers[name] = (sellers[name] || 0) + quantity;
-        const category = String(item.category || "Other");
+        const category = normalizeCategoryLabel(item.category || "Other");
         categories[category] = (categories[category] || 0) + Number(item.line_total || 0);
       }));
       const dayKeys = [];
