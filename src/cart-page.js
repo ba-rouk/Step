@@ -28,21 +28,38 @@ function setPage(route){
   if(cartPage)cartPage.hidden=route!=="cart";
   if(confirmPage)confirmPage.hidden=route!=="confirmation";
 }
+function updateProductSummaryTotals(){
+  const quantityOutput=document.querySelector("#order-quantity-value");
+  const totalLabel=document.querySelector("#cart-selected-total-label");
+  const totalValue=document.querySelector("#cart-selected-line-total");
+  if(quantityOutput)quantityOutput.textContent=String(quantity);
+  if(totalLabel)totalLabel.textContent="Estimated total · "+quantity+" "+(quantity===1?"item":"items");
+  if(totalValue){
+    const hasPrice=selectedProduct&&selectedProduct.price!==null&&selectedProduct.price!==undefined&&selectedProduct.price!==""&&Number.isFinite(Number(selectedProduct.price));
+    totalValue.textContent=hasPrice?money(Number(selectedProduct.price)*quantity):"To be confirmed";
+  }
+}
 function renderProductSummary(product){
   const host=document.querySelector("#cart-product-summary");
   if(!host)return;
   if(!product){
-    host.innerHTML='<div class="cart-empty"><strong>Choose something from the menu to start an order.</strong><p><a class="text-link" href="/categories">Browse the menu</a></p></div>';
+    host.innerHTML='<div class="cart-empty"><strong>Choose a product from the Step Town menu to start an order.</strong><p><a class="text-link" href="/categories">Browse the menu</a></p></div>';
     return;
   }
   const image=imageFor(product);
-  host.innerHTML=(image?'<img src="'+html(image)+'" alt="'+html(product.name)+'" width="800" height="1000">':'<div class="product-image-placeholder">STEP TOWN</div>')+
-    '<div><p class="eyebrow">'+html(product.category_name||product.category?.name||"STEP TOWN MENU")+'</p>'+
-    '<h2>'+html(product.name)+'</h2><p class="cart-summary-price">'+html(money(product.price))+(product.price!=null?' per '+html(product.price_unit_label||product.price_unit||"unit"):"")+'</p>'+
-    '<details><summary>Read full description</summary><p>'+html(product.description||"Prepared with care by Step Town.")+'</p></details>'+
-    '<div class="order-quantity" aria-label="Order quantity"><button type="button" id="order-quantity-minus" aria-label="Decrease quantity">−</button><output id="order-quantity-value">'+quantity+'</output><button type="button" id="order-quantity-plus" aria-label="Increase quantity">+</button></div></div>';
-  document.querySelector("#order-quantity-minus")?.addEventListener("click",()=>{quantity=Math.max(1,quantity-1);document.querySelector("#order-quantity-value").textContent=quantity;});
-  document.querySelector("#order-quantity-plus")?.addEventListener("click",()=>{quantity=Math.min(20,quantity+1);document.querySelector("#order-quantity-value").textContent=quantity;});
+  const unit=product.price_unit_label||product.price_unit||"unit";
+  const hasPrice=product.price!==null&&product.price!==undefined&&product.price!==""&&Number.isFinite(Number(product.price));
+  host.innerHTML=(image?'<img class="cart-selected-product-image" src="'+html(image)+'" alt="'+html(product.name||"Selected Step Town product")+'" width="800" height="1000">':'<div class="product-image-placeholder cart-selected-product-image">STEP TOWN</div>')+
+    '<div class="cart-product-summary-copy">'+
+    '<p class="eyebrow">YOUR SELECTED PRODUCT · '+html(product.category_name||product.category?.name||"STEP TOWN MENU")+'</p>'+
+    '<h2>'+html(product.name||"Selected Step Town product")+'</h2>'+
+    '<p class="cart-summary-description">'+html(product.description||"Prepared with care by Step Town.")+'</p>'+
+    '<div class="cart-summary-price-row"><span>Price per '+html(unit)+'</span><strong>'+html(money(hasPrice?Number(product.price):null))+'</strong></div>'+
+    '<div class="cart-summary-line-total"><span id="cart-selected-total-label">Estimated total · '+quantity+' item</span><strong id="cart-selected-line-total">'+(hasPrice?html(money(Number(product.price)*quantity)):"To be confirmed")+'</strong></div>'+
+    '<div class="order-quantity" aria-label="Order quantity"><button type="button" id="order-quantity-minus" aria-label="Decrease quantity">−</button><output id="order-quantity-value" aria-live="polite">'+quantity+'</output><button type="button" id="order-quantity-plus" aria-label="Increase quantity">+</button></div></div>';
+  document.querySelector("#order-quantity-minus")?.addEventListener("click",()=>{quantity=Math.max(1,quantity-1);updateProductSummaryTotals();});
+  document.querySelector("#order-quantity-plus")?.addEventListener("click",()=>{quantity=Math.min(20,quantity+1);updateProductSummaryTotals();});
+  updateProductSummaryTotals();
 }
 async function getSelectedProduct(){
   const slug=params.get("product");
@@ -168,8 +185,8 @@ async function startCart(){
       order_description:String(fields.get("order_description")||"").trim(),
       notes:String(fields.get("notes")||"").trim(),
       website:String(fields.get("website")||""),
-      items:[{slug:selectedProduct.slug,quantity}],
-      product_slug:selectedProduct.slug,
+      items:[{product_id:selectedProduct.id,slug:selectedProduct.slug||params.get("product"),quantity}],
+      product_slug:selectedProduct.slug||params.get("product"),
       quantity
     };
     button.disabled=true;button.textContent="Sending order…";
