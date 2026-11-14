@@ -225,7 +225,7 @@ async function startCart() {
       const response=await apiFetch("/api/orders",{method:"POST",body:order});
       const data=await response.json().catch(()=>({}));
       if(!response.ok){if(status)status.textContent=data.error||"We could not save your order. Please check the details and try again.";return;}
-      if(!quickItem){savedItems=[];if(isSignedIn)await saveAccountCart();else writeGuestCart();}
+      if(!quickItem){savedItems=[];if(isSignedIn){try{await saveAccountCart();}catch(clearError){console.warn("Order saved; cart cleanup will retry on the next visit:",clearError.message);}}else writeGuestCart();}
       showConfirmation(data.order||{});
     }catch(error){if(status)status.textContent=error.message||"Connection problem. Please try again.";}
     finally{sending=false;render();}
