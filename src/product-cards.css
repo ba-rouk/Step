@@ -280,10 +280,9 @@ body.route-category-detail .product-grid,
 }
 
 .product-card-copy {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  align-content: stretch;
-  gap: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   width: 100%;
   min-width: 0;
   min-height: 0;
@@ -304,6 +303,19 @@ body.route-category-detail .product-grid,
   text-decoration: none;
 }
 
+.product-copy-link,
+.product-description-link,
+.product-card-bottom {
+  flex: 0 0 auto;
+}
+
+.product-description-link {
+  margin-top: 4px;
+  padding-bottom: 8px;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
 .product-card-copy h4 {
   display: block;
   max-width: 100%;
@@ -319,44 +331,60 @@ body.route-category-detail .product-grid,
 .product-description {
   display: -webkit-box;
   min-width: 0;
-  max-height: 2.8em;
+  max-height: 32px;
   margin: 0;
   overflow: hidden;
   color: rgba(255, 239, 228, .82);
-  font: 400 11px/1.4 var(--body, Inter, sans-serif);
+  font: 400 11px/16px var(--body, Inter, sans-serif);
   text-overflow: ellipsis;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
 
-.product-card:not(.product-card-detail) .product-card-bottom {
+/* The separator is a real, full-width flex item. Its two auto margins split
+   the remaining vertical space equally between description and price. */
+.card-divider {
   display: block;
-  min-width: 0;
-  min-height: 18px;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-}
-.product-card:not(.product-card-detail) .product-card-bottom::before {
-  display: block;
+  flex: 0 0 1px;
+  align-self: stretch;
   width: 100%;
+  min-width: 0;
   height: 1px;
-  margin: 0 0 8px;
-  content: "";
+  min-height: 1px;
+  margin-block: auto;
+  padding: 0;
+  border: 0;
   background: rgba(255, 255, 255, .24);
+  box-sizing: border-box;
+}
+
+.product-card-bottom {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  min-height: 16px;
+  margin: 0;
+  padding: 8px 0 0;
+  overflow: visible;
+  border: 0;
+  box-sizing: border-box;
 }
 
 .product-card-bottom > strong,
 .product-price {
   display: block;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   margin: 0;
-  overflow: hidden;
+  overflow: visible;
   color: var(--step-product-accent);
-  font: 800 13px/1.2 var(--body, Inter, sans-serif);
-  text-overflow: ellipsis;
+  font: 800 13px/16px var(--body, Inter, sans-serif);
+  text-overflow: clip;
   white-space: nowrap;
 }
 
@@ -411,10 +439,14 @@ body.route-category-detail .product-grid,
   white-space: normal;
 }
 
+.product-card-detail .product-description-link {
+  margin-top: 12px;
+  padding-bottom: 0;
+}
+
 .product-card-detail .product-description {
   display: block;
   max-height: none;
-  margin-top: 12px;
   overflow: visible;
   font-size: 14px;
   line-height: 1.7;
@@ -422,15 +454,23 @@ body.route-category-detail .product-grid,
   line-clamp: unset;
 }
 
+.product-card-detail .card-divider {
+  height: 1px;
+  margin: 16px 0 0;
+}
+
 .product-card-detail .product-card-bottom {
   align-items: center;
   justify-content: space-between;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, .16);
+  margin: 0;
+  padding-top: 8px;
+  border: 0;
 }
 
-.product-card-detail .product-price { font-size: 17px; }
+.product-card-detail .product-price {
+  font-size: 17px;
+  line-height: 22px;
+}
 
 .product-grid.product-detail-grid { grid-template-columns: minmax(0, 760px); }
 
@@ -613,7 +653,7 @@ body.route-category-detail .product-grid,
 }
 
 
-.product-image-strip{touch-action:pan-y pinch-zoom;cursor:grab}.product-image-strip.is-dragging{cursor:grabbing;user-select:none;-webkit-user-select:none}.product-image-strip.is-dragging img{pointer-events:none}.product-card-bottom{position:relative;justify-content:flex-start;align-items:center;padding-top:10px;margin-top:10px;border-top:0}.product-card-bottom::before{content:"";position:absolute;top:0;left:0;width:26px;height:1px;background:rgba(255,255,255,.34)}.product-card-bottom>.product-price-link{margin-right:auto}.product-card-bottom>.product-detail-add{margin-left:auto}.gallery-grid .gallery-item>img{display:block;width:100%;height:100%;min-height:240px;object-fit:cover;border-radius:inherit}.gallery-grid .gallery-item{overflow:hidden}.gallery-grid .gallery-item figcaption{position:absolute;z-index:1;right:20px;bottom:17px;left:20px}.gallery-note[hidden]{display:none!important}
+.product-image-strip{touch-action:pan-y pinch-zoom;cursor:grab}.product-image-strip.is-dragging{cursor:grabbing;user-select:none;-webkit-user-select:none}.product-image-strip.is-dragging img{pointer-events:none}.gallery-grid .gallery-item>img{display:block;width:100%;height:100%;min-height:240px;object-fit:cover;border-radius:inherit}.gallery-grid .gallery-item{overflow:hidden}.gallery-grid .gallery-item figcaption{position:absolute;z-index:1;right:20px;bottom:17px;left:20px}.gallery-note[hidden]{display:none!important}
 
 /* Carousel gestures: allow horizontal slide swipes without blocking page scroll. */
 .product-image-strip {
@@ -625,56 +665,9 @@ body.route-category-detail .product-grid,
 .product-image-link { touch-action: pan-x pan-y pinch-zoom; }
 .product-image-strip > img { pointer-events: none; }
 
-/* Lift the price row and its short separator; cart actions stay on the image icon. */
-.product-card-bottom {
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-  min-height: 18px;
-}
-.product-card-bottom::before { top: 0; }
-.product-card-detail .product-card-bottom {
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-}
+/* Keep the obsolete inline add control hidden; add-to-cart remains on the image. */
 .product-detail-add { display: none !important; }
 
-
-/* Full-width, centred price divider. The 8px margin and padding keep equal
-   breathing room on either side without changing the 70/30 card proportions. */
-.product-card-copy { min-width:0; }
-.product-card-bottom {
-  display:flex;
-  align-items:center;
-  justify-content:flex-start;
-  width:100%;
-  min-width:0;
-  min-height:34px;
-  margin:8px 0 0;
-  padding:8px 0 0;
-  overflow:visible;
-  border:0;
-  border-top:1px solid rgba(255,255,255,.2);
-  box-sizing:border-box;
-}
-.product-card-bottom .product-price-link {
-  display:block;
-  width:100%;
-  max-width:100%;
-  min-width:0;
-  overflow:visible;
-  white-space:nowrap;
-}
-.product-card-bottom > strong,
-.product-card-bottom .product-price {
-  display:block;
-  width:100%;
-  max-width:100%;
-  min-width:0;
-  overflow:visible;
-  white-space:nowrap;
-  text-overflow:clip;
-  line-height:1.25;
-}
 @media (max-width:430px) {
   .product-card-copy { padding-inline:12px; }
   .product-card-bottom { gap:0; }
