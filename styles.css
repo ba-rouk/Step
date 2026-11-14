@@ -892,7 +892,7 @@ h1,h2,h3,h4,strong{color:inherit} p{color:inherit}
   overflow: hidden;
   padding: 105px 0 0;
   background-color: #211815;
-  background-image: url("https://images.pexels.com/videos/5821416/free-video-5821416.jpg"), url("/assets/hero-poster.jpg");
+  background-image: url("https://images.pexels.com/videos/31974227/wedding-decoration-31974227.jpeg?auto=compress&dpr=1&h=750&w=1260");
   background-position: center;
   background-size: cover;
 }
@@ -2383,5 +2383,34 @@ body.route-customer-page .customer-error {
     width: 20px;
     height: 2px;
     border-radius: 2px;
+  }
+}
+
+
+/* Align all three service cards and their image frames on desktop. */
+@media (min-width:721px) {
+  .service-grid {
+    align-items: stretch;
+  }
+  .service-grid > .service-card,
+  .service-grid > .service-card-offset {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    margin-top: 0 !important;
+  }
+  .service-grid > .service-card .service-image,
+  .service-grid > .service-card-offset .service-image {
+    height: clamp(255px, 28vw, 350px);
+    flex: 0 0 clamp(255px, 28vw, 350px);
+  }
+  .service-grid > .service-card .service-copy,
+  .service-grid > .service-card-offset .service-copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+  .service-grid .service-copy > .arrow-link {
+    margin-top: auto;
   }
 }
