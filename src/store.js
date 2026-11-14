@@ -152,7 +152,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     let filtered = visibleProducts();
     if (productRoute) filtered = products.filter(product => slugFor(product) === productSlug || product.id === productSlug);
     const selected = categories.find(category => category.id === selectedCategory);
-    if (productHeading) productHeading.textContent = productRoute ? (filtered[0]?.name || "Product not found") : (selected ? selected.name : "Explore the menu");
+    if (productHeading) productHeading.textContent = productRoute ? (filtered[0]?.name || "Product not found") : (selected ? normalizeCategoryLabel(selected.name) : "Explore the menu");
     if (catalogCount) catalogCount.textContent = productRoute ? "" : filtered.length + (filtered.length === 1 ? " item" : " items");
     if (!filtered.length) {
       productGrid.innerHTML = "";
