@@ -237,7 +237,7 @@ async function authRoutes(req,res,url) {
   if(route==="/api/auth/email-code/request"){
     const b=await body(req,4000);
     const email=String(b.email||"").trim().toLowerCase();
-    if(email.length<5||email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))
+    if(email.length<5||email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return sendJson(res,200,{message:"If the address can receive mail, a sign-in code will be sent shortly."});
     try{
       const response=await fetch(SUPABASE_URL+"/functions/v1/request-login-code",{
@@ -254,7 +254,7 @@ async function authRoutes(req,res,url) {
   if(route==="/api/auth/email-code/verify"){
     const b=await body(req,4000);
     const email=String(b.email||"").trim().toLowerCase(),code=String(b.code||"").trim();
-    if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||!/^[0-9]{6}$/.test(code))
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!/^[0-9]{6}$/.test(code))
       return sendJson(res,400,{error:"That code is invalid or expired."});
     try{
       const response=await fetch(SUPABASE_URL+"/functions/v1/verify-login-code",{
