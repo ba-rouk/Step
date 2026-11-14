@@ -218,6 +218,7 @@ async function startCart() {
       order_description:String(fields.get("order_description")||"").trim(),
       notes:String(fields.get("notes")||"").trim(),
       website:String(fields.get("website")||""),
+      cart_source:quickItem?"quick":"saved_cart",
       items
     };
     sending=true;render();
