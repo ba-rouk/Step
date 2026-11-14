@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 const supabaseUrl=Deno.env.get("SUPABASE_URL")||"";
 const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
 const secret=Deno.env.get("EMAIL_OUTBOX_SECRET")||"";
-const appUrl=(Deno.env.get("APP_URL")||"https://steptown.onrender.com").replace(/\\/+$/,"");
+const appUrl=(Deno.env.get("APP_URL")||"https://steptown.onrender.com").replace(/\/+$/,"");
 const provider=(Deno.env.get("EMAIL_PROVIDER")||"resend").toLowerCase();
 const apiKey=Deno.env.get("EMAIL_API_KEY")||Deno.env.get("RESEND_API_KEY")||"";
 const from=Deno.env.get("EMAIL_FROM")||"Step Town <orders@steptown.rw>";
