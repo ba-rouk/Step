@@ -473,6 +473,20 @@ async function api(req,res,url) {
         const status=[400,401,403,413,429].includes(response.status)?response.status:502;
         return sendJson(res,status,{error:result.error||"We could not save your order just now. Please try again."});
       }
+      if(current?.session?.access_token){
+        const orderedProductIds=[...new Set(normalizedItems.map(item=>item.product_id).filter(Boolean))];
+        if(orderedProductIds.length){
+          try{
+            await sb("/rest/v1/customer_cart_items?user_id=eq."+encodeURIComponent(current.user.id)+"&product_id=in.("+orderedProductIds.map(encodeURIComponent).join(",")+")",{
+              method:"DELETE",
+              access:current.session.access_token,
+              headers:{Prefer:"return=minimal"}
+            });
+          }catch(cartError){
+            console.warn("Could not clear ordered products from the saved cart:",cartError.message);
+          }
+        }
+      }
       return sendJson(res,201,{
         ok:true,
         order:result.order||null,
@@ -563,7 +577,7 @@ async function handle(req,res){
     try{return await api(req,res,url);}
     catch(e){console.error("API:",e);return sendJson(res,e.status||500,{error:e.status===413?e.message:"The request could not be completed."});}
   }
-  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders"||(route==="/cart"&&!url.searchParams.get("product")))){
+  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders")){
     const current=await currentUser(req,res);
     if(!current){appendCookie(res,clearCookie(SESSION_COOKIE,req,true));res.writeHead(303,{Location:"/login?next="+encodeURIComponent(route+url.search),"Cache-Control":"no-store"});return res.end();}
   }

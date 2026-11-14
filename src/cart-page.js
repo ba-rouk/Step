@@ -9,8 +9,8 @@ const cartKey="step-town-cart-v1";
 let selectedProduct=null,quantity=1,accountUser=null,savedItems=[];
 let lastOrderMessage="";
 
-function readLocalCart(){
-  try{const items=JSON.parse(localStorage.getItem(cartKey)||"[]");return Array.isArray(items)?items.filter(x=>x&&x.product_id&&Number(x.quantity)>0):[];}catch{return [];}
+function clearLegacyLocalCart(){
+  try{localStorage.removeItem(cartKey);}catch{}
 }
 function imageFor(product){
   return product?.images?.[0]?.url||product?.image_urls?.[0]||product?.image_url||"";
@@ -109,29 +109,34 @@ function drawSavedCart(){
     return '<article class="saved-cart-item" data-saved-product="'+html(item.product_id)+'">'+
       (image?'<img src="'+html(image)+'" alt="'+html(item.name)+'" width="160" height="160" loading="lazy">':'<div class="product-image-placeholder">ST</div>')+
       '<div><strong>'+html(item.name)+'</strong><small>'+html(money(item.price))+' · '+html(item.category_name||"Menu")+'</small></div>'+
-      '<div class="saved-cart-actions"><button type="button" data-action="decrease" aria-label="Decrease quantity">−</button><b>'+Number(item.quantity||1)+'</b><button type="button" data-action="increase" aria-label="Increase quantity">+</button><button type="button" data-action="remove">Remove</button></div></article>';
+      '<div class="saved-cart-actions"><button type="button" data-action="decrease" aria-label="Decrease quantity">−</button><b>'+Number(item.quantity||1)+'</b><button type="button" data-action="increase" aria-label="Increase quantity">+</button><button type="button" data-action="order">Order this</button><button type="button" data-action="remove">Remove</button></div></article>';
   }).join("")+'</div>':'<p class="cart-empty">Your saved cart list is empty. Add items from the menu using the cart icon.</p>';
 }
 async function syncSavedCart(){
   if(!accountUser)return;
-  const items=savedItems.map(item=>({product_id:item.product_id,quantity:item.quantity}));
+  const items=savedItems.map(item=>({product_id:item.product_id||item.id,quantity:item.quantity}));
   const {response,data}=await apiFetch("/api/profile/cart",{method:"PUT",body:{items}}).then(async r=>({response:r,data:await r.json().catch(()=>({}))}));
   if(!response.ok)throw new Error(data.error||"Your cart list could not be saved.");
 }
-async function mergeGuestCart(){
-  if(!accountUser)return;
-  const guest=readLocalCart();
-  if(!guest.length)return;
-  const {response,data}=await jsonRequest("/api/profile/cart");
-  if(!response.ok)return;
-  const combined=new Map((data.items||[]).map(item=>[item.product_id,{product_id:item.product_id,quantity:Number(item.quantity)||1}]));
-  for(const item of guest){
-    const current=combined.get(item.product_id);
-    combined.set(item.product_id,{product_id:item.product_id,quantity:Math.min(20,(current?.quantity||0)+(Number(item.quantity)||1))});
+async function rememberSelectedProduct(){
+  if(!accountUser||!selectedProduct?.id)return;
+  const productId=String(selectedProduct.id);
+  const existing=savedItems.find(item=>String(item.product_id||item.id)===productId);
+  if(existing){
+    existing.quantity=Math.min(20,Math.max(1,Number(existing.quantity)||1)+1);
+    quantity=existing.quantity;
+  }else{
+    savedItems.push({
+      ...selectedProduct,
+      product_id:productId,
+      category_name:selectedProduct.category_name||selectedProduct.category?.name||"Menu",
+      quantity:1
+    });
+    quantity=1;
   }
-  const saved=await apiFetch("/api/profile/cart",{method:"PUT",body:{items:[...combined.values()]}}).then(async r=>({response:r,data:await r.json().catch(()=>({}))}));
-  if(!saved.response.ok)throw new Error(saved.data.error||"Guest cart items could not be merged.");
-  localStorage.removeItem(cartKey);
+  await syncSavedCart();
+  drawSavedCart();
+  renderProductSummary(selectedProduct);
 }
 function renderConfirmation(){
   setPage("confirmation");
@@ -145,6 +150,7 @@ function renderConfirmation(){
 }
 async function startCart(){
   setPage("cart");
+  clearLegacyLocalCart();
   const form=document.querySelector("#product-order-form");
   if(!form)return;
   document.querySelector("#order-preferred-date").min=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -164,9 +170,23 @@ async function startCart(){
     const savedPhone=account.profile?.phone||account.user?.phone;
     if(savedName&&name)name.value=savedName;
     if(savedPhone&&phone)phone.value=savedPhone;
-    try{await mergeGuestCart();}catch(error){console.warn("Cart merge:",error.message);}
   }
   await renderSavedCart();
+  if(params.get("product")){
+    if(accountUser&&selectedProduct){
+      try{
+        await rememberSelectedProduct();
+        history.replaceState(null,"","/cart");
+      }catch(error){
+        const status=document.querySelector("#product-order-error");
+        if(status)status.textContent="Your product is selected, but we could not save it to your cart history: "+(error.message||"Please retry.");
+      }
+    }else{
+      // A guest's selection exists only for this page view; refreshing starts with an empty cart.
+      clearLegacyLocalCart();
+      history.replaceState(null,"","/cart");
+    }
+  }
   form.addEventListener("submit",async event=>{
     event.preventDefault();
     const status=document.querySelector("#product-order-error");
@@ -207,6 +227,12 @@ async function startCart(){
         order.notes?"Notes: "+order.notes:""
       ].filter(Boolean).join("\n");
       sessionStorage.setItem("step-town-last-order-message",message);
+      if(accountUser){
+        const orderedId=String(selectedProduct.id||selectedProduct.product_id||"");
+        savedItems=savedItems.filter(item=>String(item.product_id||item.id)!==orderedId);
+        try{await syncSavedCart();drawSavedCart();}
+        catch(error){console.warn("Could not refresh the saved cart after ordering:",error.message);}
+      }
       window.location.assign("/order/confirmation?order="+encodeURIComponent(data.order?.order_number||""));
     }catch(error){status.textContent="Connection problem. Check your internet and try again.";}
     finally{button.disabled=false;button.textContent="Send order";}
@@ -214,10 +240,27 @@ async function startCart(){
   document.querySelector("#saved-cart-list")?.addEventListener("click",async event=>{
     const button=event.target.closest("[data-action]");if(!button)return;
     const row=button.closest("[data-saved-product]"),id=row?.dataset.savedProduct;
-    const item=savedItems.find(x=>x.product_id===id);if(!item)return;
+    const item=savedItems.find(x=>String(x.product_id||x.id)===id);if(!item)return;
+    if(button.dataset.action==="order"){
+      selectedProduct=item;
+      quantity=Math.max(1,Math.min(20,Number(item.quantity)||1));
+      renderProductSummary(selectedProduct);
+      document.querySelector("#cart-product-summary")?.scrollIntoView({behavior:"smooth",block:"start"});
+      return;
+    }
     if(button.dataset.action==="increase")item.quantity=Math.min(20,item.quantity+1);
     else if(button.dataset.action==="decrease")item.quantity=Math.max(1,item.quantity-1);
-    else if(button.dataset.action==="remove")savedItems=savedItems.filter(x=>x.product_id!==id);
+    else if(button.dataset.action==="remove"){
+      savedItems=savedItems.filter(x=>String(x.product_id||x.id)!==id);
+      if(selectedProduct&&String(selectedProduct.id||selectedProduct.product_id)===id){
+        selectedProduct=null;
+        renderProductSummary(null);
+      }
+    }
+    if(selectedProduct&&String(selectedProduct.id||selectedProduct.product_id)===id){
+      quantity=Number(item.quantity)||1;
+      updateProductSummaryTotals();
+    }
     drawSavedCart();
     try{await syncSavedCart();}catch(error){const host=document.querySelector("#saved-cart-list");host.insertAdjacentHTML("afterbegin",'<p class="checkout-status">'+html(error.message)+'</p>');}
   });
