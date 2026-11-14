@@ -1,4 +1,4 @@
-import { supabase, supabaseConfigured } from "./supabase.js";
+import { CAKE_CATEGORY, normalizeCategoryLabel } from "./category-config.js";
 import { apiFetch } from "./api.js";
 import { renderProductCard } from "./product-card.js";
 import { renderProductPage } from "./product-page.js";
@@ -39,6 +39,13 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
   const cartRoute = pathname === "/cart";
   const categorySlug = categoryRoute && pathname.startsWith("/categories/") ? pathname.split("/").filter(Boolean).at(-1) : "";
   let selectedCategory = "all";
+  let menuOffset = 0;
+  let menuHasMore = false;
+  let menuLoadingMore = false;
+  let menuAuthenticated = false;
+  let selectedOrderProduct = null;
+  let orderQuantity = 1;
+  let menuSearchTimer = null;
   if (categoryRoute) document.body.classList.add("route-categories");
   if (galleryRoute) document.body.classList.add("route-gallery");
   if (cartRoute) document.body.classList.add("route-cart");
@@ -101,11 +108,13 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 
   function categoryName(categoryId) {
     const category = categories.find((item) => item.id === categoryId);
-    return category ? category.name : "Step Town";
+    return category ? normalizeCategoryLabel(category.name, category.slug) : "Step Town";
   }
 
   function categorySlugFor(category) {
-    return String(category.slug || category.name || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return normalizeCategoryLabel(category.name, category.slug) === CAKE_CATEGORY.label
+      ? CAKE_CATEGORY.slug
+      : String(category.slug || category.name || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   }
 
   function renderCategories() {
@@ -114,7 +123,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
       const image = safeImageUrl(category.cover_image_url);
       return '<a class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '">' +
         (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : "") +
-        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(category.name) + '</strong><span class="category-card-action">Browse category</span></span></a>';
+        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(categoryName(category.id)) + '</strong><span class="category-card-action">Browse category</span></span></a>';
     }).join("");
     categoryShowcase.innerHTML = allCard + cards;
   }
@@ -124,7 +133,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     const all = '<a href="/categories">All categories</a>';
     const links = categories.map((category) => {
       const active = category.id === selectedCategory;
-      return '<a href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(category.name) + '</a>';
+      return '<a href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '"' + (active ? ' aria-current="page"' : "") + '>' + escapeHtml(categoryName(category.id)) + '</a>';
     }).join("");
     categoryFilterRow.innerHTML = all + links;
   }
@@ -269,60 +278,219 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     showProductToast("Added to your cart");
   }
 
-  async function loadCatalog() {
-    if (!supabaseConfigured || !supabase) {
-      catalogStatus.textContent = "The online menu is not connected yet. Please contact Step Town directly while the catalogue is configured.";
-      return;
+  async function loadCatalog({ append = false, quiet = false, search = "" } = {}) {
+    if (menuLoadingMore) return;
+    menuLoadingMore = true;
+    const offset = append ? menuOffset : 0;
+    const params = new URLSearchParams({ limit: "12", offset: String(offset) });
+    if (categorySlug) params.set("category", categorySlug);
+    if (search) params.set("search", search.slice(0, 80));
+    if (!quiet && !products.length) {
+      catalogStatus.hidden = false;
+      catalogStatus.textContent = "Loading the Step Town menu…";
+      catalogStatus.setAttribute("aria-busy", "true");
     }
-
-    catalogStatus.hidden = false;
-    catalogStatus.textContent = "Loading the Step Town menu…";
-    const [categoryResult, productResult] = await Promise.all([
-      supabase.from("store_categories").select("id,name,slug,description,cover_image_url,sort_order").eq("is_active", true).order("sort_order"),
-      supabase.from("store_products").select("id,category_id,name,description,price,price_unit,price_unit_label,image_url,image_urls,sort_order,is_visible").eq("is_available", true).eq("is_visible", true).order("sort_order")
-    ]);
-
-    if (categoryResult.error || productResult.error) {
-      console.error("Step Town catalogue could not load:", categoryResult.error || productResult.error);
-      catalogStatus.innerHTML = 'We could not load the menu right now. Please <a href="https://wa.me/250780382589" target="_blank" rel="noopener">contact Step Town on WhatsApp </a>.';
-      return;
-    }
-
-    categories = categoryResult.data || [];
-    products = productResult.data || [];
-    const ids = products.map(product => product.id);
-    if (ids.length) {
-      const { data: galleryRows, error: galleryError } = await supabase.from("product_images").select("id,product_id,url,position,alt_text,variants").in("product_id", ids).order("position").order("id");
-      if (!galleryError && galleryRows?.length) {
-        const byProduct = new Map();
-        for (const image of galleryRows) { if (!byProduct.has(image.product_id)) byProduct.set(image.product_id, []); byProduct.get(image.product_id).push(image); }
-        products = products.map(product => ({ ...product, images: byProduct.get(product.id) || [] }));
+    try {
+      const response = await fetch("/api/catalog?" + params.toString(), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        cache: "no-cache"
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "The menu could not be loaded.");
+      categories = Array.isArray(payload.categories) ? payload.categories : categories;
+      const nextProducts = Array.isArray(payload.products) ? payload.products : [];
+      if (append) {
+        const byId = new Map(products.map(product => [product.id, product]));
+        nextProducts.forEach(product => byId.set(product.id, product));
+        products = [...byId.values()];
+      } else {
+        products = nextProducts;
       }
+      menuOffset = Number(payload.nextOffset || (offset + nextProducts.length));
+      menuHasMore = Boolean(payload.hasMore);
+      try {
+        localStorage.setItem("step-town-menu-cache-v1", JSON.stringify({
+          savedAt: Date.now(), categories, products: products.slice(0, 24)
+        }));
+      } catch (error) {
+        console.warn("Menu cache unavailable:", error.message);
+      }
+      if (categorySlug) {
+        const requestedCategory = categories.find(item =>
+          item.slug === categorySlug || item.id === categorySlug || categorySlugFor(item) === categorySlug.toLowerCase()
+        );
+        selectedCategory = requestedCategory ? requestedCategory.id : "__missing_category__";
+        document.body.classList.add("route-category-detail");
+        const routeTitle = document.querySelector(".route-catalog-heading h1");
+        if (routeTitle) routeTitle.textContent = requestedCategory ? categoryName(requestedCategory.id) : "Category not found";
+        const routeIntro = document.querySelector(".route-catalog-heading > p:not(.eyebrow)");
+        if (routeIntro) routeIntro.textContent = requestedCategory?.description || "Browse the menu items in this category.";
+        const routeHeading = document.querySelector(".route-catalog-heading");
+        if (routeHeading && !routeHeading.querySelector(".category-back-link")) {
+          const back = document.createElement("a");
+          back.className = "category-back-link";
+          back.href = "/categories";
+          back.textContent = "All categories";
+          routeHeading.append(back);
+        }
+      }
+      renderCategories();
+      renderCategoryFilters();
+      renderProducts();
+      catalogStatus.removeAttribute("aria-busy");
+      if (!products.length) {
+        catalogStatus.hidden = false;
+        catalogStatus.textContent = "No menu items match your search or category.";
+      }
+      ensureMenuPagination();
+    } catch (error) {
+      console.error("Step Town catalogue could not load:", error);
+      if (!products.length) {
+        catalogStatus.hidden = false;
+        catalogStatus.textContent = "We could not load the menu right now. Please contact Step Town on WhatsApp.";
+      }
+      catalogStatus.removeAttribute("aria-busy");
+    } finally {
+      menuLoadingMore = false;
     }
+  }
+
+  function ensureMenuPagination() {
+    let sentinel = document.querySelector("#catalog-load-more");
+    if (!sentinel) {
+      sentinel = document.createElement("div");
+      sentinel.id = "catalog-load-more";
+      sentinel.className = "catalog-load-more";
+      sentinel.setAttribute("aria-hidden", "true");
+      productGrid.insertAdjacentElement("afterend", sentinel);
+    }
+    if (!("IntersectionObserver" in window)) return;
+    if (window.stepTownMenuObserver) window.stepTownMenuObserver.disconnect();
+    window.stepTownMenuObserver = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting) && menuHasMore && !menuLoadingMore) {
+        loadCatalog({ append: true, quiet: true, search: searchInput?.value.trim() || "" });
+      }
+    }, { rootMargin: "700px 0px" });
+    if (menuHasMore) window.stepTownMenuObserver.observe(sentinel);
+  }
+
+  function hydrateInitialMenu() {
+    let initial = null;
+    const embedded = document.querySelector("#step-town-initial-catalog");
+    if (embedded) {
+      try { initial = JSON.parse(embedded.textContent || "null"); } catch {}
+    }
+    if (!initial) {
+      try {
+        const cached = JSON.parse(localStorage.getItem("step-town-menu-cache-v1") || "null");
+        if (cached && Date.now() - Number(cached.savedAt || 0) < 86400000) {
+          initial = { categories: cached.categories, products: cached.products, nextOffset: cached.products?.length || 0, hasMore: true };
+        }
+      } catch {}
+    }
+    if (!initial) return false;
+    categories = Array.isArray(initial.categories) ? initial.categories : [];
+    products = Array.isArray(initial.products) ? initial.products : [];
+    menuOffset = Number(initial.nextOffset || products.length);
+    menuHasMore = Boolean(initial.hasMore);
     if (categorySlug) {
-      const requestedCategory = categories.find((item) =>
-        item.slug === categorySlug ||
-        item.id === categorySlug ||
-        categorySlugFor(item) === categorySlug.toLowerCase()
-      );
+      const requestedCategory = categories.find(item => item.slug === categorySlug || categorySlugFor(item) === categorySlug.toLowerCase());
       selectedCategory = requestedCategory ? requestedCategory.id : "__missing_category__";
-      document.body.classList.add("route-category-detail");
-      const routeTitle = document.querySelector(".route-catalog-heading h1");
-      if (routeTitle) routeTitle.textContent = requestedCategory?.name || "Category not found";
-      const routeIntro = document.querySelector(".route-catalog-heading > p:not(.eyebrow)");
-      if (routeIntro) routeIntro.textContent = requestedCategory?.description || "Browse the menu items in this category.";
-      const routeHeading = document.querySelector(".route-catalog-heading");
-      if (routeHeading && !routeHeading.querySelector(".category-back-link")) {
-        const back = document.createElement("a");
-        back.className = "category-back-link";
-        back.href = "/categories";
-        back.textContent = "All categories";
-        routeHeading.append(back);
-      }
     }
     renderCategories();
     renderCategoryFilters();
     renderProducts();
+    catalogStatus.hidden = true;
+    ensureMenuPagination();
+    return true;
+  }
+
+  function renderOrderProductSummary() {
+    const host = document.querySelector("#order-product-summary");
+    if (!host) return;
+    if (!selectedOrderProduct) {
+      host.innerHTML = cart.length
+        ? '<div class="order-summary-cart"><strong>' + cart.length + (cart.length === 1 ? " item" : " items") + ' selected from your cart</strong><p>Your order will include the items shown in the saved cart list below.</p></div>'
+        : '<p class="order-summary-empty">Choose a menu item to begin your order.</p>';
+      return;
+    }
+    const product = selectedOrderProduct;
+    const image = safeImageUrl(product.images?.[0]?.url) || safeImageUrl(product.image_urls?.[0]) || safeImageUrl(product.image_url);
+    host.innerHTML =
+      '<article class="order-product-summary">' +
+        (image ? '<img src="' + escapeHtml(image) + '" alt="' + escapeHtml(product.name) + '" width="160" height="160" loading="eager">' : '<div class="order-product-placeholder">STEP TOWN</div>') +
+        '<div class="order-product-copy"><small>' + escapeHtml(normalizeCategoryLabel(product.category_name || "Menu", product.category_slug)) + '</small><h3>' + escapeHtml(product.name) + '</h3>' +
+        '<b>' + (product.price == null ? "Quote required" : escapeHtml(money(product.price))) + (product.price == null ? "" : " per " + escapeHtml(product.price_unit_label || product.price_unit || "unit")) + '</b>' +
+        '<details><summary>View full description</summary><p>' + escapeHtml(product.description || "Prepared with care by Step Town.") + '</p></details>' +
+        '<div class="order-quantity"><button type="button" data-order-quantity="minus" aria-label="Decrease quantity">−</button><output id="order-quantity-value">' + orderQuantity + '</output><button type="button" data-order-quantity="plus" aria-label="Increase quantity">+</button><span>Quantity</span></div></div>' +
+      '</article>';
+  }
+
+  async function loadSelectedOrderProduct() {
+    const slug = new URLSearchParams(window.location.search).get("product");
+    if (!cartRoute || !slug) return;
+    let product = products.find(item => (item.slug || slugFor(item)) === slug || item.id === slug);
+    if (!product) {
+      try {
+        const response = await fetch("/api/catalog?" + new URLSearchParams({ product: slug, limit: "1" }), { credentials: "same-origin" });
+        const payload = await response.json();
+        product = payload.products?.[0] || null;
+      } catch (error) { console.warn("Selected menu item lookup failed:", error.message); }
+    }
+    selectedOrderProduct = product || null;
+    renderOrderProductSummary();
+  }
+
+  async function syncAccountCart() {
+    if (!cartRoute) return;
+    try {
+      const sessionResponse = await fetch("/api/session", { credentials: "same-origin", cache: "no-store" });
+      const session = await sessionResponse.json().catch(() => ({}));
+      menuAuthenticated = Boolean(session.authenticated);
+      const lock = document.querySelector("#cart-list-lock");
+      const list = document.querySelector("#cart-list-section");
+      if (lock) lock.hidden = menuAuthenticated;
+      if (list) list.hidden = !menuAuthenticated;
+      if (menuAuthenticated) {
+        const profileResponse = await apiFetch("/api/profile");
+        const profile = await profileResponse.json().catch(() => ({}));
+        const name = profile.profile?.full_name || profile.user?.user_metadata?.full_name || "";
+        const phone = profile.profile?.phone || profile.user?.phone || "";
+        const nameInput = checkoutForm.elements.customer_name;
+        const phoneInput = checkoutForm.elements.customer_phone;
+        if (nameInput && !nameInput.value) nameInput.value = name;
+        if (phoneInput && (!phoneInput.value || phoneInput.value === "+250")) phoneInput.value = phone || "+250";
+        const accountResponse = await apiFetch("/api/cart");
+        const accountPayload = await accountResponse.json().catch(() => ({}));
+        const merged = new Map();
+        (accountPayload.items || []).forEach(item => merged.set(item.id, {
+          product_id: item.id, name: item.name, category_name: item.category_name,
+          price: item.price == null ? null : Number(item.price), price_unit: item.price_unit || "unit",
+          price_unit_label: item.price_unit_label || item.price_unit || "unit",
+          image_url: item.images?.[0]?.url || item.image_urls?.[0] || item.image_url || "",
+          quantity: Number(item.quantity || 1)
+        }));
+        cart.forEach(item => {
+          const saved = merged.get(item.product_id);
+          if (saved) saved.quantity = Math.min(20, saved.quantity + item.quantity);
+          else merged.set(item.product_id, item);
+        });
+        cart = [...merged.values()].slice(0, 50);
+        saveCart();
+        await apiFetch("/api/cart", { method: "PUT", body: { items: cart.map(item => ({ product_id: item.product_id, quantity: item.quantity })) } });
+      }
+    } catch (error) {
+      console.warn("Account cart sync deferred:", error.message);
+    }
+    renderCart();
+    renderOrderProductSummary();
+  }
+
+  function persistAccountCart() {
+    if (!menuAuthenticated) return;
+    void apiFetch("/api/cart", { method: "PUT", body: { items: cart.map(item => ({ product_id: item.product_id, quantity: item.quantity })) } })
+      .catch(error => console.warn("Account cart update deferred:", error.message));
   }
 
   // Category cards and filter chips navigate to real /categories/:slug routes.
@@ -349,7 +517,10 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
       flashCartButton(button);
     }
   });
-  if (searchInput) searchInput.addEventListener("input", renderProducts);
+  if (searchInput) searchInput.addEventListener("input", () => {
+    window.clearTimeout(menuSearchTimer);
+    menuSearchTimer = window.setTimeout(() => loadCatalog({ quiet: true, search: searchInput.value.trim() }), 180);
+  });
   // The Cart tab opens the public /cart page; login is required only when submitting an order.
     if (cartClose) cartClose.addEventListener("click", closeCart);
   if (cartBackdrop) cartBackdrop.addEventListener("click", closeCart);
@@ -373,8 +544,9 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 
   if (fulfillmentInput && locationInput) {
     const updateLocationRequirement = () => {
-      locationInput.required = fulfillmentInput.value !== "pickup";
-      locationInput.placeholder = fulfillmentInput.value === "pickup" ? "Optional collection notes" : "Area, venue or address";
+      locationInput.required = fulfillmentInput.value === "delivery";
+      locationInput.closest("label")?.toggleAttribute("hidden", fulfillmentInput.value !== "delivery");
+      locationInput.placeholder = fulfillmentInput.value === "pickup" ? "Optional pickup notes" : "Area, venue or address";
     };
     fulfillmentInput.addEventListener("change", updateLocationRequirement);
     updateLocationRequirement();
@@ -387,81 +559,95 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
 
   checkoutForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (checkoutStatus) checkoutStatus.textContent = "";
-
-    if (!cart.length) {
-      checkoutStatus.textContent = "Add at least one menu item before sending your order request.";
+    checkoutStatus.textContent = "";
+    if (!checkoutForm.reportValidity()) return;
+    const formData = new FormData(checkoutForm);
+    const items = selectedOrderProduct
+      ? [{ product_id: selectedOrderProduct.id, quantity: orderQuantity }]
+      : cart.map(item => ({ product_id: item.product_id, quantity: item.quantity }));
+    if (!items.length) {
+      checkoutStatus.textContent = "Choose a menu item or add products to your cart before sending the order.";
       return;
     }
-    if (!checkoutForm.reportValidity()) return;
-
-    const formData = new FormData(checkoutForm);
     const order = {
       customer_name: String(formData.get("customer_name") || "").trim(),
       customer_phone: String(formData.get("customer_phone") || "").trim(),
       customer_email: String(formData.get("customer_email") || "").trim() || null,
-      fulfillment: String(formData.get("fulfillment") || "pickup"),
+      order_description: String(formData.get("order_description") || "").trim(),
       requested_date: String(formData.get("requested_date") || "") || null,
+      requested_time: String(formData.get("requested_time") || "") || null,
+      fulfillment: String(formData.get("fulfillment") || "pickup"),
       delivery_location: String(formData.get("delivery_location") || "").trim() || null,
       notes: String(formData.get("notes") || "").trim() || null,
-      items: cart.map((item) => ({
-        product_id: item.product_id,
-        quantity: item.quantity
-      }))
+      website: String(formData.get("website") || ""),
+      items
     };
-
-    const originalText = checkoutSubmit.innerHTML;
+    const originalText = checkoutSubmit.textContent;
     checkoutSubmit.disabled = true;
-    checkoutSubmit.textContent = "Saving your request…";
-
+    checkoutSubmit.textContent = "Sending order…";
     try {
       const response = await apiFetch("/api/orders", { method: "POST", body: order });
       const payload = await response.json().catch(() => ({}));
-
-      if (response.status === 401) {
-        window.location.assign("/login?next=" + encodeURIComponent("/cart"));
-        return;
-      }
       if (!response.ok) {
-        checkoutStatus.textContent = [payload.error || "We couldn't save your request.", payload.suggestion ? "How to fix it: " + payload.suggestion : ""].filter(Boolean).join(" ");
+        checkoutStatus.textContent = [payload.error || "We couldn’t send your order.", payload.suggestion || ""].filter(Boolean).join(" ");
         return;
       }
-
       const savedOrder = payload.order || {};
-      const finalTotal = savedOrder.estimated_total == null ? null : Number(savedOrder.estimated_total);
-      const messageLines = [
+      if (!savedOrder.order_number) {
+        checkoutStatus.textContent = "Your request was received. Step Town will contact you to confirm the details.";
+        return;
+      }
+      const productNames = selectedOrderProduct
+        ? [selectedOrderProduct.name]
+        : items.map(item => cart.find(entry => entry.product_id === item.product_id)?.name || "Menu item");
+      const message = [
         "Hello Step Town, I have submitted an order request on your website.",
-        "",
-        "Order: " + (savedOrder.order_number || "New order request"),
+        "Order: " + savedOrder.order_number,
         "Name: " + order.customer_name,
         "Phone: " + order.customer_phone,
+        "Description: " + (order.order_description || "As discussed"),
         "Fulfilment: " + order.fulfillment,
-        order.requested_date ? "Requested date: " + order.requested_date : "",
+        order.requested_date ? "Preferred date: " + order.requested_date : "",
+        order.requested_time ? "Preferred time: " + order.requested_time : "",
         order.delivery_location ? "Location: " + order.delivery_location : "",
-        "",
-        "Order items:",
-        ...cart.map((item) => "- " + item.name + " × " + item.quantity),
-        finalTotal == null ? "Total: To be confirmed by Step Town" : "Estimated total: " + money(finalTotal),
-        order.notes ? "Notes: " + order.notes : ""
-      ].filter(Boolean);
-      const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(messageLines.join("\n"));
-
-      cart = [];
-      saveCart();
-      renderCart();
-      checkoutForm.reset();
-      if (fulfillmentInput && locationInput) locationInput.required = false;
-      checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>';
+        ...items.map((item,index) => "- " + productNames[index] + " × " + item.quantity)
+      ].filter(Boolean).join("\n");
+      const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(message);
+      if (!selectedOrderProduct) {
+        cart = [];
+        saveCart();
+        persistAccountCart();
+      }
+      window.location.assign("/order-confirmation?order=" + encodeURIComponent(savedOrder.order_number) + "&whatsapp=" + encodeURIComponent(whatsappUrl));
     } catch (error) {
       console.error("Step Town order request failed:", error);
-      checkoutStatus.textContent = "Connection problem: " + (error.message || "The order service could not be reached.") + " Try again after checking your internet connection. If it continues, contact Step Town on WhatsApp.";
+      checkoutStatus.textContent = "We couldn’t reach the order service. Check your connection and try again, or contact Step Town on WhatsApp.";
     } finally {
       checkoutSubmit.disabled = false;
-      checkoutSubmit.innerHTML = originalText;
+      checkoutSubmit.textContent = originalText;
     }
   });
 
+  document.querySelector("#order-product-summary")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-order-quantity]");
+    if (!button || !selectedOrderProduct) return;
+    orderQuantity = Math.max(1, Math.min(20, orderQuantity + (button.dataset.orderQuantity === "plus" ? 1 : -1)));
+    renderOrderProductSummary();
+  });
+
+
+  const hasInitialMenu = hydrateInitialMenu();
   renderCart();
-  loadCatalog();
-  if (cartRoute) openCart();
+  loadCatalog({ quiet: hasInitialMenu });
+  if (cartRoute) {
+    openCart();
+    void syncAccountCart();
+    void loadSelectedOrderProduct();
+  }
+  document.querySelectorAll('a[href="/categories"], [data-dock-route="categories"]').forEach(link => {
+    const warm = () => { if (!window.stepTownCategoriesPrefetched) { window.stepTownCategoriesPrefetched = true; fetch("/api/catalog?limit=12&offset=0", { credentials:"same-origin" }).catch(() => {}); } };
+    link.addEventListener("pointerenter", warm, { once:true });
+    link.addEventListener("focus", warm, { once:true });
+    link.addEventListener("touchstart", warm, { once:true, passive:true });
+  });
 })();
