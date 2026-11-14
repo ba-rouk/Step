@@ -73,7 +73,10 @@ async function renderSavedCart(){
   const lock=document.querySelector("#guest-cart-lock");
   if(!host||!lock)return;
   if(!accountUser){
-    host.hidden=true;lock.hidden=false;return;
+    host.hidden=true;lock.hidden=false;
+    const loginLink=lock.querySelector("a");
+    if(loginLink)loginLink.href="/login?next="+encodeURIComponent(location.pathname+location.search);
+    return;
   }
   lock.hidden=true;host.hidden=false;
   const {response,data}=await jsonRequest("/api/profile/cart");
