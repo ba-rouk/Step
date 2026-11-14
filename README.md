@@ -25,7 +25,7 @@ Fill in `.env` with the Step Supabase project URL and publishable key. Never use
 npm run build
 npm run preview
 ```
-The production site is generated in `dist/`.
+`npm run preview` starts the Node server used by Render, including the `/api` routes. Use `npm run vite:preview` only when you need Vite's static preview server.
 
 ## Netlify
 - Repository: `ba-rouk/Step`
