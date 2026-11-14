@@ -496,7 +496,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
     const order = {
       customer_name: String(formData.get("customer_name") || "").trim(),
       customer_phone: String(formData.get("customer_phone") || "").trim(),
-      customer_email: String(formData.get("customer_email") || "").trim() || null,
+      customer_email: String(formData.get("customer_email") || "").trim(),
       fulfillment: String(formData.get("fulfillment") || "pickup"),
       requested_date: String(formData.get("requested_date") || "") || null,
       delivery_location: String(formData.get("delivery_location") || "").trim() || null,
@@ -532,6 +532,7 @@ import { bindProductGallery, showProductToast } from "./product-gallery.js";
         "Order: " + (savedOrder.order_number || "New order request"),
         "Name: " + order.customer_name,
         "Phone: " + order.customer_phone,
+        "Email: " + order.customer_email,
         "Fulfilment: " + order.fulfillment,
         order.requested_date ? "Requested date: " + order.requested_date : "",
         order.delivery_location ? "Location: " + order.delivery_location : "",
