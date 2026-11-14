@@ -389,7 +389,7 @@ async function api(req,res,url) {
         });
       }
       if(itemCount>1000)return sendJson(res,400,{error:"The total quantity in this cart is too high."});
-      const row={user_id:current.user.id,cart_id:cartId,items,item_count:itemCount,estimated_total:allPriced?total:null,status};
+      const row={user_id:current.user.id,cart_id:cartId,items,item_count:itemCount,estimated_total:allPriced?total:null,status,updated_at:new Date().toISOString()};
       await sb("/rest/v1/customer_cart_history?on_conflict=user_id,cart_id",{method:"POST",access:current.session.access_token,body:row,headers:{Prefer:"resolution=merge-duplicates,return=minimal"}});
       return sendJson(res,200,{ok:true,cart_id:cartId,status});
     }catch(error){
