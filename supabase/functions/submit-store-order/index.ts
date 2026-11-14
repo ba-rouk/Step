@@ -176,6 +176,20 @@ Deno.serve(async req => {
     }
   });
   if (emailJob.error) console.error("Order saved; confirmation email could not be queued:", emailJob.error);
+  else {
+    const outboxSecret = Deno.env.get("EMAIL_OUTBOX_SECRET") || "";
+    if (outboxSecret) {
+      try {
+        await fetch(supabaseUrl + "/functions/v1/process-email-outbox", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + outboxSecret, "Content-Type": "application/json" },
+          body: "{}"
+        });
+      } catch (error) {
+        console.error("Order saved; confirmation email remains queued for retry:", error);
+      }
+    }
+  }
 
   // Notification is a separate best-effort step; a push failure never rolls back the order.
   let alertQueued = false;
