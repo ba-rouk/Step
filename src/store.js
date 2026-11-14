@@ -123,7 +123,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     const cards = categories.map((category) => {
       const image = safeImageUrl(category.cover_image_url);
       return '<a class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '">' +
-        (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : "") +
+        (image ? '<img src="' + escapeHtml(image) + '" alt="' + escapeHtml(categoryName(category.id) + " menu category") + '" loading="lazy">' : "") +
         '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(categoryName(category.id)) + '</strong><span class="category-card-action">Browse category</span></span></a>';
     }).join("");
     categoryShowcase.innerHTML = allCard + cards;
