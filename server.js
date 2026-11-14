@@ -424,8 +424,8 @@ async function api(req,res,url) {
     if(!phone)return sendJson(res,400,{error:"Enter a valid phone number, including the +250 country code."});
     if(!rateLimitKey("orders-phone:"+phone,5,900000))return sendJson(res,429,{error:"Too many orders have been sent from this phone number. Try again in 15 minutes."});
     if(email&&(email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)))return sendJson(res,400,{error:"Enter a valid email address or leave it blank."});
-    if(!["pickup","delivery"].includes(fulfillment))return sendJson(res,400,{error:"Choose pickup or delivery for this order."});
-    if(fulfillment==="delivery"&&location.length<3)return sendJson(res,400,{error:"Add the delivery location before sending."});
+    if(!["pickup","delivery","event"].includes(fulfillment))return sendJson(res,400,{error:"Choose pickup, delivery or event service for this order."});
+    if((fulfillment==="delivery"||fulfillment==="event")&&location.length<3)return sendJson(res,400,{error:"Add the delivery or event location before sending."});
     if(location.length>180||description.length>5000||notes.length>3000)return sendJson(res,400,{error:"One of your order details is too long. Shorten it and try again."});
 
     const date=b.requested_date?String(b.requested_date):null;
