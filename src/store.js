@@ -1,6 +1,7 @@
 import { supabase, supabaseConfigured } from "./supabase.js";
 import { apiFetch } from "./api.js";
 import { renderProductCard } from "./product-card.js";
+import { renderProductPage } from "./product-page.js";
 import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
 
 (() => {
@@ -157,12 +158,22 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     }
     catalogStatus.hidden = true;
     productGrid.classList.toggle("product-detail-grid", productRoute);
-    productGrid.innerHTML = filtered.map((product,index) => renderProductCard(product, {
-      categoryName: categoryName(product.category_id),
-      liked: savedFavourites().includes(product.id),
-      detail: productRoute,
-      eager: index === 0
-    })).join("");
+    productGrid.dataset.productList = "shared";
+    productGrid.dataset.productView = productRoute ? "detail" : (categoryRoute ? "categories" : "home");
+    productGrid.setAttribute("aria-label", productRoute ? "Step Town product details" : "Step Town products");
+
+    if (productRoute) {
+      productGrid.innerHTML = renderProductPage(filtered[0], {
+        categoryName: categoryName(filtered[0].category_id),
+        liked: savedFavourites().includes(filtered[0].id)
+      });
+    } else {
+      productGrid.innerHTML = filtered.map((product, index) => renderProductCard(product, {
+        categoryName: categoryName(product.category_id),
+        liked: savedFavourites().includes(product.id),
+        eager: index === 0
+      })).join("");
+    }
     if (productRoute) {
       const product = filtered[0];
       const title = product.name + " | Step Town";
@@ -276,7 +287,7 @@ import { bindProductGallery, flashCartButton, showProductToast } from "./product
     products = productResult.data || [];
     const ids = products.map(product => product.id);
     if (ids.length) {
-      const { data: galleryRows, error: galleryError } = await supabase.from("product_images").select("id,product_id,url,position,alt_text,variants").in("product_id", ids).order("position");
+      const { data: galleryRows, error: galleryError } = await supabase.from("product_images").select("id,product_id,url,position,alt_text,variants").in("product_id", ids).order("position").order("id");
       if (!galleryError && galleryRows?.length) {
         const byProduct = new Map();
         for (const image of galleryRows) { if (!byProduct.has(image.product_id)) byProduct.set(image.product_id, []); byProduct.get(image.product_id).push(image); }
