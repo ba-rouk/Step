@@ -233,7 +233,7 @@ if (isAuthRoute) {
       const items = Array.isArray(order.items) ? order.items : [];
       const summary = items.map((item) => escapeHtml(item.name || "Menu item") + " × " + Number(item.quantity || 1)).join(", ");
       const total = order.estimated_total == null ? "Quote to be confirmed" : new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(Number(order.estimated_total));
-      return '<article class="customer-order-card"><div class="customer-order-top"><strong>' + escapeHtml(order.order_number || "Step Town order") + '</strong><span>' + escapeHtml(order.status || "new") + '</span></div><small>' + escapeHtml(order.created_at ? new Date(order.created_at).toLocaleDateString() : "") + ' · ' + escapeHtml(order.fulfillment || "") + '</small><p>' + summary + '</p><b>' + escapeHtml(total) + '</b></article>';
+      return '<article class="customer-order-card"><div class="customer-order-top"><strong>' + escapeHtml(order.order_number || "Step Town order") + '</strong><span>' + escapeHtml(order.status || "new") + '</span></div><small>' + escapeHtml(order.created_at ? new Date(order.created_at).toLocaleDateString() : "") + ' · ' + escapeHtml(order.fulfillment || "") + '</small><p>' + summary + '</p>' + (order.order_description ? '<p class="customer-order-description">' + escapeHtml(order.order_description) + '</p>' : '') + '<b>' + escapeHtml(total) + '</b></article>';
     }).join("") : '<div class="customer-empty-orders"><strong>No orders yet.</strong><p>Your submitted order requests will appear here.</p><a href="/categories">Explore the menu</a></div>';
     shell(
       '<h1>Your orders.</h1><p class="customer-intro">Your recent Step Town order requests.</p>' +
