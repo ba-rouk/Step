@@ -23,3 +23,21 @@ jobs:
         run: npm test
       - name: Validate JavaScript and build the production site
         run: npm run build
+      - name: Install Playwright Chromium for configured preview
+        if: ${{ vars.E2E_BASE_URL != '' }}
+        run: npx playwright install --with-deps chromium
+      - name: Run mobile cart E2E against preview
+        if: ${{ vars.E2E_BASE_URL != '' }}
+        run: npm run test:e2e
+        env:
+          E2E_BASE_URL: ${{ vars.E2E_BASE_URL }}
+      - name: Upload Playwright trace and diagnostics
+        if: always() && vars.E2E_BASE_URL != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: step-town-cart-playwright
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

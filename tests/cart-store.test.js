@@ -51,12 +51,12 @@ test("legacy formats migrate once, clamp quantities and discard records without 
     { slug: "deleted-item", quantity: 3 }
   ]));
   storage.setItem("step-town-cart-handoff-v1", JSON.stringify({ items: [
-    { product_id: "a", slug: "new-a", quantity: 3 }
+    { product_id: a, slug: "new-a", quantity: 3 }
   ] }));
   const cart = createCartStore(storage);
   const migrated = await cart.migrate(async slug => ({ id: slug === "missing-id" ? c : slug === "legacy-cake" ? d : null, slug }));
   assert.deepEqual(migrated, [
-    { product_id: a, slug: "old-a", quantity: 20 },
+    { product_id: a, slug: "new-a", quantity: 20 },
     { product_id: b, slug: "b", quantity: 2 },
     { product_id: d, slug: "legacy-cake", quantity: 4 },
     { product_id: c, slug: "missing-id", quantity: 1 }

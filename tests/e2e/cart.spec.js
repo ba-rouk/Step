@@ -4,13 +4,13 @@ const enabled = Boolean(process.env.E2E_BASE_URL);
 const PRODUCT_SLUG = "carrots-1db3e2d1";
 
 function captureDiagnostics(page) {
-  const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [], apiRequests: [] };
+  const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [], apiRequests: [], storageSnapshots: [] };
   page.on("console", message => {
     if (message.type() === "error") diagnostics.consoleErrors.push(message.text());
   });
   page.on("pageerror", error => diagnostics.pageErrors.push(error.message));
   page.on("requestfailed", request => diagnostics.failedRequests.push({
-    method: request.method(), url: request.url(), error: request.failure()?.errorText || "unknown"
+    method: request.method(), path: new URL(request.url()).pathname, error: request.failure()?.errorText || "unknown"
   }));
   page.on("request", request => {
     if (new URL(request.url()).pathname.startsWith("/api/")) {
@@ -18,6 +18,19 @@ function captureDiagnostics(page) {
     }
   });
   return diagnostics;
+}
+
+async function snapshotCartStorage(page, label, diagnostics) {
+  const values = await page.evaluate(() => {
+    const keys = [
+      "step-town-cart-v2", "step-town-cart-v1", "step-town-cart-handoff-v1",
+      "step-town-bag-v1", "step-town-bag", "shopping-bag", "cart", "bag", "cart_version"
+    ];
+    return Object.fromEntries(keys
+      .map(key => [key, localStorage.getItem(key)])
+      .filter(([, value]) => value !== null));
+  });
+  diagnostics.storageSnapshots.push({ label, values });
 }
 
 async function attachDiagnostics(testInfo, diagnostics) {
@@ -49,12 +62,14 @@ test.describe("Step Town cart acceptance — 390px mobile", () => {
       sessionStorage.clear();
     });
     const card = await openMenuWithGuestSession(page);
+    await snapshotCartStorage(page, "guest-before-add", diagnostics);
     const add = card.locator("[data-add-product]").first();
 
     await add.click();
     await expect(page.locator("#mobile-cart-count")).toHaveText("1");
     await add.click();
     await expect(page.locator("#mobile-cart-count")).toHaveText("2");
+    await snapshotCartStorage(page, "guest-after-two-adds", diagnostics);
 
     await page.goto("/cart");
     const savedItem = page.locator('.cart-selected-item[data-cart-kind="saved"]');
@@ -70,6 +85,7 @@ test.describe("Step Town cart acceptance — 390px mobile", () => {
     await page.locator('.cart-selected-item[data-cart-kind="saved"] [data-action="remove"]').click();
     await expect(page.locator("#cart-product-summary")).toContainText("Your cart is empty");
     await expect(page.locator("#mobile-cart-count")).toBeHidden();
+    await snapshotCartStorage(page, "guest-after-remove", diagnostics);
     await attachDiagnostics(testInfo, diagnostics);
   });
 
@@ -149,12 +165,14 @@ test.describe("Step Town cart acceptance — 390px mobile", () => {
       return item;
     })();
     const add = card.locator("[data-add-product]").first();
+    await snapshotCartStorage(page, "guest-before-account-merge", diagnostics);
     await add.click();
     await add.click();
     await page.goto("/cart");
     await expect(page.locator('.cart-selected-item[data-cart-kind="saved"] output')).toHaveText("2");
     await expect(page.locator("#mobile-cart-count")).toHaveText("2");
     await expect.poll(() => accountWrite?.items?.[0]?.quantity).toBe(2);
+    await snapshotCartStorage(page, "account-after-merge", diagnostics);
     await attachDiagnostics(testInfo, diagnostics);
   });
 });
