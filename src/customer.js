@@ -344,7 +344,6 @@ if (isAuthRoute) {
         (order.order_description ? '<p class="customer-order-description"><strong>Describe your order</strong><br>' + escapeHtml(order.order_description) + '</p>' : '') +
         (order.notes ? '<p>' + escapeHtml(order.notes) + '</p>' : '') +
         '<b>' + escapeHtml(total) + '</b>' +
-        (order.tracking_token ? '<a class="text-link dark-link" href="/order/' + encodeURIComponent(order.tracking_token) + '">Track this order</a>' : '') +
         '</a>';
     }).join("") : '<div class="customer-empty-orders"><strong>No orders yet.</strong><p>Your submitted order requests will appear here.</p><a href="/categories">Explore the menu</a></div>';
     shell(
