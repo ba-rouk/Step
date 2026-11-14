@@ -328,6 +328,7 @@ function loginView(message = "") {
       }
       const staff = await getProfile();
       if (!staff) {
+        try { await removeCurrentDevicePushSubscription(); } catch (cleanupError) { console.warn("Push cleanup on invalid staff sign-in failed:", cleanupError); }
         await supabase.auth.signOut({ scope: "global" });
         throw new Error("This account does not have active Step Town staff access. Contact your Manager.");
       }
