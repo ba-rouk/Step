@@ -733,7 +733,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   res.writeHead(200,headers);res.end(data);
 }
 function cartDebugPage(res){
-  const html='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Step Town cart diagnostics</title><style>body{margin:0;padding:20px;background:#fff;color:#111;font:14px/1.5 ui-monospace,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><pre id="output">Reading cart diagnostics…</pre><script>
+  const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Step Town cart diagnostics</title><style>body{margin:0;padding:20px;background:#fff;color:#111;font:14px/1.5 ui-monospace,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body><pre id="output">Reading cart diagnostics…</pre><script>
 (async()=>{
  const keys=["step-town-cart-v2","step-town-cart-v1","step-town-cart-handoff-v1","step-town-bag-v1","step-town-bag","shopping-bag","cart","bag"];
  const raw={};for(const key of keys){const value=localStorage.getItem(key);if(value!==null)raw[key]=value;}
@@ -750,7 +750,7 @@ function cartDebugPage(res){
  const result={raw_cart_storage:raw,resolved_items:resolved,badge_calculation:{sum_of_resolved_quantities:badge,resolved_product_count:resolved.length,unresolved_ids:items.filter(item=>!byId.has(String(item.product_id))).map(item=>String(item.product_id))},cart_version:localStorage.getItem("cart_version"),service_worker:{script:registration?.active?.scriptURL||null,cache_version:"step-town-static-v2026-11-14-cart2",cache_names:cacheNames},catalogue_lookup_error:lookupError};
  document.getElementById("output").textContent=JSON.stringify(result,null,2);
 })().catch(error=>{document.getElementById("output").textContent="Diagnostics failed: "+error.message;});
-})();</script></body></html>';
+})();</script></body></html>`;
   res.writeHead(200,{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});res.end(html);
 }
 async function handle(req,res){
