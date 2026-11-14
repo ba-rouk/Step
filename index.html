@@ -307,16 +307,30 @@
           <button class="cart-page-close" id="cart-page-close" type="button" aria-label="Close cart and return to menu">×</button>
           <p class="eyebrow"><span class="eyebrow-line"></span> STEP TOWN ORDER</p>
           <h1 id="cart-page-title">Your cart.</h1>
-          <p>Review your items, adjust quantities and send one order request. You can check out without an account.</p>
-          <p class="cart-history-access">Returning customer? <a href="/profile/orders">View your order history</a> (sign-in required).</p>
+          <p>Review your items, adjust quantities and send an order request. You can order without creating an account.</p>
+          <p class="cart-history-access">Returning customer? <a href="/profile/orders">View your order history</a>.</p>
         </div>
-        <div id="cart-product-summary" class="cart-product-summary" aria-live="polite"></div>
+        <section id="quick-order-section" class="quick-order-section" hidden aria-labelledby="quick-order-title">
+          <p class="eyebrow"><span class="eyebrow-line"></span> QUICK ORDER</p>
+          <h2 id="quick-order-title">Order this item</h2>
+          <div id="quick-product-summary" class="quick-product-summary"></div>
+          <div id="quick-order-form-mount"></div>
+        </section>
+        <section id="saved-cart-section" class="saved-cart-section" aria-labelledby="saved-cart-title">
+          <div class="saved-cart-heading">
+            <p class="eyebrow"><span class="eyebrow-line"></span> YOUR SAVED ITEMS</p>
+            <h2 id="saved-cart-title">Your cart</h2>
+          </div>
+          <div id="cart-product-summary" class="cart-product-summary" aria-live="polite"></div>
+          <div id="saved-order-form-mount"></div>
+        </section>
         <form id="product-order-form" class="product-order-form" novalidate>
           <p class="eyebrow"><span class="eyebrow-line"></span> ORDER DETAILS</p>
           <div class="checkout-fields">
-            <label>Your name <span>*</span><input name="customer_name" type="text" minlength="2" maxlength="120" autocomplete="name" required placeholder="Your full name"></label>
-            <label>Phone <span>*</span><input name="customer_phone" type="tel" inputmode="tel" minlength="7" maxlength="40" autocomplete="tel" required value="+250" placeholder="+250 780 382 589"></label>
+            <label>Full name <span>*</span><input name="customer_name" type="text" minlength="2" maxlength="120" autocomplete="name" required placeholder="Your full name"></label>
+            <label>Phone / WhatsApp <span>*</span><input name="customer_phone" type="tel" inputmode="tel" minlength="7" maxlength="40" autocomplete="tel" required value="+250" placeholder="+250 780 382 589"></label>
             <label>Email <span>*</span><input name="customer_email" type="email" inputmode="email" minlength="5" maxlength="254" autocomplete="email" required placeholder="you@example.com"></label>
+            <p class="checkout-field-help">We'll send your order confirmation here, and you can use this email to see your orders later.</p>
             <label class="wide">Describe your order<textarea name="order_description" rows="5" maxlength="5000" placeholder="Flavours, message on the cake, number of guests, serving details and anything else we should know…"></textarea></label>
             <label>Preferred date<input name="requested_date" id="order-preferred-date" type="date"></label>
             <label>Preferred time<input name="requested_time" type="time"></label>
@@ -327,7 +341,7 @@
           </div>
           <p id="product-order-error" class="checkout-status" role="alert" aria-live="polite"></p>
           <button id="product-order-submit" class="button button-dark checkout-submit" type="submit">Send order</button>
-          <p class="checkout-footnote">Your request is saved securely. Step Town will contact you to confirm availability and final pricing.</p>
+          <p class="checkout-footnote">Final pricing is confirmed by Step Town before your order is accepted.</p>
         </form>
       </div>
     </section>
@@ -337,12 +351,26 @@
         <h1 id="order-confirmation-title">Thank you. We have your request.</h1>
         <p>Your order number is</p>
         <strong id="confirmed-order-number" class="confirmed-order-number"></strong>
-        <p id="confirmation-details">Step Town will contact you to confirm your order.</p>
-        <a id="confirmation-whatsapp" class="button button-dark" href="#" target="_blank" rel="noopener" hidden>Chat on WhatsApp</a>
-        <a class="text-link dark-link" href="/categories">Explore the menu</a>
+        <p id="confirmation-details">Your request has been saved. Step Town will contact you to confirm the details.</p>
+        <div id="confirmation-summary" class="confirmation-summary"></div>
+        <a id="confirmation-tracking-link" class="button button-dark" href="#" hidden>Track your order</a>
+        <p class="confirmation-account-prompt">Create an account to see all your orders: <a id="confirmation-create-account" href="/login?next=%2Fprofile%2Forders">Email me a login code</a>. No password needed.</p>
+        <a id="confirmation-whatsapp" class="text-link dark-link" href="#" target="_blank" rel="noopener" hidden>Continue on WhatsApp</a>
+        <a class="text-link dark-link" href="/categories">Browse the menu</a>
       </div>
     </section>
-</main>
+    <section id="tracking-page" class="order-confirmation-page tracking-page" hidden aria-labelledby="tracking-title">
+      <div class="order-confirmation-card">
+        <p class="eyebrow">STEP TOWN ORDER</p>
+        <h1 id="tracking-title">Your order status.</h1>
+        <strong id="tracking-order-number" class="confirmed-order-number"></strong>
+        <p id="tracking-status" class="tracking-status" aria-live="polite">Loading order status…</p>
+        <div id="tracking-summary" class="confirmation-summary"></div>
+        <p id="tracking-delivery" class="tracking-delivery"></p>
+        <a class="text-link dark-link" href="/categories">Browse the menu</a>
+      </div>
+    </section>
+    </main>
 
 
   <div class="cart-backdrop" id="cart-backdrop" hidden></div>
