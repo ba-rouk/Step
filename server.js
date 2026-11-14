@@ -338,7 +338,7 @@ async function api(req,res,url) {
     }catch(e){
       console.error("Order request:",e.status||502,e.message);
       const status=e.status&&e.status<500?e.status:502;
-      const cause=String(e.message||"The order database rejected the request.").replace(/[\\r\\n]+/g," ").slice(0,240);
+      const cause=String(e.message||"The order database rejected the request.").replace(/[\r\n]+/g," ").slice(0,240);
       const suggestion=status===400?"Check the customer details and make sure every cart item is still available.":status===401?"Sign in again, then submit the order once more.":status===403?"Your account does not have permission to submit this request. Contact Step Town support.":status===429?"Wait 15 minutes before sending another order request.":status===502?"The order service could not complete its database request. Retry shortly; if it persists, staff should inspect the Supabase database logs.":"Check the form details and retry. If the problem continues, contact Step Town with this error.";
       return sendJson(res,status,{error:"Order request failed: "+cause,suggestion,code:e.code||null});
     }
