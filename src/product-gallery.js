@@ -50,6 +50,47 @@ export function bindProductGallery(root) {
 
   let frame = 0;
   const pending = new Set();
+  const gestures = new WeakMap();
+  const suppressClickUntil = new WeakMap();
+
+  root.addEventListener("pointerdown", event => {
+    const strip = event.target.closest?.(".product-image-strip");
+    if (!strip || event.pointerType === "mouse" || event.button !== 0) return;
+    gestures.set(strip, { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startScroll: strip.scrollLeft, dragging: false });
+  });
+
+  root.addEventListener("pointermove", event => {
+    const strip = event.target.closest?.(".product-image-strip");
+    const gesture = strip && gestures.get(strip);
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (!gesture.dragging && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+      gesture.dragging = true;
+      strip.setPointerCapture?.(event.pointerId);
+      strip.classList.add("is-dragging");
+    }
+    if (gesture.dragging) {
+      event.preventDefault();
+      strip.scrollLeft = gesture.startScroll - dx;
+    }
+  });
+
+  const finishGesture = event => {
+    const strip = event.target.closest?.(".product-image-strip");
+    const gesture = strip && gestures.get(strip);
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    gestures.delete(strip);
+    strip.classList.remove("is-dragging");
+    if (gesture.dragging) {
+      suppressClickUntil.set(strip, Date.now() + 450);
+      const index = activeSlideIndex(strip);
+      const slide = strip.children[index];
+      if (slide) strip.scrollTo({ left: slide.offsetLeft, behavior: "smooth" });
+    }
+  };
+  root.addEventListener("pointerup", finishGesture);
+  root.addEventListener("pointercancel", finishGesture);
 
   root.addEventListener("scroll", (event) => {
     const strip = event.target && event.target.closest
@@ -68,6 +109,12 @@ export function bindProductGallery(root) {
   }, true);
 
   root.addEventListener("click", (event) => {
+    const strip = event.target.closest?.(".product-image-strip");
+    if (strip && Date.now() < (suppressClickUntil.get(strip) || 0)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     const dot = event.target.closest("[data-dot]");
     if (!dot || !root.contains(dot)) return;
 
