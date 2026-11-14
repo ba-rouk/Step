@@ -188,8 +188,8 @@ async function getPublicMenu(options={}) {
     publicMenuInflight.set(key,task);
     return task;
   };
-  if(cached&&now<cached.staleUntil){
-    void refresh().catch(error=>console.warn("Stale menu refresh failed:",error.message));
+  if(cached){
+    if(now>=cached.expiresAt)void refresh().catch(error=>console.warn("Stale menu refresh failed:",error.message));
     return cached.data;
   }
   return refresh();
@@ -551,7 +551,9 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
           .replace(/\u2028/g,"\\u2028")
           .replace(/\u2029/g,"\\u2029");
         const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
-        html=html.replace('<script type="module" src="/src/main.js"></script>',initial+'<script type="module" src="/src/main.js"></script>');
+        // Inject before </head> so this works with Vite's hashed production bundle
+        // as well as the development /src/main.js entry.
+        html=html.replace(/<\\/head>/i,initial+'</head>');
       }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
     }
     data=Buffer.from(html);
