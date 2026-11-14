@@ -54,7 +54,7 @@ if (grid) {
           return;
         }
 
-        const rows = (data || []).map((item) => ({
+        const rows = (Array.isArray(data) ? data : []).filter(item => item && typeof item === "object").map((item) => ({
           ...item,
           image_src: normalizeGalleryImageUrl(item.image_url)
         })).filter((item) => item.image_src);
