@@ -101,6 +101,15 @@ export function renderProductCard(product, options = {}) {
       '</div>'
     : "";
 
+  const photoArrows = images.length > 1
+    ? '<button type="button" class="product-image-nav product-image-prev" data-photo-prev aria-label="Previous photo" title="Previous photo">' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m14.5 5-7 7 7 7"></path></svg>' +
+      '</button>' +
+      '<button type="button" class="product-image-nav product-image-next" data-photo-next aria-label="Next photo" title="Next photo">' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9.5 5 7 7-7 7"></path></svg>' +
+      '</button>'
+    : "";
+
   const unit = product.price_unit || "unit";
   const unitLabel = product.price_unit_label || unit;
   const price = formatPrice(product.price) + (product.price == null ? "" : " per " + unitLabel);
@@ -121,6 +130,7 @@ export function renderProductCard(product, options = {}) {
             slides +
           '</div>' +
         '</a>' +
+        photoArrows +
 
         '<button class="product-image-action product-cart-action" type="button"' +
           ' data-add-product="' + escapeHtml(product.id) + '"' +
