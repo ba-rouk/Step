@@ -41,6 +41,10 @@ The root `netlify.toml` contains the build and publish settings. Configure these
 
 Vite exposes variables prefixed with `VITE_` to browser code. The publishable key is intended for client use; never place a Supabase secret/service-role key in these variables.
 
+## Render server environment
+
+The Node service at `https://steptown.onrender.com` must have `SUPABASE_SERVICE_ROLE_KEY` set as a private Render secret for the validated guest-order API and server-triggered staff push. Never expose this value through a `VITE_` variable or browser bundle. The browser uses only the Supabase publishable key.
+
 ## Supabase
 Project: `Step` (`tyuousqmpexrwmnmvxtd`).
 
