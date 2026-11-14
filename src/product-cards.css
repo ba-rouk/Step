@@ -579,15 +579,15 @@ body.route-category-detail .product-grid,
     border-radius: 24px !important;
   }
 
-  html body main #menu #product-grid.product-grid > .product-card > .product-image,
-  html body #customer-account .customer-favourites-grid > .product-card > .product-image {
+  html body main #menu #product-grid.product-grid > .product-card:not(.product-card-detail) > .product-image,
+  html body #customer-account .customer-favourites-grid > .product-card:not(.product-card-detail) > .product-image {
     height: 100%;
     min-height: 0;
     border-radius: 23px 23px 0 0;
   }
 
-  html body main #menu #product-grid.product-grid > .product-card > .product-image .product-image-strip,
-  html body #customer-account .customer-favourites-grid > .product-card > .product-image .product-image-strip {
+  html body main #menu #product-grid.product-grid > .product-card:not(.product-card-detail) > .product-image .product-image-strip,
+  html body #customer-account .customer-favourites-grid > .product-card:not(.product-card-detail) > .product-image .product-image-strip {
     border-radius: inherit;
   }
 }
