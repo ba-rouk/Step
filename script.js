@@ -64,6 +64,12 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
     if (active) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
+  document.querySelectorAll(".desktop-primary-nav [data-site-route]").forEach((link) => {
+    const active = link.dataset.siteRoute === activeDockRoute;
+    link.classList.toggle("is-active", active);
+    if (active) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
 
   const menuToggle = document.querySelector(".menu-toggle");
   const primaryNav = document.querySelector(".primary-nav");
@@ -131,14 +137,22 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
         return;
       }
 
+      if (name.length > 120 || phone.length > 40 || location.length > 180 || details.length > 3000) {
+        if (error) error.textContent = "Please shorten one of your entries and try again.";
+        return;
+      }
+      const guestCount = guests ? Number(guests) : null;
+      if (guests && (!Number.isInteger(guestCount) || guestCount < 1 || guestCount > 10000)) {
+        if (error) error.textContent = "Enter a guest count between 1 and 10,000.";
+        return;
+      }
       const enquiry = {
-        name,
-        phone,
-        service,
+        name, phone, service,
         event_date: date || null,
-        guest_count: guests ? Number(guests) : null,
+        guest_count: guestCount,
         event_location: location || null,
-        details: details || null
+        details: details || null,
+        status: "new"
       };
 
       const originalButtonText = submitButton?.innerHTML;
@@ -162,7 +176,13 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
 
       if (insertError) {
         console.error("Step Town enquiry submission failed:", insertError);
-        if (error) error.textContent = "We couldn't save your enquiry just now. Please try again or contact us directly on WhatsApp.";
+        const policyBlocked = insertError?.code === "42501";
+        const invalidEntry = ["22023", "23514"].includes(insertError?.code);
+        if (error) error.textContent = "We couldn't save your enquiry. " + (policyBlocked
+          ? "Refresh the page and try again."
+          : invalidEntry
+            ? "Check the length and range of your details, then try again."
+            : "Please try again or contact us directly on WhatsApp.");
         return;
       }
 
