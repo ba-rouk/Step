@@ -91,7 +91,9 @@ export function renderProductCard(product, options = {}) {
       '</div>'
     : "";
 
-  const price = formatPrice(product.price);
+  const unit = product.price_unit || "unit";
+  const unitLabel = product.price_unit_label || unit;
+  const price = formatPrice(product.price) + (product.price == null ? "" : " per " + unitLabel);
   const title = escapeHtml(product.name || "Step Town menu item");
   const description = escapeHtml(product.description || "Prepared with care by Step Town.");
 
@@ -102,8 +104,8 @@ export function renderProductCard(product, options = {}) {
     ' data-image-count="' + images.length + '">' +
 
       '<div class="product-image">' +
-        '<a class="product-open product-image-link" href="' + href + '"' +
-          ' aria-label="View ' + title + '">' +
+        '<a class="product-open product-image-link" href="/cart" data-image-cart="' + escapeHtml(product.id) + '"' +
+          ' aria-label="Add ' + title + ' to cart">' +
           '<div class="product-image-strip" tabindex="0" role="region"' +
             ' aria-label="' + title + ' photos" aria-roledescription="carousel">' +
             slides +
