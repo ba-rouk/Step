@@ -163,7 +163,7 @@ if (isAuthRoute) {
       '<h1>Your profile.</h1><p class="customer-intro">Your Step Town account and order details.</p>' +
       '<div class="customer-profile-details"><div><small>FULL NAME</small><strong>' + escapeHtml(name) + '</strong></div><div><small>PHONE NUMBER</small><strong>' + escapeHtml(phone) + '</strong></div></div>' +
       '<section class="customer-favourites"><h2>Your favourites</h2><div class="product-grid customer-favourites-grid" data-product-list="shared" data-product-view="favourites">' + favouritesMarkup + '</div></section>' +
-      '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/orders">View order history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
+      '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/orders">View cart history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
       '<p class="customer-error" id="customer-profile-error" role="alert"></p>',
       "MY STEP TOWN PROFILE"
     );
@@ -236,9 +236,9 @@ if (isAuthRoute) {
       return '<article class="customer-order-card"><div class="customer-order-top"><strong>' + escapeHtml(order.order_number || "Step Town order") + '</strong><span>' + escapeHtml(order.status || "new") + '</span></div><small>' + escapeHtml(order.created_at ? new Date(order.created_at).toLocaleDateString() : "") + ' · ' + escapeHtml(order.fulfillment || "") + '</small><p>' + summary + '</p>' + (order.order_description ? '<p class="customer-order-description"><strong>Describe your order</strong><br>' + escapeHtml(order.order_description) + '</p>' : '') + (order.notes ? '<p>' + escapeHtml(order.notes) + '</p>' : '') + '<b>' + escapeHtml(total) + '</b></article>';
     }).join("") : '<div class="customer-empty-orders"><strong>No orders yet.</strong><p>Your submitted order requests will appear here.</p><a href="/categories">Explore the menu</a></div>';
     shell(
-      '<h1>Your orders.</h1><p class="customer-intro">Your recent Step Town order requests.</p>' +
+      '<h1>Your cart history.</h1><p class="customer-intro">Review the products, quantities, dates and status of your previous order requests.</p>' +
       '<div class="customer-order-list">' + cards + '</div><p class="customer-note"><a href="/profile">Back to profile</a></p>',
-      "ORDER HISTORY"
+      "CART HISTORY"
     );
   }
 
