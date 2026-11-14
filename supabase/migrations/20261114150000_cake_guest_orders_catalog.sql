@@ -122,12 +122,7 @@ CREATE POLICY "Customers read their own store orders"
 DROP POLICY IF EXISTS "Active staff read store orders" ON public.store_orders;
 CREATE POLICY "Active staff read store orders"
   ON public.store_orders FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.staff_profiles p
-    WHERE p.user_id = auth.uid()
-      AND p.is_active = true
-      AND p.role IN ('manager','accountant','cashier')
-  ));
+  USING (private.staff_has_role(ARRAY['manager','accountant','cashier']::text[]));
 
 CREATE TABLE IF NOT EXISTS public.customer_cart_items (
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -187,12 +182,8 @@ DROP POLICY IF EXISTS "Customers remove from their own cart" ON public.customer_
 CREATE POLICY "Customers remove from their own cart" ON public.customer_cart_items
   FOR DELETE TO authenticated USING (user_id = auth.uid());
 
+-- Order writes must go through the rate-limited Node API with its server-only service key.
 DROP POLICY IF EXISTS "Public visitors can submit store orders" ON public.store_orders;
-CREATE POLICY "Public visitors can submit store orders" ON public.store_orders
-  FOR INSERT TO anon, authenticated
-  WITH CHECK (
-    status = 'new'
-    AND char_length(btrim(customer_name)) BETWEEN 2 AND 120
-    AND char_length(btrim(customer_phone)) BETWEEN 7 AND 40
-    AND (order_description IS NULL OR char_length(order_description) <= 4000)
-  );
+REVOKE INSERT ON public.store_orders FROM anon, authenticated;
+GRANT INSERT, SELECT ON public.store_orders TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.step_town_order_number_seq TO service_role;
