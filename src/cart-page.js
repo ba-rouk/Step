@@ -187,9 +187,6 @@ async function startCart(){
         order.notes?"Notes: "+order.notes:""
       ].filter(Boolean).join("\n");
       sessionStorage.setItem("step-town-last-order-message",message);
-      if(accountUser){
-        try{await apiFetch("/api/profile/cart",{method:"PUT",body:{items:[]}});}catch{}
-      }
       window.location.assign("/order/confirmation?order="+encodeURIComponent(data.order?.order_number||""));
     }catch(error){status.textContent="Connection problem. Check your internet and try again.";}
     finally{button.disabled=false;button.textContent="Send order";}
