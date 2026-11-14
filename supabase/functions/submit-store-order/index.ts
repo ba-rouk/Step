@@ -87,12 +87,16 @@ Deno.serve(async req => {
   const ip = String(req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for") || "unknown").split(",").at(-1)!.trim();
   const ipHash = await digest("ip:" + ip);
   const phoneHash = await digest("phone:" + phone);
+  const emailHash = await digest("email:" + email);
   const ipLimit = await db.rpc("consume_step_order_rate_limit", { p_bucket_key: "ip:" + ipHash, p_max_hits: 8, p_window_seconds: 900 });
   if (ipLimit.error) { console.error("IP rate limit:", ipLimit.error); return json({ error: "The order service is busy. Please try again shortly." }, 503); }
   if (!ipLimit.data) return json({ error: "Too many order requests from this connection. Try again in 15 minutes." }, 429);
   const phoneLimit = await db.rpc("consume_step_order_rate_limit", { p_bucket_key: "phone:" + phoneHash, p_max_hits: 5, p_window_seconds: 900 });
   if (phoneLimit.error) { console.error("Phone rate limit:", phoneLimit.error); return json({ error: "The order service is busy. Please try again shortly." }, 503); }
   if (!phoneLimit.data) return json({ error: "Too many orders have been sent from this phone number. Try again in 15 minutes." }, 429);
+  const emailLimit = await db.rpc("consume_step_order_rate_limit", { p_bucket_key: "email:" + emailHash, p_max_hits: 5, p_window_seconds: 900 });
+  if (emailLimit.error) { console.error("Email rate limit:", emailLimit.error); return json({ error: "The order service is busy. Please try again shortly." }, 503); }
+  if (!emailLimit.data) return json({ error: "Too many orders have been sent to this email address recently. Try again in 15 minutes." }, 429);
 
   const ids = [...quantitiesById.keys()];
   const slugs = [...quantitiesBySlug.keys()];
@@ -128,9 +132,15 @@ Deno.serve(async req => {
     };
   });
 
+  const randomToken = new Uint8Array(16);
+  crypto.getRandomValues(randomToken);
+  const trackingToken = [...randomToken].map(value => value.toString(16).padStart(2, "0")).join("");
   const orderPayload = {
     customer_id: user?.id || null,
+    user_id: user?.id || null,
     customer_name: name, customer_phone: phone, customer_email: email || null,
+    customer_email_normalized: email || null,
+    tracking_token: trackingToken,
     fulfillment, requested_date: date, requested_time: time,
     delivery_location: location || null,
     order_description: description || null,
@@ -145,11 +155,39 @@ Deno.serve(async req => {
   // anonymous customers permission to read private order rows.
   const { data: saved, error: insertError } = await db.from("store_orders")
     .insert(orderPayload)
-    .select("id,order_number,estimated_total,created_at")
+    .select("id,order_number,estimated_total,created_at,items,fulfillment,requested_date,requested_time,delivery_location")
     .single();
   if (insertError || !saved) {
     console.error("Order save failed:", insertError);
     return json({ error: "We could not save your order just now. Please retry or contact Step Town on WhatsApp." }, 502);
+  }
+
+  // Queue the confirmation email. A delivery failure is retried by the Node outbox
+  // worker and must never roll back the already committed order.
+  let emailQueued = false;
+  try {
+    const appUrl = (Deno.env.get("APP_URL") || "https://steptown.onrender.com").replace(/\\/+$/, "");
+    const queued = await db.from("email_jobs").insert({
+      job_type: "order_confirmation",
+      recipient: email,
+      payload: {
+        tracking_url: appUrl + "/order/" + trackingToken,
+        order: {
+          order_number: saved.order_number,
+          estimated_total: saved.estimated_total,
+          items: cleanItems,
+          fulfillment,
+          requested_date: date,
+          requested_time: time,
+          delivery_location: location || null
+        },
+        order_description: description || null
+      }
+    });
+    emailQueued = !queued.error;
+    if (queued.error) console.error("Order saved; confirmation email could not be queued:", queued.error);
+  } catch (error) {
+    console.error("Order saved; confirmation email could not be queued:", error);
   }
 
   // Notification is a separate best-effort step; a push failure never rolls back the order.
@@ -168,7 +206,19 @@ Deno.serve(async req => {
 
   return json({
     ok: true,
-    order: { order_number: saved.order_number, estimated_total: saved.estimated_total, created_at: saved.created_at },
-    alert_queued: alertQueued
+    order: {
+      order_number: saved.order_number,
+      estimated_total: saved.estimated_total,
+      created_at: saved.created_at,
+      items: saved.items,
+      fulfillment: saved.fulfillment,
+      requested_date: saved.requested_date,
+      requested_time: saved.requested_time,
+      delivery_location: saved.delivery_location,
+      tracking_token: trackingToken
+    },
+    tracking_url: (Deno.env.get("APP_URL") || "https://steptown.onrender.com").replace(/\\/+$/, "") + "/order/" + trackingToken,
+    alert_queued: alertQueued,
+    email_queued: emailQueued
   }, 201);
 });
