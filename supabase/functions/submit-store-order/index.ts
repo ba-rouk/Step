@@ -207,7 +207,7 @@ Deno.serve(async req => {
 
   return json({
     ok: true,
-    order: { order_number: saved.order_number, estimated_total: saved.estimated_total, created_at: saved.created_at, tracking_token: saved.tracking_token },
+    order: { order_number: saved.order_number, estimated_total: saved.estimated_total, created_at: saved.created_at, tracking_token: saved.tracking_token, items: cleanItems, fulfillment, requested_date: date, requested_time: time, delivery_location: location || null },
     alert_queued: alertQueued
   }, 201);
 });
