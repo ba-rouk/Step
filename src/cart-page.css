@@ -3,6 +3,9 @@
 .cart-page-heading{position:relative;max-width:760px;margin:0 auto 26px;padding:4px 54px 0;text-align:center}
 .cart-page-heading h1,.order-confirmation-card h1{margin:8px 0 12px;font:600 clamp(34px,6vw,54px)/1.04 var(--font-serif,"Source Serif 4",Georgia,serif)}
 .cart-page-heading>p:last-child{color:rgba(255,239,228,.75);line-height:1.6}
+.cart-history-access{margin:12px 0 0;color:rgba(255,239,228,.68);font-size:12px;line-height:1.5}
+.cart-history-access a{color:#ffbd8d;font-weight:750;text-decoration:underline;text-underline-offset:3px}
+.cart-history-access a:focus-visible{outline:2px solid #ffbd8d;outline-offset:4px;border-radius:3px}
 .cart-page-close{position:absolute;top:0;right:0;display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid rgba(255,255,255,.25);border-radius:50%;color:#fff;background:rgba(255,255,255,.08);font:400 28px/1 var(--font-sans,Inter,sans-serif);cursor:pointer;transition:background .18s ease,transform .18s ease}
 .cart-page-close:hover{background:rgba(255,255,255,.16);transform:scale(1.04)}
 .cart-page-close:focus-visible,.cart-item-remove:focus-visible,.cart-item-footer button:focus-visible{outline:3px solid #ffbd8d;outline-offset:3px}
