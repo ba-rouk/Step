@@ -183,3 +183,7 @@ body.route-customer-page body.route-customer-page body.route-customer-page body.
   .customer-auth-card h1 { font-size: clamp(1.9rem,8vw,2.4rem); line-height: 1.12; }
   .customer-intro { font-size: 16px; }
 }
+
+.customer-order-card-link{display:block;color:inherit;text-decoration:none;cursor:pointer;transition:border-color .18s ease,transform .18s ease}
+.customer-order-card-link:hover{border-color:rgba(255,189,141,.42);transform:translateY(-1px)}
+.customer-order-card-link:focus-visible{outline:3px solid #ffbd8d;outline-offset:3px}
