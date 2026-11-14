@@ -289,6 +289,11 @@ async function startCart() {
   }
 
   const handoffItems = readCartHandoff();
+  // Consume the one-time guest handoff before any async request so a refresh
+  // cannot replay a guest selection while account verification is still loading.
+  try { sessionStorage.removeItem(cartHandoffKey); } catch {}
+  const selectedReference = params.get("product");
+  if (selectedReference) history.replaceState(null, "", "/cart");
   cartItems = handoffItems.slice();
   const status = document.querySelector("#product-order-error");
 
@@ -312,12 +317,11 @@ async function startCart() {
       clearCartHandoff();
     }
   } catch (error) {
-    // Keep an unconsumed handoff available if account verification or loading failed.
+    // Keep the selection in memory for this visit, but never persist a guest cart.
     cartItems = handoffItems;
     if (status) status.textContent = error.message || "Your account cart could not be loaded.";
   }
 
-  const selectedReference = params.get("product");
   if (selectedReference) {
     try {
       const product = await getSelectedProduct(selectedReference);
@@ -325,7 +329,6 @@ async function startCart() {
       addProduct(product);
       await persistCart();
       clearCartHandoff();
-      history.replaceState(null, "", "/cart");
       if (status) {
         status.textContent = "Added to your cart.";
         status.dataset.clearOnRender = "true";
