@@ -664,7 +664,7 @@ async function productsPage() {
         '<label>Product name<input name="name" maxlength="120" required value="' + esc(product?.name || "") + '"></label>' +
         '<label>Category<select name="category_id" required>' + categories.map(category => '<option value="' + category.id + '" ' + (product?.category_id === category.id ? "selected" : "") + ">" + esc(category.name) + "</option>").join("") + "</select></label>" +
         '<label>Price (RWF)<input name="price" type="number" min="0" step="1" value="' + (product?.price ?? "") + '" placeholder="Leave blank for quote"></label>' +
-        '<label id="price-unit-wrap" hidden>Price measured per<select name="price_unit"><option value="each">Each / unit</option><option value="kg">Kilogram (kg)</option><option value="g">Gram (g)</option><option value="litre">Litre</option><option value="pack">Pack</option><option value="dozen">Dozen</option><option value="serving">Serving</option><option value="custom">Other measure</option></select></label><label id="price-unit-custom-wrap" hidden>Custom measure<input name="price_unit_label" maxlength="24" value="' + esc(product?.price_unit_label || "") + '" placeholder="e.g. tray, metre"></label>' +
+        '<label id="price-unit-wrap" hidden>Price measured per<select name="price_unit"><option value="unit">Each / unit</option><option value="kg">Kilogram (kg)</option><option value="g">Gram (g)</option><option value="litre">Litre</option><option value="dozen">Dozen</option><option value="serving">Serving</option><option value="tray">Tray</option><option value="other">Other measure</option></select></label><label id="price-unit-custom-wrap" hidden>Custom measure<input name="price_unit_label" maxlength="24" value="' + esc(product?.price_unit_label || "") + '" placeholder="e.g. tray, metre"></label>' +
         '<label>Stock quantity<input name="stock_quantity" type="number" min="0" step="1" value="' + (product?.stock_quantity ?? "") + '" placeholder="Blank means not tracked"></label>' +
         '<label class="wide">Description<textarea name="description" rows="3">' + esc(product?.description || "") + "</textarea></label>" +
         '<div class="wide product-image-uploader"><label>Product photos · JPG, PNG or WEBP · 5 MB max each<input name="images" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><div id="product-image-list" class="staff-product-image-list"></div><p class="staff-muted">Up to 10 images. Drag to reorder, or use the controls. The first image is the cover.</p></div>' +
@@ -722,7 +722,7 @@ async function productsPage() {
       const enabled = ["barbecue","cakes"].includes(String(category?.name || "").toLowerCase());
       $("#price-unit-wrap").hidden = !enabled;
       if (!enabled) { $("#product-form").elements.price_unit.value = "each"; $("#product-form").elements.price_unit_label.value = ""; }
-      $("#price-unit-custom-wrap").hidden = !enabled || $("#product-form").elements.price_unit.value !== "custom";
+      $("#price-unit-custom-wrap").hidden = !enabled || $("#product-form").elements.price_unit.value !== "other";
     };
     $("#product-form").elements.category_id.addEventListener("change", syncPriceUnit);
     $("#product-form").elements.price_unit.addEventListener("change", () => { $("#price-unit-custom-wrap").hidden = $("#product-form").elements.price_unit.value !== "custom"; });
@@ -741,9 +741,9 @@ async function productsPage() {
       const priceText = String(fields.get("price") || "").trim();
       const stockText = String(fields.get("stock_quantity") || "").trim();
       const price = priceText ? Number(priceText) : null;
-      const unit = String(fields.get("price_unit") || "each");
-      const unitLabel = unit === "custom" ? String(fields.get("price_unit_label") || "").trim().slice(0,24) : unit;
-      if (unit === "custom" && !unitLabel) { $("#product-message").textContent = "Enter the custom price measure."; return; }
+      const unit = String(fields.get("price_unit") || "unit");
+      const unitLabel = unit === "other" ? String(fields.get("price_unit_label") || "").trim().slice(0,32) : unit;
+      if (unit === "other" && !unitLabel) { $("#product-message").textContent = "Enter the custom price measure."; return; }
       const stock = stockText ? Number(stockText) : null;
       if ((price !== null && (!Number.isFinite(price) || price < 0)) ||
           (stock !== null && (!Number.isInteger(stock) || stock < 0))) {
@@ -1118,7 +1118,7 @@ async function teamPage() {
       teamCache.map(member =>
         "<tr><td><b>" + esc(member.full_name) + "</b><small>" + esc(member.phone || "No phone") + "</small></td><td>" + esc(ROLE_LABEL[member.role]) + "</td><td>" + esc(member.email) + "</td>" +
         "<td>" + esc(teamCache.find(x => x.id === member.reports_to)?.full_name || "—") + "</td><td>" + (member.is_active ? "Active" : "Inactive") + "</td><td>" +
-        (member.role !== "manager" ? '<div class="staff-row-actions"><button data-team-edit="' + member.user_id + '">Edit</button><button data-team-reset="' + member.user_id + '">Reset password</button><button data-team-toggle="' + member.user_id + '" data-active="' + member.is_active + '">' + (member.is_active ? "Deactivate" : "Reactivate") + "</button></div>" : "Current Manager") +
+        (member.role !== "manager" ? '<details class="staff-action-menu"><summary aria-label="Staff member actions">•••</summary><div class="staff-action-menu-pop"><button type="button" data-team-edit="' + member.user_id + '">Edit</button><button type="button" data-team-reset="' + member.user_id + '">Reset password</button><button type="button" data-team-toggle="' + member.user_id + '" data-active="' + member.is_active + '">' + (member.is_active ? "Deactivate" : "Reactivate") + "</button></div></details>" : "Current Manager") +
         "</td></tr>"
       ).join("") + "</tbody></table></div>" : '<p class="staff-empty">No additional staff accounts yet.</p>') +
     "</section>" +
