@@ -156,10 +156,7 @@ export function renderProductCard(product, options = {}) {
             : '<a class="product-open product-price-link" href="' + href + '">' +
                 '<strong class="product-price">' + escapeHtml(price) + '</strong>' +
               '</a>') +
-          (detail
-            ? '<button class="product-detail-add" type="button" data-add-product="' +
-                escapeHtml(product.id) + '">Add to cart</button>'
-            : "") +
+          "" +
         '</div>' +
         (detail ? '<a class="product-back-link" href="/categories">Back to menu</a>' : "") +
       '</div>' +
