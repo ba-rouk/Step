@@ -2,8 +2,9 @@ import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { CAKE_CATEGORY_LABEL } from "./src/catalog-config.js";
+import { processEmailOutbox } from "./src/server/email-outbox.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
@@ -11,6 +12,8 @@ const PORT = Number(process.env.PORT || 10000);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
 const APP_URL = String(process.env.APP_URL || "https://steptown.onrender.com").replace(/\/+$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+const REQUIRE_LOGIN_FOR_CART_LIST = String(process.env.REQUIRE_LOGIN_FOR_CART_LIST || "false").toLowerCase() === "true";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
 const KEY = SESSION_SECRET ? createHash("sha256").update(SESSION_SECRET).digest() : null;
 const SESSION_COOKIE = "step_customer_session";
@@ -127,6 +130,34 @@ async function sb(endpoint,opts={}) {
   const txt=await r.text();let data={};try{data=txt?JSON.parse(txt):{};}catch{data={message:txt};}
   if(!r.ok){const e=new Error(data.msg||data.message||data.error_description||data.error||"Supabase request failed.");e.status=r.status;throw e;}
   return data;
+}
+async function serviceRequest(endpoint,opts={}) {
+  if(!SUPABASE_URL||!SUPABASE_SERVICE_ROLE_KEY)throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for this customer security operation.");
+  const response=await fetch(SUPABASE_URL+endpoint,{
+    method:opts.method||"GET",
+    headers:{apikey:SUPABASE_SERVICE_ROLE_KEY,Authorization:"Bearer "+SUPABASE_SERVICE_ROLE_KEY,
+      ...(opts.body!==undefined?{"Content-Type":"application/json"}:{}),...(opts.headers||{})},
+    ...(opts.body!==undefined?{body:JSON.stringify(opts.body)}:{})
+  });
+  const text=await response.text();let data={};try{data=text?JSON.parse(text):{};}catch{data={message:text};}
+  if(!response.ok){const error=new Error(data.msg||data.message||data.error_description||data.error||"Supabase service request failed.");error.status=response.status;throw error;}
+  return data;
+}
+async function adminAuth(endpoint,opts={}) {
+  return serviceRequest("/auth/v1/admin/"+endpoint,opts);
+}
+function emailCodeHash(email,code) {
+  if(!SESSION_SECRET)throw new Error("SESSION_SECRET is required for one-time email codes.");
+  return createHmac("sha256",SESSION_SECRET).update(String(email).trim().toLowerCase()+":"+String(code)).digest("hex");
+}
+async function verificationEvent(email,eventType,req,userId=null) {
+  try {
+    const ipHash=createHash("sha256").update("ip:"+requestIp(req)).digest("hex");
+    await serviceRequest("/rest/v1/customer_email_verification_events",{method:"POST",body:{
+      email_normalized:String(email||"").trim().toLowerCase(),event_type:eventType,
+      user_id:userId,ip_hash:ipHash
+    },headers:{Prefer:"return=minimal"}});
+  } catch(error) { console.warn("Email verification audit event failed:",error.message); }
 }
 
 const publicMenuCache = new Map();
@@ -346,10 +377,15 @@ async function api(req,res,url) {
       return sendJson(res,200,{ok:true});
     }catch(error){return sendJson(res,error.status||401,{error:"The catalogue cache could not be refreshed."});}
   }
+  if(req.method==="GET"&&route==="/api/config"){
+    return sendJson(res,200,{requireLoginForCartList:REQUIRE_LOGIN_FOR_CART_LIST});
+  }
   if(req.method==="GET"&&route==="/api/session"){
     if(!configured())return sendJson(res,503,{error:"Customer sign-in is not configured on the server."});
     const current=await currentUser(req,res);return sendJson(res,200,{authenticated:Boolean(current),user:current?.user||null});
   }
+  if(req.method==="POST"&&(route==="/api/auth/email-code"||route==="/api/auth/verify-email-code"))
+    return emailCodeRoutes(req,res,url);
   if(req.method==="POST"&&route.startsWith("/api/auth/"))return authRoutes(req,res,url);
 
   if((req.method==="GET"||req.method==="POST")&&route==="/api/profile/cart-history"){
@@ -397,6 +433,25 @@ async function api(req,res,url) {
       return sendJson(res,error.status||502,{error:"Cart history could not be saved or loaded. Please try again."});
     }
   }
+  if(req.method==="POST"&&route==="/api/profile/cart/merge"){
+    const current=await currentUser(req,res);
+    if(!current)return sendJson(res,401,{error:"Sign in to merge your saved cart."});
+    const b=await body(req,12000),incoming=Array.isArray(b.items)?b.items:[];
+    if(incoming.length>50)return sendJson(res,400,{error:"Your cart can contain up to 50 different products."});
+    try{
+      const rows=await sb("/rest/v1/customer_cart_items?select=product_id,quantity&user_id=eq."+encodeURIComponent(current.user.id),{access:current.session.access_token});
+      const merged=new Map((rows||[]).map(row=>[String(row.product_id),Number(row.quantity)||1]));
+      for(const item of incoming){
+        const id=String(item.product_id||item.id||"");
+        const quantity=Number(item.quantity);
+        if(!/^[0-9a-f-]{36}$/i.test(id)||!Number.isInteger(quantity)||quantity<1||quantity>20)return sendJson(res,400,{error:"A guest cart item is invalid."});
+        merged.set(id,Math.min(20,(merged.get(id)||0)+quantity));
+      }
+      await sb("/rest/v1/customer_cart_items?user_id=eq."+encodeURIComponent(current.user.id),{method:"DELETE",access:current.session.access_token,headers:{Prefer:"return=minimal"}});
+      if(merged.size)await sb("/rest/v1/customer_cart_items",{method:"POST",access:current.session.access_token,body:[...merged].map(([product_id,quantity])=>({user_id:current.user.id,product_id,quantity})),headers:{Prefer:"return=minimal"}});
+      return sendJson(res,200,{ok:true,count:merged.size});
+    }catch(error){return sendJson(res,error.status||502,{error:"The guest cart could not be merged into your account."});}
+  }
   if(req.method==="GET"&&route==="/api/profile/cart"){
     const current=await currentUser(req,res);
     if(!current)return sendJson(res,401,{error:"Sign in to view your saved cart."});
@@ -442,25 +497,49 @@ async function api(req,res,url) {
       return sendJson(res,200,{ok:true,count:ids.length});
     }catch(e){return sendJson(res,e.status||502,{error:"Favourites could not be synced."});}
   }
-  if(req.method==="GET"&&(route==="/api/profile"||route==="/api/profile/orders")){
+  if(req.method==="GET"&&(route==="/api/profile"||route==="/api/profile/orders"||route.startsWith("/api/profile/orders/"))){
     const current=await currentUser(req,res);
     if(!current)return sendJson(res,401,{error:"Please sign in to view your account."});
     try{
-      if(route==="/api/profile"){
-        const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
-        return sendJson(res,200,{user:current.user,profile:rows[0]||null});
-      }
-      const select="id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location";
-      const byAccount=await sb("/rest/v1/store_orders?select="+select+"&customer_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc&limit=100",{access:current.session.access_token});
       const email=String(current.user.email||"").trim().toLowerCase();
-      const byEmail=email
-        ? await sb("/rest/v1/store_orders?select="+select+"&customer_email=eq."+encodeURIComponent(email)+"&order=created_at.desc&limit=100",{access:current.session.access_token})
-        : [];
-      const unique=new Map();
-      for(const order of [...(byAccount||[]),...(byEmail||[])]) unique.set(order.id,order);
-      const orders=[...unique.values()].sort((a,b)=>Date.parse(b.created_at||0)-Date.parse(a.created_at||0)).slice(0,100);
-      return sendJson(res,200,{orders});
+      const emailVerified=Boolean(current.user.email_confirmed_at);
+      if(route==="/api/profile"){
+        const rows=await sb("/rest/v1/customer_profiles?select=user_id,full_name,phone,email_verified_at,created_at&user_id=eq."+encodeURIComponent(current.user.id)+"&limit=1",{access:current.session.access_token});
+        return sendJson(res,200,{user:current.user,profile:rows[0]||null,email_verified:emailVerified});
+      }
+      if(!emailVerified)return sendJson(res,403,{email_verified:false,error:"Verify your email to see your orders."});
+      const select="id,order_number,status,created_at,requested_date,requested_time,fulfillment,items,estimated_total,price_needs_confirmation,order_description,notes,delivery_location,tracking_token";
+      if(route.startsWith("/api/profile/orders/")){
+        const id=route.split("/").pop();
+        if(!/^[0-9a-f-]{36}$/i.test(id))return sendJson(res,404,{error:"Order not found."});
+        const rows=await sb("/rest/v1/store_orders?select="+select+"&id=eq."+encodeURIComponent(id)+"&limit=1",{access:current.session.access_token});
+        if(!rows?.length)return sendJson(res,404,{error:"Order not found."});
+        return sendJson(res,200,{order:rows[0]});
+      }
+      const query="/rest/v1/store_orders?select="+select+"&or="+encodeURIComponent("(user_id.eq."+current.user.id+",and(user_id.is.null,customer_email_normalized.eq."+email+"))")+"&order=created_at.desc&limit=100";
+      const orders=await sb(query,{access:current.session.access_token});
+      return sendJson(res,200,{orders:orders||[],email_verified:true});
     }catch(e){return sendJson(res,e.status||502,{error:"Your account data could not be loaded."});}
+  }
+
+  if(req.method==="GET"&&route.startsWith("/api/orders/track/")){
+    const token=route.split("/").pop();
+    if(!/^[0-9a-f]{32}$/i.test(token))return sendJson(res,404,{error:"This tracking link is invalid or has expired."});
+    try{
+      const rows=await serviceRequest("/rest/v1/store_orders?select=order_number,status,created_at,requested_date,requested_time,fulfillment,delivery_location,estimated_total,items,price_needs_confirmation&tracking_token=eq."+encodeURIComponent(token)+"&limit=1");
+      if(!rows?.length)return sendJson(res,404,{error:"This tracking link is invalid or has expired."});
+      const order=rows[0];
+      return sendJson(res,200,{order:{
+        order_number:order.order_number,status:order.status,created_at:order.created_at,
+        requested_date:order.requested_date,requested_time:order.requested_time,
+        fulfillment:order.fulfillment,delivery_location:order.delivery_location,
+        estimated_total:order.estimated_total,price_needs_confirmation:order.price_needs_confirmation,
+        items:Array.isArray(order.items)?order.items.map(item=>({
+          name:item.name,quantity:item.quantity,unit_price:item.unit_price,line_total:item.line_total,
+          price_unit_label:item.price_unit_label
+        })):[]
+      }});
+    }catch(error){console.error("Public tracking lookup:",error.message);return sendJson(res,503,{error:"Order tracking is temporarily unavailable."});}
   }
 
   if(req.method==="POST"&&route==="/api/orders"){
@@ -530,24 +609,12 @@ async function api(req,res,url) {
         const status=[400,401,403,413,429].includes(response.status)?response.status:502;
         return sendJson(res,status,{error:result.error||"We could not save your order just now. Please try again."});
       }
-      if(current?.session?.access_token){
-        const orderedProductIds=[...new Set(normalizedItems.map(item=>item.product_id).filter(Boolean))];
-        if(orderedProductIds.length){
-          try{
-            await sb("/rest/v1/customer_cart_items?user_id=eq."+encodeURIComponent(current.user.id)+"&product_id=in.("+orderedProductIds.map(encodeURIComponent).join(",")+")",{
-              method:"DELETE",
-              access:current.session.access_token,
-              headers:{Prefer:"return=minimal"}
-            });
-          }catch(cartError){
-            console.warn("Could not clear ordered products from the saved cart:",cartError.message);
-          }
-        }
-      }
       return sendJson(res,201,{
         ok:true,
         order:result.order||null,
-        alert_queued:Boolean(result.alert_queued)
+        tracking_url:result.tracking_url||null,
+        alert_queued:Boolean(result.alert_queued),
+        email_queued:Boolean(result.email_queued)
       });
     }catch(error){
       console.error("Order request:",error.status||502,error.message);
@@ -560,6 +627,8 @@ async function api(req,res,url) {
 }
 function pageTitle(pathname){
   const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
+  if(pathname.startsWith("/order/"))return "Track your order";
+  if(pathname.startsWith("/profile/orders/"))return "Order details";
   if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
   if(pathname.startsWith("/categories/")){
     const slug=pathname.split("/").filter(Boolean).at(-1);
@@ -635,7 +704,7 @@ async function handle(req,res){
     try{return await api(req,res,url);}
     catch(e){console.error("API:",e);return sendJson(res,e.status||500,{error:e.status===413?e.message:"The request could not be completed."});}
   }
-  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders")){
+  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders"||route.startsWith("/profile/orders/"))){
     const current=await currentUser(req,res);
     if(!current){appendCookie(res,clearCookie(SESSION_COOKIE,req,true));res.writeHead(303,{Location:"/login?next="+encodeURIComponent(route+url.search),"Cache-Control":"no-store"});return res.end();}
   }
@@ -647,6 +716,11 @@ async function handle(req,res){
   return staticPage(res,route,url);
 }
 if(PROD&&!KEY)console.warn("SESSION_SECRET is missing: customer login remains disabled until configured.");
+if(PROD&&!SUPABASE_SERVICE_ROLE_KEY)console.warn("SUPABASE_SERVICE_ROLE_KEY is missing: verified email login, guest order claims and email delivery are disabled.");
 const server=http.createServer((req,res)=>{res.setHeader("X-Content-Type-Options","nosniff");res.setHeader("Referrer-Policy","strict-origin-when-cross-origin");res.setHeader("X-Frame-Options","SAMEORIGIN");void handle(req,res).catch(e=>{console.error("Unhandled request:",e);if(!res.headersSent)sendJson(res,500,{error:"Unexpected server error."});else res.end();});});
-server.listen(PORT,"0.0.0.0",()=>console.log("Step Town server listening on "+PORT));
+server.listen(PORT,"0.0.0.0",()=>{
+  console.log("Step Town server listening on "+PORT);
+  void processEmailOutbox();
+});
 setInterval(()=>{const now=Date.now();for(const [key,b] of limits)if(b.reset<=now)limits.delete(key);},60000).unref();
+setInterval(()=>void processEmailOutbox(),15000).unref();
