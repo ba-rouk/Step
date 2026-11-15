@@ -1084,7 +1084,7 @@ async function galleryPage() {
   const editError = $("#staff-gallery-edit-error");
   const editSave = $("#staff-gallery-edit-save");
   let pendingEditId = null;
-  $("[data-gallery-edit]").forEach(button => button.addEventListener("click", () => {
+  Array.from(document.querySelectorAll("[data-gallery-edit]")).forEach(button => button.addEventListener("click", () => {
     const item = items.find(row => row.id === button.dataset.galleryEdit);
     if (!item || !editDialog || !editForm) return;
     pendingEditId = item.id;
@@ -1141,9 +1141,9 @@ async function galleryPage() {
       if (editSave?.isConnected) { editSave.disabled = false; editSave.textContent = "Save changes"; }
     }
   });
-  $(".staff-gallery-menu").forEach(menu => menu.addEventListener("toggle", () => {
+  Array.from(document.querySelectorAll(".staff-gallery-menu")).forEach(menu => menu.addEventListener("toggle", () => {
     if (!menu.open) return;
-    $(".staff-gallery-menu[open]").forEach(other => { if (other !== menu) other.open = false; });
+    Array.from(document.querySelectorAll(".staff-gallery-menu[open]")).forEach(other => { if (other !== menu) other.open = false; });
   }));
   $("#gallery-form").addEventListener("submit", async event => {
     event.preventDefault();
