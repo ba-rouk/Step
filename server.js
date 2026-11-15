@@ -9,7 +9,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
 const PORT = Number(process.env.PORT || 10000);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
-const SITE_URL = String(process.env.SITE_URL || process.env.APP_URL || "https://vitanova-1hfh.onrender.com").replace(/\/+$/, "");
+const SITE_URL = String(process.env.SITE_URL || "https://vitanova-1hfh.onrender.com").replace(/\/+$/, "");
 const APP_URL = SITE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
@@ -668,7 +668,21 @@ function pageTitle(pathname){
     if(slug==="cake")return CAKE_CATEGORY_LABEL;
     return "Menu category";
   }
-  if(pathname.startsWith("/staff"))return "Staff workspace";
+  if(pathname.startsWith("/staff")){
+    const parts=pathname.split("/").filter(Boolean);
+    const section=parts[1]||"workspace";
+    const titles={
+      workspace:"Staff workspace",login:"Staff login",overview:"Overview",dashboard:"Overview",
+      orders:"Orders",products:"Products",gallery:"Gallery",enquiries:"Enquiries",
+      reports:"Reports",team:"Team",audit:"Audit log"
+    };
+    if(section==="orders"&&parts.length>2)return "Order details";
+    if(section==="products"&&parts.at(-1)==="new")return "New product";
+    if(section==="products"&&parts.at(-1)==="edit")return "Edit product";
+    if(section==="enquiries"&&parts.length>2)return "Enquiry details";
+    return titles[section]||"Staff workspace";
+  }
+  if(pathname.startsWith("/order/"))return "Order tracking";
   return titles[pathname]||"Menu category";
 }
 async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
