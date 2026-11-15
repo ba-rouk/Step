@@ -99,7 +99,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
 
   function categoryName(categoryId) {
     const category = categories.find((item) => item.id === categoryId);
-    return category ? normalizeCategoryLabel(category.name) : "Step Town";
+    return category ? normalizeCategoryLabel(category.name) : "Vitanova";
   }
 
   function categorySlugFor(category) {
@@ -112,7 +112,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
       const image = safeImageUrl(category.cover_image_url);
       return '<a class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '">' +
         (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : "") +
-        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(normalizeCategoryLabel(category.name)) + '</strong><span class="category-card-action">Browse category</span></span></a>';
+        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">VITANOVA MENU</span><strong>' + escapeHtml(normalizeCategoryLabel(category.name)) + '</strong><span class="category-card-action">Browse category</span></span></a>';
     }).join("");
     categoryShowcase.innerHTML = allCard + cards;
   }
@@ -152,7 +152,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
     if (catalogCount) catalogCount.textContent = productRoute ? "" : filtered.length + (filtered.length === 1 ? " item" : " items");
     if (!filtered.length) {
       productGrid.innerHTML = "";
-      catalogStatus.textContent = productRoute ? "This product could not be found." : (products.length ? "No menu items match your search or category." : "Our menu is being prepared. Contact Step Town for today’s catering options.");
+      catalogStatus.textContent = productRoute ? "This product could not be found." : (products.length ? "No menu items match your search or category." : "Our menu is being prepared. Contact Vitanova for today’s catering options.");
       catalogStatus.hidden = false;
       return;
     }
@@ -160,7 +160,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
     productGrid.classList.toggle("product-detail-grid", productRoute);
     productGrid.dataset.productList = "shared";
     productGrid.dataset.productView = productRoute ? "detail" : (categoryRoute ? "categories" : "home");
-    productGrid.setAttribute("aria-label", productRoute ? "Step Town product details" : "Step Town products");
+    productGrid.setAttribute("aria-label", productRoute ? "Vitanova product details" : "Vitanova products");
 
     if (productRoute) {
       productGrid.innerHTML = renderProductPage(filtered[0], {
@@ -176,7 +176,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
     }
     if (productRoute) {
       const product = filtered[0];
-      const title = product.name + " | Step Town";
+      const title = product.name + " | Vitanova";
       document.title = title;
       const description = document.querySelector('meta[name="description"]');
       if (description) description.content = product.description || title;
@@ -363,10 +363,10 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
       saveMenuCache(initial);
     } else {
       catalogStatus.hidden = false;
-      catalogStatus.textContent = "Loading the Step Town menu…";
+      catalogStatus.textContent = "Loading the Vitanova menu…";
     }
     if (!supabaseConfigured || !supabase) {
-      if (!products.length) catalogStatus.textContent = "The online menu is not connected yet. Please contact Step Town directly.";
+      if (!products.length) catalogStatus.textContent = "The online menu is not connected yet. Please contact Vitanova directly.";
       return;
     }
     try {
@@ -374,10 +374,10 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
       // last-known products remain visible and interactive.
       await fetchMenuPage(0, "", false);
     } catch (error) {
-      console.error("Step Town catalogue refresh failed:", error);
+      console.error("Vitanova catalogue refresh failed:", error);
       if (!products.length) {
         catalogStatus.hidden = false;
-        catalogStatus.innerHTML = 'We could not load the menu right now. Please <a href="https://wa.me/250780382589" target="_blank" rel="noopener">contact Step Town on WhatsApp</a>.';
+        catalogStatus.innerHTML = 'We could not load the menu right now. Please <a href="https://wa.me/250793607387" target="_blank" rel="noopener">contact Vitanova on WhatsApp</a>.';
       }
     }
   }
