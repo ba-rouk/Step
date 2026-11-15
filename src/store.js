@@ -15,33 +15,19 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
   const productHeading = document.querySelector("#product-heading");
   const categoryFilterRow = document.querySelector("#category-filter-row");
   const searchInput = document.querySelector("#menu-search");
-  const cartOpen = null;
   const mobileCartOpen = document.querySelector(".mobile-dock-cart");
-  const cartClose = document.querySelector("#cart-close");
-  const cartBackdrop = document.querySelector("#cart-backdrop");
-  const cartDrawer = document.querySelector("#cart-drawer");
-  const cartItems = document.querySelector("#cart-items");
+  const cartItems = null;
   const cartCount = document.querySelector("#mobile-cart-count");
-  const cartTotal = document.querySelector("#cart-total");
-  const cartPricingNote = document.querySelector("#cart-pricing-note");
-  const checkoutForm = document.querySelector("#checkout-form");
-  const checkoutStatus = document.querySelector("#checkout-status");
-  const checkoutSubmit = document.querySelector("#checkout-submit");
-  const fulfillmentInput = document.querySelector("#checkout-fulfillment");
-  const locationInput = document.querySelector("#checkout-location");
-  const checkoutDate = document.querySelector("#checkout-date");
-  const cartHandoffKey = "step-town-cart-handoff-v1";
 
-  if (!categoryShowcase || !productGrid || !cartDrawer || !checkoutForm) return;
+  if (!categoryShowcase || !productGrid) return;
 
   let categories = [];
   let products = [];
   const pathname = decodeURIComponent(window.location.pathname.replace(/\/+$/, "") || "/");
   const categoryRoute = pathname === "/categories" || pathname.startsWith("/categories/");
   const galleryRoute = pathname === "/gallery";
-  const cartRoute = pathname === "/cart";
   const categorySlug = categoryRoute && pathname.startsWith("/categories/") ? pathname.split("/").filter(Boolean).at(-1) : "";
-  if (pathname === "/cart" || pathname === "/order/confirmation") return;
+  if (pathname === "/cart" || pathname === "/order" || pathname === "/order/confirmation") return;
   let selectedCategory = "all";
   if (categoryRoute) document.body.classList.add("route-categories");
   if (galleryRoute) document.body.classList.add("route-gallery");
@@ -50,7 +36,6 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
   const routeSearch = document.querySelector(".storefront-hero .menu-search");
   if (categoryRoute && routeSearchMount && routeSearch) routeSearchMount.append(routeSearch);
   let cart = loadCart();
-  let lastCartTrigger = mobileCartOpen || cartOpen;
 
   function escapeHtml(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, (character) => ({
@@ -238,25 +223,6 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
         '<div class="cart-item-copy"><span>' + escapeHtml(item.category_name) + '</span><strong>' + escapeHtml(item.name) + '</strong><small>' + escapeHtml(linePrice) + '</small>' +
         '<div class="cart-quantity"><button type="button" data-cart-action="decrease" data-product-id="' + escapeHtml(item.product_id) + '" aria-label="Decrease quantity">−</button><span>' + item.quantity + '</span><button type="button" data-cart-action="increase" data-product-id="' + escapeHtml(item.product_id) + '" aria-label="Increase quantity">+</button><button class="cart-remove" type="button" data-cart-action="remove" data-product-id="' + escapeHtml(item.product_id) + '">Remove</button></div></div></article>';
     }).join("");
-  }
-
-  function openCart() {
-    cartDrawer.hidden = false;
-    cartDrawer.setAttribute("aria-hidden", "false");
-    cartDrawer.setAttribute("aria-modal", cartRoute ? "false" : "true");
-    cartDrawer.setAttribute("role", cartRoute ? "region" : "dialog");
-    cartBackdrop.hidden = cartRoute;
-    if (!cartRoute) document.body.classList.add("cart-open");
-    if (cartClose) cartClose.focus();
-  }
-
-  function closeCart() {
-    if (cartRoute) { window.location.assign("/categories"); return; }
-    cartDrawer.hidden = true;
-    cartDrawer.setAttribute("aria-hidden", "true");
-    cartBackdrop.hidden = true;
-    document.body.classList.remove("cart-open");
-    if (lastCartTrigger?.isConnected) lastCartTrigger.focus();
   }
 
   function addProduct(productId) {
@@ -492,26 +458,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
     link.addEventListener("focus", warmMenu, { once:true });
     link.addEventListener("touchstart", warmMenu, { once:true, passive:true });
   });
-  // The Cart tab opens the public /cart page; login is required only when submitting an order.
-    if (cartClose) cartClose.addEventListener("click", closeCart);
-  if (cartBackdrop) cartBackdrop.addEventListener("click", closeCart);
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !cartDrawer.hidden) closeCart();
-  });
-
-  cartItems.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-cart-action]");
-    if (!button) return;
-    const item = cart.find((entry) => entry.product_id === button.dataset.productId);
-    if (!item) return;
-    if (button.dataset.cartAction === "increase") cart = setCartQuantity(cart, item.product_id, item.quantity + 1);
-    if (button.dataset.cartAction === "decrease") {
-      if (item.quantity <= 1) cart = removeCartItem(cart, item.product_id);
-      else cart = setCartQuantity(cart, item.product_id, item.quantity - 1);
-    }
-    if (button.dataset.cartAction === "remove") cart = removeCartItem(cart, item.product_id);
-    saveCart();
-    renderCart();
+  renderCart();
   });
 
   if (fulfillmentInput && locationInput) {
@@ -608,5 +555,4 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
   renderCart();
   void syncAccountCart();
   loadCatalog();
-  if (cartRoute) openCart();
 })();
