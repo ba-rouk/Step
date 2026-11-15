@@ -9,3 +9,6 @@ import "./gallery.js";
 // Keep the product-card system last so it overrides legacy responsive card rules.
 import "./product-cards.css";
 import "./theme-controls.css";
+import "./popup-dropdown-system.css";
+import "./custom-selects.js";
+import "./popup-controls.js";
