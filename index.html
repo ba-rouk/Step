@@ -390,6 +390,22 @@
       <small>Profile</small>
     </a>
   </nav>
-  <script>if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(err => console.warn("Step Town service worker unavailable", err)));</script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      const release = "step-town-2026-11-15-cart-2";
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshing || sessionStorage.getItem("step-town-sw-refresh") === release) return;
+        sessionStorage.setItem("step-town-sw-refresh", release);
+        refreshing = true;
+        window.location.reload();
+      });
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js", { updateViaCache:"none" })
+          .then(registration => registration.update().catch(() => {}))
+          .catch(error => console.warn("Step Town service worker unavailable", error));
+      });
+    }
+  </script>
 </body>
 </html>
