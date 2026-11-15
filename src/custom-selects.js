@@ -55,7 +55,8 @@
       trigger.disabled = select.disabled;
       trigger.setAttribute("aria-required", String(select.required));
       trigger.setAttribute("aria-invalid", String(select.getAttribute("aria-invalid") === "true"));
-      root.classList.toggle("is-disabled", select.disabled);\n      if (select.disabled && state.close) state.close();
+      root.classList.toggle("is-disabled", select.disabled);
+      if (select.disabled && state.close) state.close();
     }
 
     function syncSelected() {
@@ -144,7 +145,9 @@
       list.removeAttribute("style");
     }
 
-    state.close = close;\n\n    function open() {
+    state.close = close;
+
+    function open() {
       if (select.disabled || root.classList.contains("is-open")) return;
       document.querySelectorAll(".step-select.is-open").forEach(other => {
         const otherSelect = other.previousElementSibling;
@@ -220,7 +223,9 @@
       }
     });
 
-    state.close = close;\n\n    select.addEventListener("change", () => {
+    state.close = close;
+
+    select.addEventListener("change", () => {
       syncSelected();
       trigger.classList.remove("is-invalid");
     });
