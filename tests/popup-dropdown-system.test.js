@@ -32,3 +32,12 @@ test("staff edit modal supports Escape, backdrop close and keyboard focus trappi
   assert.ok(source.includes("event.shiftKey"));
   assert.ok(source.includes('setAttribute("aria-modal", "true")'));
 });
+
+test("public enquiry and order dropdowns match their dark glass form inputs", async () => {
+  const css = await read("../src/popup-dropdown-system.css");
+  assert.match(css, /\.enquiry-form \.step-select-trigger/);
+  assert.match(css, /\.product-order-form \.step-select-trigger/);
+  assert.match(css, /background: rgba\(20, 15, 17, \.40\)/);
+  assert.match(css, /\.enquiry-form \.step-select-trigger:hover/);
+  assert.match(css, /\.product-order-form \.step-select-trigger:focus-visible/);
+});
