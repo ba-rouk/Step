@@ -2,7 +2,8 @@ const DEFAULT_SITE_URL = "https://vitanova-1hfh.onrender.com";
 
 export function getSiteUrl(): string {
   const configured = Deno.env.get("SITE_URL") || DEFAULT_SITE_URL;
-  return configured.replace(/\\/+$/, "");
+  while (configured.endsWith("/")) configured = configured.slice(0, -1);
+  return configured;
 }
 
 export function getAllowedSiteOrigins(): Set<string> {
