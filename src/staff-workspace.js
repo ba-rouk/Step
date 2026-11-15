@@ -324,7 +324,7 @@ async function getProfile() {
 function loginView(message = "") {
   app.innerHTML =
     '<div class="staff-login-wrap">' +
-      '<a class="staff-brand staff-login-brand" href="https://vitanova.onrender.com/" aria-label="Vitanova home"><img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova logo"><span><b>VITANOVA</b><small>STAFF ACCESS</small></span></a>' +
+      '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Vitanova home"><img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova logo"><span><b>VITANOVA</b><small>STAFF ACCESS</small></span></a>' +
       '<section class="staff-login-card">' +
         '<p class="staff-eyebrow">PRIVATE TEAM PORTAL</p><h1>Welcome back.</h1>' +
         '<p class="staff-muted">Sign in with the account created by your Manager.</p>' +
@@ -678,7 +678,7 @@ async function orderDetailPage(id) {
     const paymentRows = payments.map(payment =>
       "<tr><td>" + esc(statusLabel(payment.method)) + "</td><td>" + money(payment.amount) + "</td><td>" + esc(payment.reference || "—") + "</td><td>" + esc(fmtDate(payment.recorded_at)) + "</td></tr>"
     ).join("");
-    const html = "<!doctype html><html><head><meta charset='utf-8'><title>Receipt " + esc(order.order_number) + "</title><style>" +
+    const html = "<!doctype html><html><head><meta charset='utf-8'><title>Receipt " + esc(order.order_number) + " | Vitanova</title><style>" +
       "body{font:14px Arial,sans-serif;color:#171717;margin:32px}h1{font-size:21px;margin:0 0 5px}h2{font-size:14px;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.08em}p{margin:5px 0}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid #ddd}th{font-size:11px;text-transform:uppercase}.total{font-size:18px;font-weight:bold;margin-top:14px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:14px}.cashier{margin-top:24px;padding-top:12px;border-top:1px solid #ccc}@media print{body{margin:12mm}}" +
       "</style></head><body><h1>VITANOVA</h1><p>Receipt · " + esc(order.order_number) + "</p><h2>Customer</h2><p><b>" + esc(order.customer_name) + "</b></p><p>" + esc(order.customer_phone) + "</p><p>" + esc(order.customer_email || "") + "</p>" +
       "<div class='meta'><p><b>Order type:</b> " + esc(statusLabel(order.fulfillment)) + "</p><p><b>Requested:</b> " + esc(order.requested_date || "Not set") + " " + esc(order.requested_time || "") + "</p><p><b>Pickup / delivery:</b> " + esc(order.delivery_location || "Pickup") + "</p><p><b>Order date:</b> " + esc(fmtDate(order.created_at)) + "</p></div>" +
