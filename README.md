@@ -44,7 +44,7 @@ Vite exposes variables prefixed with `VITE_` to browser code. The publishable ke
 ## Supabase
 Project: `Vitanova` (`tyuousqmpexrwmnmvxtd`).
 
-Migrations `create_vitanova_enquiries` and `allow_public_enquiry_insert` create `public.enquiries`, enable RLS, and allow anonymous inserts only when the new enquiry has the `new` status. There is no public read, update or delete policy, so visitors cannot list or manage stored enquiries.
+The enquiries schema and public-insert policy create `public.enquiries`, enable RLS, and allow anonymous inserts only when the new enquiry has the `new` status. There is no public read, update or delete policy, so visitors cannot list or manage stored enquiries.
 
 The enquiry form validates required fields, saves the enquiry to Supabase, then offers an optional WhatsApp continuation. A successful database insert is confirmed before the success message appears.
 
@@ -84,7 +84,7 @@ The service worker and PWA manifest are included. They can display and route a p
 The current staff browser session is managed by Supabase JS. This uses Supabase's client-managed token storage/refresh rather than a custom httpOnly cookie session. For a strict httpOnly-cookie architecture, move staff auth and all privileged operations behind a server-side application/API before production.
 
 ## Photography sources
-Instagram profile supplied by the business: https://www.instagram.com/step_town_supermarket/
+Vitanova's official Instagram profile URL has not yet been supplied.
 The profile could not be read by the inspection tool. The temporary category backgrounds currently use externally hosted search-discovered images to avoid blank photo areas. They are illustrative references, not Vitanova's own portfolio. Replace them with approved originals from the business before public marketing. Third-party image availability and reuse rights must be confirmed by the site owner.
 
 
@@ -145,7 +145,7 @@ The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. 
 
 #### Supabase Auth URL Configuration
 
-In **Authentication → URL Configuration**, set **Site URL** to `https://vitanova-1hfh.onrender.com` and add `https://vitanova-1hfh.onrender.com/auth/callback` (and the local development callback if needed) to the allowed redirect URLs. Remove obsolete Step Town site URLs. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
+In **Authentication → URL Configuration**, set **Site URL** to `https://vitanova-1hfh.onrender.com` and add `https://vitanova-1hfh.onrender.com/auth/callback` (and the local development callback if needed) to the allowed redirect URLs. Remove any obsolete former-site URLs. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
 
 
 ## Guest cart, quick orders and email login
