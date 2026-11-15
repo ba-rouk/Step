@@ -270,10 +270,11 @@ h2 em { color: var(--rust-dark); }
   width: 48px;
   height: 48px;
   flex: 0 0 48px;
-  object-fit: cover;
-  border: 1px solid rgba(33,29,26,.12);
-  border-radius: 50%;
-  background: #fffaf0;
+  object-fit: contain;
+  border: 1px solid rgba(200,135,97,.72);
+  border-radius: 14px;
+  background: #211d1a;
+  box-shadow: 0 7px 24px rgba(0,0,0,.2);
 }
 .storefront { background: #f2ece2; }
 .store-heading { align-items: end; }
@@ -672,7 +673,7 @@ h1,h2,h3,h4,strong{color:inherit} p{color:inherit}
 .page-shell,.header-inner{width:min(var(--shell),calc(100% - 64px))}
 .site-header{background:rgba(22,18,20,.66);border-bottom:1px solid rgba(255,255,255,.16);-webkit-backdrop-filter:blur(22px) saturate(155%);backdrop-filter:blur(22px) saturate(155%);box-shadow:0 8px 32px rgba(0,0,0,.14)}
 .header-inner{height:82px;gap:20px}.brand{gap:12px}
-.brand-logo{width:54px;height:54px;flex:0 0 54px;object-fit:contain;object-position:center;border:1px solid rgba(255,255,255,.38);border-radius:14px;background:#fff;box-shadow:0 7px 24px rgba(0,0,0,.2)}
+.brand-logo{width:54px;height:54px;flex:0 0 54px;object-fit:contain;object-position:center;border:1px solid rgba(200,135,97,.72);border-radius:14px;background:#211d1a;box-shadow:0 7px 24px rgba(0,0,0,.2)}
 .brand-copy strong{color:#fff6ed;font-size:13px;letter-spacing:.20em}.brand-copy small{color:rgba(255,239,228,.72);font-size:8px;letter-spacing:.15em}
 .primary-nav{gap:clamp(14px,2.3vw,30px)}.primary-nav a{color:rgba(255,244,235,.83)}.primary-nav a:hover{color:#ffc093}
 .primary-nav .nav-cta{padding:11px 17px;border:1px solid rgba(255,194,147,.52);border-radius:999px;color:#fff8f1;background:linear-gradient(115deg,rgba(240,116,64,.92),rgba(144,54,57,.9));box-shadow:0 8px 25px rgba(195,77,48,.22)}
