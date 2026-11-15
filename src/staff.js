@@ -1,4 +1,4 @@
-import "./staff.css";
+import "../staff.css";
 import "./theme-controls.css";
 import "./popup-dropdown-system.css";
 import "./custom-selects.js";
