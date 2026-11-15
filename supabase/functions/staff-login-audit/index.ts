@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { getAllowedSiteOrigins } from "../_shared/site.ts";
 
-const allowedOrigins = new Set(["https://steptown.onrender.com", "http://localhost:5173"]);
+const allowedOrigins = getAllowedSiteOrigins();
 const attempts = new Map<string, { count: number; reset: number }>();
 const json = (body: unknown, status = 200, origin: string | null = null) => {
   const headers = new Headers({ "Content-Type": "application/json", "Cache-Control": "no-store", "Vary": "Origin" });
