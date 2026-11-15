@@ -1,3 +1,4 @@
+import "./logo-fallback.js";
 import "../styles.css";
 import "../script.js";
 import "./store.js";
