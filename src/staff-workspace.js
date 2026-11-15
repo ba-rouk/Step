@@ -2,6 +2,7 @@ import { normalizeCategoryLabel } from "./catalog-config.js";
 import { supabase, supabaseConfigured } from "./supabase.js";
 import "../staff.css";
 import "./theme-controls.css";
+import { confirmStepTown, promptStepTown } from "./site-dialogs.js";
 
 const PATH = location.pathname.replace(/\/+$/, "") || "/";
 const PUBLIC_HOME_URL = "/";
@@ -632,17 +633,26 @@ async function orderDetailPage(id) {
   $$("[data-payment-edit]").forEach(button => button.addEventListener("click", async () => {
     const payment = payments.find(row => row.id === button.dataset.paymentEdit);
     if (!payment) return;
-    const method = prompt("Payment method: cash or mobile_money", payment.method);
+    const method = await promptStepTown("Choose how this payment was received.", {
+      title:"Edit payment", fieldLabel:"Payment method", value:payment.method,
+      options:[{value:"cash",label:"Cash"},{value:"mobile_money",label:"Mobile money"}], required:true
+    });
     if (method === null) return;
-    const amountText = prompt("Correct amount (RWF):", String(payment.amount));
+    const amountText = await promptStepTown("Enter the corrected amount in Rwandan francs.", {
+      title:"Edit payment", fieldLabel:"Amount (RWF)", value:String(payment.amount), inputType:"number", min:"0.01", step:"1", required:true
+    });
     if (amountText === null) return;
     const amount = Number(amountText);
     if (!["cash", "mobile_money"].includes(method) || !Number.isFinite(amount) || amount <= 0) {
       notify("Use cash/mobile_money and a positive amount.", "warning"); return;
     }
-    const reference = prompt("Transaction reference:", payment.reference || "");
+    const reference = await promptStepTown("Enter the transaction reference, if one is available.", {
+      title:"Edit payment", fieldLabel:"Transaction reference", value:payment.reference || "", required:false
+    });
     if (reference === null) return;
-    const notes = prompt("Payment note:", payment.notes || "");
+    const notes = await promptStepTown("Add a note about this payment, if needed.", {
+      title:"Edit payment", fieldLabel:"Payment note", value:payment.notes || "", inputType:"textarea", required:false
+    });
     if (notes === null) return;
     const { error } = await supabase.rpc("staff_update_order_payment", {
       p_payment_id: payment.id, p_method: method, p_amount: amount,
@@ -652,7 +662,9 @@ async function orderDetailPage(id) {
     else { notify("Payment corrected."); await orderDetailPage(order.id); }
   }));
   $$("[data-payment-delete]").forEach(button => button.addEventListener("click", async () => {
-    if (!confirm("Delete this payment record? This action will be recorded in the audit log.")) return;
+    if (!(await confirmStepTown("Delete this payment record? This action will be recorded in the audit log.", {
+      title:"Delete payment", confirmText:"Delete payment", danger:true
+    }))) return;
     const { error } = await supabase.rpc("staff_delete_order_payment", { p_payment_id: button.dataset.paymentDelete });
     if (error) notify(error.message, "error");
     else { notify("Payment deleted."); await orderDetailPage(order.id); }
@@ -992,7 +1004,9 @@ async function productsPage() {
       else { await writeAudit("product_visibility_changed", "store_product", item.id, { is_visible: isVisible }); await invalidatePublicCatalog(); notify("Menu visibility updated."); await productsPage(); }
     }));
     $$("[data-product-delete]").forEach(button => button.addEventListener("click", async () => {
-      if (!confirm("Permanently delete this menu item?")) return;
+      if (!(await confirmStepTown("This permanently removes the menu item from the catalogue. This action cannot be undone.", {
+        title:"Delete menu item", confirmText:"Delete item", danger:true
+      }))) return;
       const id = button.dataset.productDelete;
       const { error } = await supabase.from("store_products").delete().eq("id", id);
       if (error) notify(error.message, "error");
@@ -1406,8 +1420,10 @@ async function teamPage() {
     await teamPage();
   });
   $$("[data-team-reset]").forEach(button => button.addEventListener("click", async () => {
-    const password = prompt("Enter a new temporary password (at least 12 characters):");
-    if (!password) return;
+    const password = await promptStepTown("Enter a temporary password. The staff member will be required to change it at their next sign-in.", {
+      title:"Reset staff password", fieldLabel:"Temporary password", inputType:"password", min:null, required:true, placeholder:"At least 12 characters", confirmText:"Set password"
+    });
+    if (password === null || !password) return;
     if (password.length < 12) { notify("Use at least 12 characters.", "warning"); return; }
     button.disabled = true;
     const { data, error } = await supabase.functions.invoke("staff-admin", { body: { action: "reset", user_id: button.dataset.teamReset, password } });
@@ -1417,7 +1433,9 @@ async function teamPage() {
   }));
   $$("[data-team-toggle]").forEach(button => button.addEventListener("click", async () => {
     const active = button.dataset.active === "true";
-    if (active && !confirm("Deactivate this account? Their staff permissions will be revoked immediately.")) return;
+    if (active && !(await confirmStepTown("Deactivate this account? Their staff permissions will be revoked immediately.", {
+      title:"Deactivate staff account", confirmText:"Deactivate", danger:true
+    }))) return;
     button.disabled = true;
     const { data, error } = await supabase.functions.invoke("staff-admin", { body: { action: active ? "deactivate" : "activate", user_id: button.dataset.teamToggle } });
     if (error || !data?.ok) notify(error?.message || data?.error || "Account update failed.", "error");
