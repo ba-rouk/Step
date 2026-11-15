@@ -34,7 +34,7 @@ function normalizeGalleryImageUrl(value) {
 if (grid) {
   if (!supabaseConfigured || !supabase) {
     grid.setAttribute("aria-busy", "false");
-    grid.innerHTML = '<p class="gallery-empty">The Step Town gallery is temporarily unavailable.</p>';
+    grid.innerHTML = '<p class="gallery-empty">The Vitanova gallery is temporarily unavailable.</p>';
   } else {
     const filters = ["All", "Catering", "Staff", "Barbecue", "Cakes"];
     let visibleGalleryItems = [];
@@ -48,7 +48,7 @@ if (grid) {
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) {
-          console.warn("Step Town gallery could not load", error);
+          console.warn("Vitanova gallery could not load", error);
           grid.setAttribute("aria-busy", "false");
           grid.innerHTML = '<p class="gallery-empty">Gallery photos could not load. Please try again later.</p>';
           return;
@@ -81,12 +81,12 @@ if (grid) {
                 '<figure class="gallery-item is-visible' +
                   (index === 0 ? " gallery-large" : index === 1 ? " gallery-tall" : "") + '">' +
                   '<img class="live-gallery-image" data-gallery-open="' + index + '" role="button" tabindex="0" src="' + escapeHtml(item.image_src) + '"' +
-                    ' alt="' + escapeHtml(item.alt_text || item.title || "Step Town gallery photo") + '"' +
+                    ' alt="' + escapeHtml(item.alt_text || item.title || "Vitanova gallery photo") + '"' +
                     ' aria-label="Open image ' + (index + 1) + ' of ' + items.length + '"' +
                     ' loading="' + (index === 0 ? "eager" : "lazy") + '"' +
                     ' decoding="async" width="1200" height="900">' +
                   '<figcaption><span>' + String(index + 1).padStart(2, "0") + '</span>' +
-                    escapeHtml(item.title || item.category || "Step Town") +
+                    escapeHtml(item.title || item.category || "Vitanova") +
                     (item.caption ? " · " + escapeHtml(item.caption) : "") +
                   '</figcaption>' +
                 '</figure>'
@@ -97,7 +97,7 @@ if (grid) {
         };
 
         if (!rows.length) {
-          grid.innerHTML = '<p class="gallery-empty">New Step Town moments will appear here soon.</p>';
+          grid.innerHTML = '<p class="gallery-empty">New Vitanova moments will appear here soon.</p>';
           grid.setAttribute("aria-busy", "false");
           return;
         }
@@ -112,7 +112,7 @@ if (grid) {
           const item = visibleGalleryItems[lightboxIndex];
           const image = lightbox.querySelector(".public-gallery-full-image");
           image.src = item.image_src;
-          image.alt = item.alt_text || item.title || "Step Town gallery photo";
+          image.alt = item.alt_text || item.title || "Vitanova gallery photo";
           lightbox.querySelector(".public-gallery-count").textContent = (lightboxIndex + 1) + " / " + visibleGalleryItems.length;
           if (!lightbox.open) lightbox.showModal();
         };
@@ -149,7 +149,7 @@ if (grid) {
         render("All");
       })
       .catch((error) => {
-        console.warn("Step Town gallery request failed", error);
+        console.warn("Vitanova gallery request failed", error);
         grid.setAttribute("aria-busy", "false");
         grid.innerHTML = '<p class="gallery-empty">Gallery photos could not load. Please try again later.</p>';
       });

@@ -6,6 +6,7 @@ import { normalizeCategoryLabel } from "./catalog-config.js";
 import { bindProductGallery, showProductToast, flashCartButton } from "./product-gallery.js";
 import { GUEST_CART_STORAGE_KEY, LEGACY_GUEST_CART_STORAGE_KEYS } from "./cart-config.js";
 import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartStorage } from "./cart-state.js";
+import { readFavouriteIds, writeFavouriteIds } from "./favourites-storage.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -99,7 +100,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
 
   function categoryName(categoryId) {
     const category = categories.find((item) => item.id === categoryId);
-    return category ? normalizeCategoryLabel(category.name) : "Step Town";
+    return category ? normalizeCategoryLabel(category.name) : "Vitanova";
   }
 
   function categorySlugFor(category) {
@@ -112,7 +113,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
       const image = safeImageUrl(category.cover_image_url);
       return '<a class="category-card' + (selectedCategory === category.id ? " is-active" : "") + '" href="/categories/' + encodeURIComponent(categorySlugFor(category)) + '">' +
         (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : "") +
-        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">STEP TOWN MENU</span><strong>' + escapeHtml(normalizeCategoryLabel(category.name)) + '</strong><span class="category-card-action">Browse category</span></span></a>';
+        '<span class="category-card-overlay"></span><span class="category-card-copy"><span class="category-card-kicker">VITANOVA MENU</span><strong>' + escapeHtml(normalizeCategoryLabel(category.name)) + '</strong><span class="category-card-action">Browse category</span></span></a>';
     }).join("");
     categoryShowcase.innerHTML = allCard + cards;
   }
@@ -140,7 +141,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
     return String(product.slug || product.name || product.id).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || product.id;
   }
   function savedFavourites() {
-    try { const ids = JSON.parse(localStorage.getItem("step-town-favourites-v1") || "[]"); return Array.isArray(ids) ? ids : []; } catch { return []; }
+    return readFavouriteIds();
   }
   function renderProducts() {
     const productRoute = pathname.startsWith("/product/");
@@ -152,7 +153,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
     if (catalogCount) catalogCount.textContent = productRoute ? "" : filtered.length + (filtered.length === 1 ? " item" : " items");
     if (!filtered.length) {
       productGrid.innerHTML = "";
-      catalogStatus.textContent = productRoute ? "This product could not be found." : (products.length ? "No menu items match your search or category." : "Our menu is being prepared. Contact Step Town for today’s catering options.");
+      catalogStatus.textContent = productRoute ? "This product could not be found." : (products.length ? "No menu items match your search or category." : "Our menu is being prepared. Contact Vitanova for today’s catering options.");
       catalogStatus.hidden = false;
       return;
     }
@@ -160,7 +161,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
     productGrid.classList.toggle("product-detail-grid", productRoute);
     productGrid.dataset.productList = "shared";
     productGrid.dataset.productView = productRoute ? "detail" : (categoryRoute ? "categories" : "home");
-    productGrid.setAttribute("aria-label", productRoute ? "Step Town product details" : "Step Town products");
+    productGrid.setAttribute("aria-label", productRoute ? "Vitanova product details" : "Vitanova products");
 
     if (productRoute) {
       productGrid.innerHTML = renderProductPage(filtered[0], {
@@ -176,7 +177,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
     }
     if (productRoute) {
       const product = filtered[0];
-      const title = product.name + " | Step Town";
+      const title = product.name + " | Vitanova";
       document.title = title;
       const description = document.querySelector('meta[name="description"]');
       if (description) description.content = product.description || title;
@@ -241,7 +242,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
   }
 
   const menuPageSize = 12;
-  const menuCacheKey = "step-town-menu-v2:" + (categorySlug || "all");
+  const menuCacheKey = "vitanova-menu-v2:" + (categorySlug || "all");
   let menuOffset = 0;
   let menuHasMore = false;
   let menuSearch = "";
@@ -363,10 +364,10 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
       saveMenuCache(initial);
     } else {
       catalogStatus.hidden = false;
-      catalogStatus.textContent = "Loading the Step Town menu…";
+      catalogStatus.textContent = "Loading the Vitanova menu…";
     }
     if (!supabaseConfigured || !supabase) {
-      if (!products.length) catalogStatus.textContent = "The online menu is not connected yet. Please contact Step Town directly.";
+      if (!products.length) catalogStatus.textContent = "The online menu is not connected yet. Please contact Vitanova directly.";
       return;
     }
     try {
@@ -374,10 +375,10 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
       // last-known products remain visible and interactive.
       await fetchMenuPage(0, "", false);
     } catch (error) {
-      console.error("Step Town catalogue refresh failed:", error);
+      console.error("Vitanova catalogue refresh failed:", error);
       if (!products.length) {
         catalogStatus.hidden = false;
-        catalogStatus.innerHTML = 'We could not load the menu right now. Please <a href="https://wa.me/250780382589" target="_blank" rel="noopener">contact Step Town on WhatsApp</a>.';
+        catalogStatus.innerHTML = 'We could not load the menu right now. Please <a href="https://wa.me/250793607387" target="_blank" rel="noopener">contact Vitanova on WhatsApp</a>.';
       }
     }
   }
@@ -387,12 +388,10 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
   productGrid.addEventListener("click", (event) => {
     const favourite = event.target.closest("[data-favourite]");
     if (favourite) {
-      const key = "step-town-favourites-v1";
-      let saved = [];
-      try { saved = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
+      let saved = readFavouriteIds();
       const id = favourite.dataset.favourite;
       saved = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id];
-      localStorage.setItem(key, JSON.stringify(saved));
+      writeFavouriteIds(saved);
       favourite.classList.toggle("is-saved", saved.includes(id));
       favourite.setAttribute("aria-pressed", String(saved.includes(id)));
       favourite.setAttribute("aria-label", (saved.includes(id) ? "Remove from" : "Add to") + " favourites");

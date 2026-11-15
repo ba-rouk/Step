@@ -1,3 +1,4 @@
+import { getSiteUrl } from "../_shared/site.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import webpush from "npm:web-push@3.6.7";
 
@@ -41,9 +42,9 @@ Deno.serve(async req=>{
   const body=[description,order.estimated_total==null?"Price to confirm":"RWF "+Number(order.estimated_total).toLocaleString("en-US"),fulfillmentLabel,requestedSlot].filter(Boolean).join(" · ");
   // Staff detail routes look up records by UUID, not the customer-facing order number.
   const orderPath="/staff/orders/"+encodeURIComponent(order.id);
-  const orderUrl="https://steptown.onrender.com"+orderPath;
+  const orderUrl=getSiteUrl()+orderPath;
   const payload=JSON.stringify({title:"New order "+order.order_number,body,url:orderPath,tag:"order-"+order.id});
-  const pub=Deno.env.get("VAPID_PUBLIC_KEY"),priv=Deno.env.get("VAPID_PRIVATE_KEY"),subject=Deno.env.get("VAPID_SUBJECT")||"mailto:orders@steptown.rw";
+  const pub=Deno.env.get("VAPID_PUBLIC_KEY"),priv=Deno.env.get("VAPID_PRIVATE_KEY"),subject=Deno.env.get("VAPID_SUBJECT")||"mailto:orders@your-verified-domain.example";
   const outcomes:boolean[]=[];
   if(pub&&priv){
     webpush.setVapidDetails(subject,pub,priv);

@@ -1,4 +1,4 @@
--- Step Town staff operations: additive changes only.
+-- Vitanova staff operations: additive changes only.
 -- Preserve legacy enquiry statuses while enabling the requested sales pipeline.
 ALTER TABLE public.enquiries
   ADD COLUMN IF NOT EXISTS internal_notes text,
@@ -36,7 +36,7 @@ BEGIN
   SELECT sp.role INTO v_role FROM public.staff_profiles sp
   WHERE sp.user_id=auth.uid() AND sp.is_active=true;
   IF v_role IS NULL OR v_role NOT IN ('manager','accountant','cashier') THEN
-    RAISE EXCEPTION 'Active Step Town staff access required.' USING ERRCODE='42501';
+    RAISE EXCEPTION 'Active Vitanova staff access required.' USING ERRCODE='42501';
   END IF;
   IF p_status IS NOT NULL AND p_status NOT IN ('new','confirmed','preparing','ready','completed','cancelled') THEN
     RAISE EXCEPTION 'Invalid order status.' USING ERRCODE='22023';
@@ -83,7 +83,7 @@ BEGIN
   SELECT sp.role INTO v_role FROM public.staff_profiles sp
   WHERE sp.user_id=auth.uid() AND sp.is_active=true;
   IF v_role IS NULL OR v_role NOT IN ('manager','accountant','cashier') THEN
-    RAISE EXCEPTION 'Active Step Town staff access required.' USING ERRCODE='42501';
+    RAISE EXCEPTION 'Active Vitanova staff access required.' USING ERRCODE='42501';
   END IF;
   IF p_status IS NOT NULL AND p_status NOT IN ('new','contacted','quoted','won','lost','confirmed','closed') THEN
     RAISE EXCEPTION 'Invalid enquiry status.' USING ERRCODE='22023';

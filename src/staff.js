@@ -1,3 +1,4 @@
+import "./logo-fallback.js";
 import "../staff.css";
 import "./theme-controls.css";
 import "./popup-dropdown-system.css";

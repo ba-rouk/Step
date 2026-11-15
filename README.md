@@ -1,13 +1,13 @@
-# Step Town — Catering, Barbecue & Cake
+# Vitanova — Catering, Barbecue & Cake
 
-Responsive Vite website for Step Town Catering and Cake in Rwanda.
+Responsive Vite and Node website for Vitanova in Rwanda.
 
 ## Stack
 - Vite 7
 - Vanilla JavaScript and CSS
 - Supabase JavaScript client
 - Supabase Postgres for customer enquiries
-- Netlify continuous deployment
+- Render Web Service deployment
 
 ## Local development
 Requires Node.js 22.12+.
@@ -18,7 +18,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Fill in `.env` with the Step Supabase project URL and publishable key. Never use a Supabase secret or service-role key in browser code.
+Fill in `.env` with the Vitanova Supabase project URL and publishable key. Never use a Supabase secret or service-role key in browser code.
 
 ## Production build
 ```bash
@@ -27,44 +27,44 @@ npm run preview
 ```
 The production site is generated in `dist/`.
 
-## Netlify
-- Repository: `ba-rouk/Step`
+## Render
+- Repository: `ba-rouk/Vitanova-`
 - Production branch: `main`
-- Base directory: `.` (repository root)
-- Build command: `npm run build`
-- Publish directory: `dist`
-- Functions directory: leave blank (no Netlify Functions are required for the current site)
+- Runtime: Node.js 22.12+
+- Build command: `npm install && npm run build`
+- Start command: `npm start`
+- Live URL: `https://vitanova-1hfh.onrender.com`
 
-The root `netlify.toml` contains the build and publish settings. Configure these site environment variables in Netlify:
+Set these browser-safe values in the Render Web Service environment:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 Vite exposes variables prefixed with `VITE_` to browser code. The publishable key is intended for client use; never place a Supabase secret/service-role key in these variables.
 
 ## Supabase
-Project: `Step` (`tyuousqmpexrwmnmvxtd`).
+Project: `Vitanova` (`tyuousqmpexrwmnmvxtd`).
 
-Migrations `create_step_town_enquiries` and `allow_public_enquiry_insert` create `public.enquiries`, enable RLS, and allow anonymous inserts only when the new enquiry has the `new` status. There is no public read, update or delete policy, so visitors cannot list or manage stored enquiries.
+The enquiries schema and public-insert policy create `public.enquiries`, enable RLS, and allow anonymous inserts only when the new enquiry has the `new` status. There is no public read, update or delete policy, so visitors cannot list or manage stored enquiries.
 
 The enquiry form validates required fields, saves the enquiry to Supabase, then offers an optional WhatsApp continuation. A successful database insert is confirmed before the success message appears.
 
 ## Business details
-- Step Town Catering and Cake
+- Vitanova Catering and Cake
 - Runda, Rwanda
-- +250 780 382 589
-- WhatsApp: https://wa.me/250780382589
+- +250 793 607 387
+- WhatsApp: https://wa.me/250793607387
 
 Confirm the exact street address, opening hours, service radius, and contact details with the business before launch.
 
 ## Photography
-The gallery currently uses illustrative preview photographs, not verified Step Town portfolio images. Replace them with the business's own licensed photographs before promoting the site as a portfolio.
+The gallery currently uses illustrative preview photographs, not verified Vitanova portfolio images. Replace them with the business's own licensed photographs before promoting the site as a portfolio.
 
 
 ## Online menu and orders
 - The storefront reads active categories from `public.store_categories` and available menu items from `public.store_products`.
-- Add and manage real Step Town dishes, packages, cake designs and prices in the Supabase Table Editor. Categories are pre-created: Catering, Barbecue and Cake.
+- Add and manage real Vitanova dishes, packages, cake designs and prices in the Supabase Table Editor. Categories are pre-created: Catering, Barbecue and Cake.
 - The shopping bag is stored in the visitor's browser. Checkout writes order requests to `public.store_orders`; public visitors can submit requests but cannot read, change or delete customer orders.
-- Orders are requests, not online payments or confirmed bookings. Step Town confirms availability and final prices directly, including any items whose price is left blank.
+- Orders are requests, not online payments or confirmed bookings. Vitanova confirms availability and final prices directly, including any items whose price is left blank.
 
 
 ## Staff workspace (in progress)
@@ -84,8 +84,8 @@ The service worker and PWA manifest are included. They can display and route a p
 The current staff browser session is managed by Supabase JS. This uses Supabase's client-managed token storage/refresh rather than a custom httpOnly cookie session. For a strict httpOnly-cookie architecture, move staff auth and all privileged operations behind a server-side application/API before production.
 
 ## Photography sources
-Instagram profile supplied by the business: https://www.instagram.com/step_town_supermarket/
-The profile could not be read by the inspection tool. The temporary category backgrounds currently use externally hosted search-discovered images to avoid blank photo areas. They are illustrative references, not Step Town's own portfolio. Replace them with approved originals from the business before public marketing. Third-party image availability and reuse rights must be confirmed by the site owner.
+Vitanova's official Instagram profile URL has not yet been supplied.
+The profile could not be read by the inspection tool. The temporary category backgrounds currently use externally hosted search-discovered images to avoid blank photo areas. They are illustrative references, not Vitanova's own portfolio. Replace them with approved originals from the business before public marketing. Third-party image availability and reuse rights must be confirmed by the site owner.
 
 
 ### Deploying the staff backend
@@ -132,20 +132,20 @@ Customer routes are served by the Node server in `server.js`, which also provide
 
 Keep these values in the Render Web Service environment (never in browser code):
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (already used by the public catalogue and staff client).
-- `APP_URL=https://steptown.onrender.com`: pins OAuth callbacks to the production website origin.
+- `SITE_URL=https://vitanova-1hfh.onrender.com`: pins OAuth callbacks to the production website origin.
 - `SESSION_SECRET`: a randomly generated secret of at least 32 bytes. Generate one with `openssl rand -hex 48`. Do not commit it or share it with the browser.
 - Optional server aliases: `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The server falls back to the existing `VITE_` values if these are omitted. A Supabase service-role key is not required by the customer API.
 
-Enable **Phone** in Supabase Authentication providers and configure an SMS provider if phone confirmation is enabled. Set the site URL to `https://steptown.onrender.com`. Add `https://steptown.onrender.com/auth/callback` to the allowed Auth redirect URLs for Google OAuth. Phone/password authentication requires a verified phone number when SMS confirmation is enabled; Supabase recommends MFA because phone numbers can be recycled.
+Enable **Phone** in Supabase Authentication providers and configure an SMS provider if phone confirmation is enabled. Set the Site URL to `https://vitanova-1hfh.onrender.com` and add `https://vitanova-1hfh.onrender.com/**` to the allowed Auth redirect URLs. Register `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback` as the Google OAuth authorized redirect URI in Google Cloud Console. Phone/password authentication requires a verified phone number when SMS confirmation is enabled; Supabase recommends MFA because phone numbers can be recycled.
 
 The public gallery reads published records from `public.gallery_items`, with category filters for Catering, Staff, Barbecue and Cakes. Accountants and Managers upload product/gallery images to the public `step-town-media` Supabase Storage bucket; JPEG, PNG, WebP and AVIF images up to 10 MB are accepted. Cashiers cannot upload. Products can store multiple image URLs; the public menu presents them as horizontally swipeable photo strips with local favourites.
 
-The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. The Step Town logo image supplied by the owner is used in the header, phone contact block and map card.
+The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. Vins logo artwork has not yet been supplied; the old artwork remains in place until the Vins logo and icon files are added.
 
 
 #### Supabase Auth URL Configuration
 
-In **Authentication → URL Configuration**, set **Site URL** to `https://steptown.onrender.com` and add `https://steptown.onrender.com/auth/callback` to the allowed redirect URLs. Remove malformed entries such as `https://tyuousqmpexrwmnmvxtd.supabase.co/steptown.onrender.com`. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
+In **Authentication → URL Configuration**, set **Site URL** to `https://vitanova-1hfh.onrender.com` and add `https://vitanova-1hfh.onrender.com/auth/callback` (and the local development callback if needed) to the allowed redirect URLs. Remove any obsolete former-site URLs. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
 
 
 ## Guest cart, quick orders and email login
@@ -155,7 +155,7 @@ The storefront uses two separate cart flows:
 - The product-card cart icon adds one item in place and updates the Cart badge. It does not navigate.
 - The product image and product text open `/cart?product=<slug>`. This quick-order form submits only that selected item and does not change the saved cart.
 - The Cart tab displays the editable saved cart. Guest carts are stored in `localStorage`; signed-in carts are persisted to `customer_cart_items`. A guest cart is merged into the account cart after sign-in.
-- `src/cart-config.js` contains the single `REQUIRE_LOGIN_FOR_CART_LIST` switch. It defaults to `false`; set it to `true` only if guests should be redirected to sign-in before seeing the saved-cart list. Quick order remains guest-accessible.
+- `src/cart-config.js` contains the single `REQUIRE_LOGIN_FOR_CART_LIST` switch. It defaults to `true`; guests are redirected to sign-in before seeing their saved-cart list. Quick order remains guest-accessible.
 
 ### Email login and verification
 
@@ -165,7 +165,7 @@ Password sign-in remains available. An account with an unverified email sees a v
 
 ### HTTPS email delivery (no SMTP)
 
-Render free web services block outbound SMTP ports 25, 465 and 587. Step Town therefore sends email only through the provider's HTTPS API; do not add Nodemailer SMTP transport or SMTP credentials.
+Render free web services block outbound SMTP ports 25, 465 and 587. Vitanova therefore sends email only through the provider's HTTPS API; do not add Nodemailer SMTP transport or SMTP credentials.
 
 Set these values as **Supabase Edge Function secrets** (and the matching server-side values in Render where indicated):
 
@@ -174,8 +174,8 @@ Set these values as **Supabase Edge Function secrets** (and the matching server-
 - `EMAIL_PROVIDER=resend` (supported values: `resend`, `brevo`, `postmark`, `mailgun`, `sendgrid`)
 - `EMAIL_API_KEY` (or `RESEND_API_KEY` for Resend)
 - `EMAIL_FROM` (must use a verified sender/domain)
-- `EMAIL_FROM_NAME=Step Town`
-- `APP_URL=https://steptown.onrender.com`
+- `EMAIL_FROM_NAME=Vitanova`
+- `SITE_URL=https://vitanova-1hfh.onrender.com`
 - `LOGIN_CODE_PEPPER` (random secret, at least 32 bytes)
 - `EMAIL_OUTBOX_SECRET` (different random secret, at least 32 bytes)
 - For Mailgun only: `MAILGUN_DOMAIN`
@@ -196,7 +196,7 @@ Use the provider's sandbox/test mode and its permitted test recipient addresses 
 
 ### Deploying the email and tracking Edge Functions
 
-After applying all migrations to the Step Town Supabase project, deploy:
+After applying all migrations to the Vitanova Supabase project, deploy:
 
 ```bash
 supabase functions deploy submit-store-order

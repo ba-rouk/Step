@@ -265,7 +265,7 @@ h2 em { color: var(--rust-dark); }
 }
 
 
-/* Step Town online menu and shopping bag */
+/* Vitanova online menu and shopping bag */
 .brand-logo {
   width: 48px;
   height: 48px;
@@ -651,7 +651,7 @@ body.cart-open { overflow: hidden; }
 }
 
 
-/* STEP TOWN — WARM GLASSMORPHISM REDESIGN
+/* VITANOVA — WARM GLASSMORPHISM REDESIGN
    Vanilla CSS overrides. Existing Vite/Supabase functionality remains unchanged. */
 :root {
   --ink:#fff4eb; --ink-soft:#f5e5da; --cream:rgba(255,255,255,.055);
@@ -858,7 +858,7 @@ h1,h2,h3,h4,strong{color:inherit} p{color:inherit}
 .enquiry-form,.checkout-fields { color-scheme: dark; }
 
 
-/* Google Images discovery assets — temporary illustrative photography, not claimed as Step Town portfolio */
+/* Google Images discovery assets — temporary illustrative photography, not claimed as Vitanova portfolio */
 .image-slot{position:relative;overflow:hidden;background:#30231d}
 .image-slot .image-slot-content{position:absolute;inset:auto 0 0;padding:18px;background:linear-gradient(0deg,rgba(24,17,14,.82),transparent);z-index:2;color:white}
 .image-slot .image-slot-content small{font-size:9px;letter-spacing:.14em}
@@ -1151,7 +1151,7 @@ h1,h2,h3,h4,strong{color:inherit} p{color:inherit}
 }
 
 
-/* Step Town route pages and revised compact mobile navigation. */
+/* Vitanova route pages and revised compact mobile navigation. */
 .storefront { background: linear-gradient(155deg, #171a2b 0%, #252036 46%, #182b34 100%); }
 .storefront > .page-shell { padding-top: 24px; padding-bottom: 64px; }
 .route-catalog-heading { display: none; }
@@ -1268,7 +1268,7 @@ body.route-cart .checkout-form textarea::placeholder { color: rgba(255,255,255,.
 body.route-cart .cart-drawer[hidden] { display: none !important; }
 
 
-/* Phone contact and map identity use the same circular Step Town logo. */
+/* Phone contact and map identity use the same circular Vitanova logo. */
 .contact-logo {
   display: block;
   flex: 0 0 56px;
@@ -1412,7 +1412,7 @@ body.route-customer-page .mobile-dock { display: grid; }
 }
 
 
-/* Step Town typography system: literary serif, quiet sans, functional mono. */
+/* Vitanova typography system: literary serif, quiet sans, functional mono. */
 :root {
   --font-serif: "Source Serif 4", "Step Serif Fallback", "Newsreader", "Lora", "Iowan Old Style", Georgia, serif;
   --font-sans: "Inter", "Step Sans Fallback", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -1805,7 +1805,7 @@ body.route-customer-page .customer-error {
 .storefront .product-description { color: rgba(245,239,232,.9); }
 
 
-/* Keep the Step Town wordmark and tagline in the same type family as the site UI. */
+/* Keep the Vitanova wordmark and tagline in the same type family as the site UI. */
 .brand-copy strong,
 .brand-copy small {
   font-family: var(--font-sans);
@@ -1893,7 +1893,7 @@ body.route-customer-page .customer-error {
 }
 
 
-/* Step Town product cards — definitive shared layout for Home, Categories,
+/* Vitanova product cards — definitive shared layout for Home, Categories,
    search, favourites and the product detail route. */
 .product-grid,
 .customer-favourites-grid {

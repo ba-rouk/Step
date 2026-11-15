@@ -9,7 +9,8 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
 const PORT = Number(process.env.PORT || 10000);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
-const APP_URL = String(process.env.APP_URL || "https://steptown.onrender.com").replace(/\/+$/, "");
+const SITE_URL = String(process.env.SITE_URL || "https://vitanova-1hfh.onrender.com").replace(/\/+$/, "");
+const APP_URL = SITE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
 const KEY = SESSION_SECRET ? createHash("sha256").update(SESSION_SECRET).digest() : null;
@@ -81,8 +82,8 @@ function isSameOrigin(req) {
 function safeNext(v) {
   if(typeof v!=="string"||!v.startsWith("/")||v.startsWith("//")||v.includes("\\")||/[\u0000-\u001f]/.test(v)) return "/profile";
   try {
-    const u=new URL(v,"https://step-town.invalid");
-    if(u.origin!=="https://step-town.invalid"||u.pathname.startsWith("/staff")) return "/profile";
+    const u=new URL(v,"https://vitanova.invalid");
+    if(u.origin!=="https://vitanova.invalid"||u.pathname.startsWith("/staff")) return "/profile";
     return u.pathname+u.search+u.hash;
   } catch { return "/profile"; }
 }
@@ -299,7 +300,7 @@ async function authRoutes(req,res,url) {
     if(!rateLimit(req,"register",5))return sendJson(res,429,{error:"Too many registration attempts. Try again in 15 minutes."});
     const b=await body(req),name=String(b.name||"").trim(),phone=phoneNumber(b.phone),password=String(b.password||"");
     if(name.length<2||name.length>120)return sendJson(res,400,{error:"Enter your full name (2–120 characters)."});
-    if(!phone)return sendJson(res,400,{error:"Enter a valid phone number with country code, for example +250780382589."});
+    if(!phone)return sendJson(res,400,{error:"Enter a valid phone number with country code, for example +250 793 607 387."});
     if(password.length<10||password.length>128)return sendJson(res,400,{error:"Use a password between 10 and 128 characters."});
     try{
       const result=await sb("/auth/v1/signup",{method:"POST",body:{phone,password,data:{full_name:name,name,phone}}});
@@ -653,22 +654,36 @@ async function api(req,res,url) {
     }catch(error){
       console.error("Order request:",error.status||502,error.message);
       const status=error.status&&error.status<500?error.status:502;
-      const message=status===400?"Some order details were invalid. Check the form and try again.":status===403?"The order service could not accept this request. Refresh the page and retry.":status===429?"Too many requests. Wait before sending another order.":"We could not save your order just now. Please retry or contact Step Town on WhatsApp.";
+      const message=status===400?"Some order details were invalid. Check the form and try again.":status===403?"The order service could not accept this request. Refresh the page and retry.":status===429?"Too many requests. Wait before sending another order.":"We could not save your order just now. Please retry or contact Vitanova on WhatsApp.";
       return sendJson(res,status,{error:message});
     }
   }
   return sendJson(res,404,{error:"API endpoint not found."});
 }
 function pageTitle(pathname){
-  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Your cart","/order":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
+  const titles={"/":"Vitanova","/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Your cart","/order":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
   if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
   if(pathname.startsWith("/categories/")){
     const slug=pathname.split("/").filter(Boolean).at(-1);
     if(slug==="cake")return CAKE_CATEGORY_LABEL;
     return "Menu category";
   }
-  if(pathname.startsWith("/staff"))return "Staff workspace";
-  return titles[pathname]||"Food · Celebrations · Cakes";
+  if(pathname.startsWith("/staff")){
+    const parts=pathname.split("/").filter(Boolean);
+    const section=parts[1]||"workspace";
+    const titles={
+      workspace:"Staff workspace",login:"Staff login",overview:"Overview",dashboard:"Overview",
+      orders:"Orders",products:"Products",gallery:"Gallery",enquiries:"Enquiries",
+      reports:"Reports",team:"Team",audit:"Audit log"
+    };
+    if(section==="orders"&&parts.length>2)return "Order details";
+    if(section==="products"&&parts.at(-1)==="new")return "New product";
+    if(section==="products"&&parts.at(-1)==="edit")return "Edit product";
+    if(section==="enquiries"&&parts.length>2)return "Enquiry details";
+    return titles[section]||"Staff workspace";
+  }
+  if(pathname.startsWith("/order/"))return "Order tracking";
+  return titles[pathname]||"Menu category";
 }
 async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   const decoded=decodeURIComponent(pathname);
@@ -687,12 +702,20 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   catch{return sendJson(res,staffRoute?503:404,{error:staffRoute?"The staff workspace is building. Refresh shortly.":"Static asset not found."});}
   const ext=path.extname(file).toLowerCase();
   const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/")||decoded==="/cart"||decoded==="/order");
-  if(ext===".html"&&path.basename(file)==="index.html"){
+  if(ext===".html"&&(path.basename(file)==="index.html"||path.basename(file)==="staff.html")){
     let html=data.toString("utf8");
     const lowerHtml=html.toLowerCase();
     const titleStart=lowerHtml.indexOf("<title>");
     const titleEnd=lowerHtml.indexOf("</title>",titleStart);
-    if(titleStart>=0&&titleEnd>titleStart)html=html.slice(0,titleStart)+"<title>Step Town | "+pageTitle(pathname)+"</title>"+html.slice(titleEnd+8);
+    const title=pathname==="/"?"Vitanova":pageTitle(pathname)+" | Vitanova";
+    if(titleStart>=0&&titleEnd>titleStart){
+      html=html.slice(0,titleStart)+"<title>"+title+"</title>"+html.slice(titleEnd+8);
+    }
+    const safeTitle=title.replace(/&/g,"&amp;").replace(/"/g,"&quot;");
+    html=html.replace(/(<meta property="og:title" content=")[^"]*(")/i,"$1"+safeTitle+"$2");
+    html=html.replace(/(<meta name="twitter:title" content=")[^"]*(")/i,"$1"+safeTitle+"$2");
+    const canonicalUrl=SITE_URL+(pathname==="/"?"":pathname);
+    html=html.replaceAll("__SITE_URL__",canonicalUrl);
     if(menuPage){
       try{
         if(decoded==="/cart"){
@@ -722,7 +745,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
             const numericPrice=product.price==null||product.price===""?null:Number(product.price);
             const unitPrice=numericPrice==null?"Price to be confirmed":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(numericPrice)+" per "+esc(product.price_unit_label||product.price_unit||"unit");
             const line=numericPrice==null?"Quote required":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(numericPrice);
-            markup='<p class="eyebrow">THE ITEM YOU SELECTED</p><article class="cart-selected-item order-selected-item"><div class="cart-selected-image">'+(image?'<img src="'+esc(image)+'" alt="'+esc(product.name)+'">':'<div class="product-image-placeholder">STEP TOWN</div>')+'</div><div class="cart-selected-copy"><span class="cart-selected-category">'+esc(product.category_name||product.category?.name||"Menu")+'</span><h2>'+esc(product.name)+'</h2>'+(product.description?'<p class="cart-summary-description">'+esc(product.description)+'</p>':'')+'<div class="cart-unit-price"><span>Unit price</span><strong>'+unitPrice+'</strong></div><div class="cart-item-footer"><div class="order-quantity"><button type="button" data-order-quantity="decrease" disabled aria-label="Decrease quantity">−</button><output id="order-quantity-value">1</output><button type="button" data-order-quantity="increase" aria-label="Increase quantity">+</button></div><div class="cart-line-total"><span>Calculated price</span><strong id="order-line-total">'+line+'</strong></div></div></div></article><p class="order-price-note">Calculated from the current menu price. Step Town confirms final availability and pricing before accepting the order.</p>';
+            markup='<p class="eyebrow">THE ITEM YOU SELECTED</p><article class="cart-selected-item order-selected-item"><div class="cart-selected-image">'+(image?'<img src="'+esc(image)+'" alt="'+esc(product.name)+'">':'<div class="product-image-placeholder">VITANOVA</div>')+'</div><div class="cart-selected-copy"><span class="cart-selected-category">'+esc(product.category_name||product.category?.name||"Menu")+'</span><h2>'+esc(product.name)+'</h2>'+(product.description?'<p class="cart-summary-description">'+esc(product.description)+'</p>':'')+'<div class="cart-unit-price"><span>Unit price</span><strong>'+unitPrice+'</strong></div><div class="cart-item-footer"><div class="order-quantity"><button type="button" data-order-quantity="decrease" disabled aria-label="Decrease quantity">−</button><output id="order-quantity-value">1</output><button type="button" data-order-quantity="increase" aria-label="Increase quantity">+</button></div><div class="cart-line-total"><span>Calculated price</span><strong id="order-line-total">'+line+'</strong></div></div></div></article><p class="order-price-note">Calculated from the current menu price. Vitanova confirms final availability and pricing before accepting the order.</p>';
           }else{
             markup='<div class="cart-empty"><strong>'+(productReference?"We could not load this menu item.":"Choose a menu item to start an order.")+'</strong><p>'+(productReference?"Please return to the menu and select an available item.":"Open the item you want from the menu to see its details and price here.")+'</p><a class="button button-dark" href="/categories">Browse the menu</a></div>';
           }
@@ -753,6 +776,9 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
 }
 async function handle(req,res){
   const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname).replace(/\/+$/,"")||"/";
+  if(req.method==="GET"&&route==="/favicon.ico"){
+    res.writeHead(302,{Location:"/favicon.svg","Cache-Control":"public, max-age=86400"}).end();return;
+  }
   if(req.method==="GET"&&route==="/api/auth/google")return oauthStart(req,res,url);
   if(req.method==="GET"&&route==="/auth/callback")return oauthCallback(req,res,url);
   if(req.method==="GET"&&route==="/categories/wedding-cakes"){
@@ -787,5 +813,5 @@ async function handle(req,res){
 }
 if(PROD&&!KEY)console.warn("SESSION_SECRET is missing: customer login remains disabled until configured.");
 const server=http.createServer((req,res)=>{res.setHeader("X-Content-Type-Options","nosniff");res.setHeader("Referrer-Policy","strict-origin-when-cross-origin");res.setHeader("X-Frame-Options","SAMEORIGIN");void handle(req,res).catch(e=>{console.error("Unhandled request:",e);if(!res.headersSent)sendJson(res,500,{error:"Unexpected server error."});else res.end();});});
-server.listen(PORT,"0.0.0.0",()=>console.log("Step Town server listening on "+PORT));
+server.listen(PORT,"0.0.0.0",()=>console.log("Vitanova server listening on "+PORT));
 setInterval(()=>{const now=Date.now();for(const [key,b] of limits)if(b.reset<=now)limits.delete(key);},60000).unref();

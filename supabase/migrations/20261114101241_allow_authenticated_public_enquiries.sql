@@ -1,7 +1,7 @@
 -- Allow public event enquiry submissions whether the visitor is signed out or authenticated.
 -- Keep public submissions in the New state and limit which fields the browser may insert.
-drop policy if exists "Public visitors can submit Step Town enquiries" on public.enquiries;
-create policy "Public visitors can submit Step Town enquiries"
+drop policy if exists "Public visitors can submit Vitanova enquiries" on public.enquiries;
+create policy "Public visitors can submit Vitanova enquiries"
 on public.enquiries
 for insert
 to anon, authenticated

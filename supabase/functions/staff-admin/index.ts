@@ -1,18 +1,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { getAllowedSiteOrigins, getSiteUrl } from "../_shared/site.ts";
 
-const cors = {
-  "Access-Control-Allow-Origin": "https://steptown.onrender.com",
+const allowedOrigins = getAllowedSiteOrigins();
+const corsHeaders = (origin: string | null) => ({
+  "Access-Control-Allow-Origin": origin && allowedOrigins.has(origin) ? origin : new URL(getSiteUrl()).origin,
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Vary": "Origin",
-};
+});
 const reply = (body: unknown, status = 200, origin: string | null = null) =>
   new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...cors,
-      "Access-Control-Allow-Origin": origin === "https://steptown.onrender.com" || origin === "http://localhost:5173"
-        ? origin : cors["Access-Control-Allow-Origin"],
+      ...corsHeaders(origin),
       "Content-Type": "application/json",
     },
   });
@@ -21,8 +21,8 @@ const clean = (value: unknown, max = 160) => String(value ?? "").trim().slice(0,
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST" || (origin && ![ "https://steptown.onrender.com", "http://localhost:5173" ].includes(origin))) {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(origin) });
+  if (req.method !== "POST" || (origin && !allowedOrigins.has(origin))) {
     return reply({ error: "Origin or method not allowed." }, 403, origin);
   }
 
@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
   const { data: actor, error: actorError } = await admin.from("staff_profiles")
     .select("id,user_id,full_name,email,role,is_active,must_change_password")
     .eq("user_id", user.id).maybeSingle();
-  if (actorError || !actor?.is_active) return reply({ error: "This is not an active Step Town staff account." }, 403, origin);
+  if (actorError || !actor?.is_active) return reply({ error: "This is not an active Vitanova staff account." }, 403, origin);
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") return reply({ error: "Invalid request body." }, 400, origin);

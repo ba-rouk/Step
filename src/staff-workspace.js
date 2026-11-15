@@ -2,7 +2,7 @@ import { normalizeCategoryLabel } from "./catalog-config.js";
 import { supabase, supabaseConfigured } from "./supabase.js";
 import "../staff.css";
 import "./theme-controls.css";
-import { confirmStepTown, promptStepTown } from "./site-dialogs.js";
+import { confirmVitanova, promptVitanova } from "./site-dialogs.js";
 
 const PATH = location.pathname.replace(/\/+$/, "") || "/";
 const PUBLIC_HOME_URL = "/";
@@ -135,9 +135,9 @@ function shell(title, body, subtitle = "") {
   const role = esc(ROLE_LABEL[profile?.role] || "Staff");
   app.innerHTML =
     '<header class="staff-top">' +
-      '<a class="staff-brand" href="/" aria-label="Step Town home">' +
-        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Step Town logo">' +
-        '<span><b>STEP TOWN</b><small>STAFF WORKSPACE</small></span>' +
+      '<a class="staff-brand" href="/" aria-label="Vitanova home">' +
+        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova logo">' +
+        '<span><b>VITANOVA</b><small>STAFF WORKSPACE</small></span>' +
       "</a>" +
       '<div class="staff-top-meta"><span>' + name + "</span><small>" + role + "</small></div>" +
       '<button id="staff-menu-toggle" class="staff-menu-toggle" type="button" aria-label="Open staff menu" aria-expanded="false" aria-controls="staff-sidebar"><span></span><span></span><span></span></button>' +
@@ -324,7 +324,7 @@ async function getProfile() {
 function loginView(message = "") {
   app.innerHTML =
     '<div class="staff-login-wrap">' +
-      '<a class="staff-brand staff-login-brand" href="https://steptown.onrender.com/" aria-label="Step Town home"><img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Step Town"><span><b>STEP TOWN</b><small>STAFF ACCESS</small></span></a>' +
+      '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Vitanova home"><img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova logo"><span><b>VITANOVA</b><small>STAFF ACCESS</small></span></a>' +
       '<section class="staff-login-card">' +
         '<p class="staff-eyebrow">PRIVATE TEAM PORTAL</p><h1>Welcome back.</h1>' +
         '<p class="staff-muted">Sign in with the account created by your Manager.</p>' +
@@ -357,7 +357,7 @@ function loginView(message = "") {
       const staff = await getProfile();
       if (!staff) {
         await supabase.auth.signOut({ scope: "global" });
-        throw new Error("This account does not have active Step Town staff access. Contact your Manager.");
+        throw new Error("This account does not have active Vitanova staff access. Contact your Manager.");
       }
       void writeAudit("staff_login", "staff_profile", staff.id, {}).catch(error => console.warn("Login audit deferred:", error));
       const next = new URLSearchParams(location.search).get("next");
@@ -633,12 +633,12 @@ async function orderDetailPage(id) {
   $$("[data-payment-edit]").forEach(button => button.addEventListener("click", async () => {
     const payment = payments.find(row => row.id === button.dataset.paymentEdit);
     if (!payment) return;
-    const method = await promptStepTown("Choose how this payment was received.", {
+    const method = await promptVitanova("Choose how this payment was received.", {
       title:"Edit payment", fieldLabel:"Payment method", value:payment.method,
       options:[{value:"cash",label:"Cash"},{value:"mobile_money",label:"Mobile money"}], required:true
     });
     if (method === null) return;
-    const amountText = await promptStepTown("Enter the corrected amount in Rwandan francs.", {
+    const amountText = await promptVitanova("Enter the corrected amount in Rwandan francs.", {
       title:"Edit payment", fieldLabel:"Amount (RWF)", value:String(payment.amount), inputType:"number", min:"0.01", step:"1", required:true
     });
     if (amountText === null) return;
@@ -646,11 +646,11 @@ async function orderDetailPage(id) {
     if (!["cash", "mobile_money"].includes(method) || !Number.isFinite(amount) || amount <= 0) {
       notify("Use cash/mobile_money and a positive amount.", "warning"); return;
     }
-    const reference = await promptStepTown("Enter the transaction reference, if one is available.", {
+    const reference = await promptVitanova("Enter the transaction reference, if one is available.", {
       title:"Edit payment", fieldLabel:"Transaction reference", value:payment.reference || "", required:false
     });
     if (reference === null) return;
-    const notes = await promptStepTown("Add a note about this payment, if needed.", {
+    const notes = await promptVitanova("Add a note about this payment, if needed.", {
       title:"Edit payment", fieldLabel:"Payment note", value:payment.notes || "", inputType:"textarea", required:false
     });
     if (notes === null) return;
@@ -662,7 +662,7 @@ async function orderDetailPage(id) {
     else { notify("Payment corrected."); await orderDetailPage(order.id); }
   }));
   $$("[data-payment-delete]").forEach(button => button.addEventListener("click", async () => {
-    if (!(await confirmStepTown("Delete this payment record? This action will be recorded in the audit log.", {
+    if (!(await confirmVitanova("Delete this payment record? This action will be recorded in the audit log.", {
       title:"Delete payment", confirmText:"Delete payment", danger:true
     }))) return;
     const { error } = await supabase.rpc("staff_delete_order_payment", { p_payment_id: button.dataset.paymentDelete });
@@ -678,9 +678,9 @@ async function orderDetailPage(id) {
     const paymentRows = payments.map(payment =>
       "<tr><td>" + esc(statusLabel(payment.method)) + "</td><td>" + money(payment.amount) + "</td><td>" + esc(payment.reference || "—") + "</td><td>" + esc(fmtDate(payment.recorded_at)) + "</td></tr>"
     ).join("");
-    const html = "<!doctype html><html><head><meta charset='utf-8'><title>Receipt " + esc(order.order_number) + "</title><style>" +
+    const html = "<!doctype html><html><head><meta charset='utf-8'><title>Receipt " + esc(order.order_number) + " | Vitanova</title><style>" +
       "body{font:14px Arial,sans-serif;color:#171717;margin:32px}h1{font-size:21px;margin:0 0 5px}h2{font-size:14px;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.08em}p{margin:5px 0}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:8px 6px;border-bottom:1px solid #ddd}th{font-size:11px;text-transform:uppercase}.total{font-size:18px;font-weight:bold;margin-top:14px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:14px}.cashier{margin-top:24px;padding-top:12px;border-top:1px solid #ccc}@media print{body{margin:12mm}}" +
-      "</style></head><body><h1>STEP TOWN</h1><p>Receipt · " + esc(order.order_number) + "</p><h2>Customer</h2><p><b>" + esc(order.customer_name) + "</b></p><p>" + esc(order.customer_phone) + "</p><p>" + esc(order.customer_email || "") + "</p>" +
+      "</style></head><body><h1>VITANOVA</h1><p>Receipt · " + esc(order.order_number) + "</p><h2>Customer</h2><p><b>" + esc(order.customer_name) + "</b></p><p>" + esc(order.customer_phone) + "</p><p>" + esc(order.customer_email || "") + "</p>" +
       "<div class='meta'><p><b>Order type:</b> " + esc(statusLabel(order.fulfillment)) + "</p><p><b>Requested:</b> " + esc(order.requested_date || "Not set") + " " + esc(order.requested_time || "") + "</p><p><b>Pickup / delivery:</b> " + esc(order.delivery_location || "Pickup") + "</p><p><b>Order date:</b> " + esc(fmtDate(order.created_at)) + "</p></div>" +
       "<h2>Order</h2><table><thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead><tbody>" + receiptItems + "</tbody></table><p class='total'>Total: " + money(order.estimated_total) + "</p>" +
       "<h2>Payment details</h2><table><thead><tr><th>Method</th><th>Amount</th><th>Reference</th><th>Date</th></tr></thead><tbody>" + (paymentRows || "<tr><td colspan='4'>No payment recorded</td></tr>") + "</tbody></table>" +
@@ -1004,7 +1004,7 @@ async function productsPage() {
       else { await writeAudit("product_visibility_changed", "store_product", item.id, { is_visible: isVisible }); await invalidatePublicCatalog(); notify("Menu visibility updated."); await productsPage(); }
     }));
     $$("[data-product-delete]").forEach(button => button.addEventListener("click", async () => {
-      if (!(await confirmStepTown("This permanently removes the menu item from the catalogue. This action cannot be undone.", {
+      if (!(await confirmVitanova("This permanently removes the menu item from the catalogue. This action cannot be undone.", {
         title:"Delete menu item", confirmText:"Delete item", danger:true
       }))) return;
       const id = button.dataset.productDelete;
@@ -1057,8 +1057,8 @@ async function galleryPage() {
           '<label class="staff-gallery-caption">Caption<input data-gallery-caption="' + item.id + '" value="' + esc(item.caption || "") + '" maxlength="500"></label></article>'
       ).join("") + "</div>" : '<p class="staff-empty">No gallery images yet.</p>') + "</section>" +
     '<dialog id="staff-gallery-lightbox" class="staff-gallery-lightbox"><button type="button" class="staff-gallery-lightbox-close" aria-label="Close image viewer">×</button><button type="button" class="staff-gallery-lightbox-prev" aria-label="Previous image">‹</button><img id="staff-gallery-lightbox-image" alt=""><button type="button" class="staff-gallery-lightbox-next" aria-label="Next image">›</button><p id="staff-gallery-lightbox-count"></p></dialog>' +
-    '<dialog id="staff-gallery-delete-dialog" class="step-town-popup staff-gallery-delete-dialog" aria-labelledby="staff-gallery-delete-title"><div class="staff-gallery-delete-card"><p class="staff-eyebrow">GALLERY LIBRARY</p><h3 id="staff-gallery-delete-title">Delete this photo?</h3><p>This removes the photo from the public gallery and deletes its stored image. This action cannot be undone.</p><div class="staff-gallery-delete-actions"><button type="button" class="staff-gallery-delete-cancel" id="staff-gallery-delete-cancel">Cancel</button><button type="button" class="staff-gallery-delete-confirm" id="staff-gallery-delete-confirm">Delete photo</button></div></div></dialog>' +
-    '<dialog id="staff-gallery-edit-dialog" class="step-town-popup staff-gallery-edit-dialog" aria-labelledby="staff-gallery-edit-title"><form id="staff-gallery-edit-form" class="staff-gallery-edit-card"><p class="staff-eyebrow">GALLERY LIBRARY</p><h3 id="staff-gallery-edit-title">Edit gallery photo</h3><label>Title<input name="title" maxlength="120" autocomplete="off"></label><label>Category<select name="category" required><option value="catering">Catering</option><option value="barbecue">Barbecue</option><option value="cakes">Cakes</option><option value="staff">Staff</option></select></label><label>Caption<textarea name="caption" rows="3" maxlength="500"></textarea></label><label>Alt text<input name="alt_text" maxlength="240" autocomplete="off"></label><p id="staff-gallery-edit-error" class="staff-error" role="alert"></p><div class="staff-gallery-edit-actions"><button type="button" id="staff-gallery-edit-cancel">Cancel</button><button type="submit" id="staff-gallery-edit-save">Save changes</button></div></form></dialog>');
+    '<dialog id="staff-gallery-delete-dialog" class="vitanova-popup staff-gallery-delete-dialog" aria-labelledby="staff-gallery-delete-title"><div class="staff-gallery-delete-card"><p class="staff-eyebrow">GALLERY LIBRARY</p><h3 id="staff-gallery-delete-title">Delete this photo?</h3><p>This removes the photo from the public gallery and deletes its stored image. This action cannot be undone.</p><div class="staff-gallery-delete-actions"><button type="button" class="staff-gallery-delete-cancel" id="staff-gallery-delete-cancel">Cancel</button><button type="button" class="staff-gallery-delete-confirm" id="staff-gallery-delete-confirm">Delete photo</button></div></div></dialog>' +
+    '<dialog id="staff-gallery-edit-dialog" class="vitanova-popup staff-gallery-edit-dialog" aria-labelledby="staff-gallery-edit-title"><form id="staff-gallery-edit-form" class="staff-gallery-edit-card"><p class="staff-eyebrow">GALLERY LIBRARY</p><h3 id="staff-gallery-edit-title">Edit gallery photo</h3><label>Title<input name="title" maxlength="120" autocomplete="off"></label><label>Category<select name="category" required><option value="catering">Catering</option><option value="barbecue">Barbecue</option><option value="cakes">Cakes</option><option value="staff">Staff</option></select></label><label>Caption<textarea name="caption" rows="3" maxlength="500"></textarea></label><label>Alt text<input name="alt_text" maxlength="240" autocomplete="off"></label><p id="staff-gallery-edit-error" class="staff-error" role="alert"></p><div class="staff-gallery-edit-actions"><button type="button" id="staff-gallery-edit-cancel">Cancel</button><button type="submit" id="staff-gallery-edit-save">Save changes</button></div></form></dialog>');
   const lightbox = $("#staff-gallery-lightbox");
   let lightboxIndex = 0;
   const showGalleryImage = index => {
@@ -1066,7 +1066,7 @@ async function galleryPage() {
     lightboxIndex = (index + items.length) % items.length;
     const item = items[lightboxIndex];
     $("#staff-gallery-lightbox-image").src = item.image_url;
-    $("#staff-gallery-lightbox-image").alt = item.alt_text || item.title || "Step Town gallery image";
+    $("#staff-gallery-lightbox-image").alt = item.alt_text || item.title || "Vitanova gallery image";
     $("#staff-gallery-lightbox-count").textContent = (lightboxIndex + 1) + " / " + items.length;
     if (!lightbox.open) lightbox.showModal();
   };
@@ -1397,7 +1397,7 @@ async function reportsPage() {
   $("#report-refresh").addEventListener("click", refresh);
   $("#report-export").addEventListener("click", () => {
     if (!reportData) { notify("Load a report first.", "warning"); return; }
-    downloadCsv("step-town-report-" + reportData.from + "-to-" + reportData.to + ".csv", [
+    downloadCsv("vitanova-report-" + reportData.from + "-to-" + reportData.to + ".csv", [
       ["Order", "Customer", "Phone", "Status", "Total RWF", "Date", "Fulfilment"],
       ...reportData.orders.map(o => [o.order_number, o.customer_name, o.customer_phone, o.status, o.estimated_total, o.created_at, o.fulfillment]),
       [],
@@ -1488,7 +1488,7 @@ async function teamPage() {
     await teamPage();
   });
   $$("[data-team-reset]").forEach(button => button.addEventListener("click", async () => {
-    const password = await promptStepTown("Enter a temporary password. The staff member will be required to change it at their next sign-in.", {
+    const password = await promptVitanova("Enter a temporary password. The staff member will be required to change it at their next sign-in.", {
       title:"Reset staff password", fieldLabel:"Temporary password", inputType:"password", min:null, required:true, placeholder:"At least 12 characters", confirmText:"Set password"
     });
     if (password === null || !password) return;
@@ -1501,7 +1501,7 @@ async function teamPage() {
   }));
   $$("[data-team-toggle]").forEach(button => button.addEventListener("click", async () => {
     const active = button.dataset.active === "true";
-    if (active && !(await confirmStepTown("Deactivate this account? Their staff permissions will be revoked immediately.", {
+    if (active && !(await confirmVitanova("Deactivate this account? Their staff permissions will be revoked immediately.", {
       title:"Deactivate staff account", confirmText:"Deactivate", danger:true
     }))) return;
     button.disabled = true;
@@ -1548,7 +1548,7 @@ async function auditPage() {
   ["audit-user", "audit-action", "audit-date"].forEach(id => $("#" + id).addEventListener(id === "audit-action" ? "input" : "change", () => { page = 0; render(); }));
   $("#audit-prev").addEventListener("click", () => { page = Math.max(0, page - 1); render(); });
   $("#audit-next").addEventListener("click", () => { if ((page + 1) * pageSize < filtered.length) page++; render(); });
-  $("#audit-export").addEventListener("click", () => downloadCsv("step-town-audit-log.csv", [
+  $("#audit-export").addEventListener("click", () => downloadCsv("vitanova-audit-log.csv", [
     ["Time", "User", "Role", "Action"],
     ...filtered.map(log => [log.created_at, teamByUser.get(log.actor_id)?.full_name || "", log.actor_role, log.action])
   ]));
@@ -1557,9 +1557,9 @@ async function auditPage() {
 function changePasswordPage() {
   app.innerHTML =
     '<div class="staff-login-wrap">' +
-      '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Return to Step Town home">' +
-        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Step Town">' +
-        '<span><b>STEP TOWN</b><small>STAFF ACCESS</small></span>' +
+      '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Return to Vitanova home">' +
+        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova logo">' +
+        '<span><b>VITANOVA</b><small>STAFF ACCESS</small></span>' +
       '</a>' +
       '<section class="staff-login-card staff-password">' +
         '<p class="staff-eyebrow">FIRST SIGN-IN SECURITY</p>' +
@@ -1573,7 +1573,7 @@ function changePasswordPage() {
         '</form>' +
         '<button id="staff-password-signout" class="staff-quiet" type="button" style="margin-top:14px">Sign out</button>' +
       '</section>' +
-      '<a class="staff-cancel" href="' + PUBLIC_HOME_URL + '" aria-label="Return to Step Town website">×</a>' +
+      '<a class="staff-cancel" href="' + PUBLIC_HOME_URL + '" aria-label="Return to Vitanova website">×</a>' +
     '</div>';
 
   $("#staff-password-signout")?.addEventListener("click", async () => {

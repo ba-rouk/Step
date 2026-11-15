@@ -1,14 +1,14 @@
 self.addEventListener("push", event => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; }
-  catch { payload = { body: event.data ? event.data.text() : "A new Step Town update is available." }; }
-  const title = payload.title || "Step Town";
+  catch { payload = { body: event.data ? event.data.text() : "A new Vitanova update is available." }; }
+  const title = payload.title || "Vitanova";
   const options = {
     body: payload.body || "You have a new order or staff update.",
     icon: "https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg",
     badge: "https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg",
     data: { url: payload.url || "/staff/orders" },
-    tag: payload.tag || "step-town-update",
+    tag: payload.tag || "vitanova-update",
     renotify: true
   };
   event.waitUntil(self.registration.showNotification(title, options));

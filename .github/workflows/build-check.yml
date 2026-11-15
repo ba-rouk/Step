@@ -1,4 +1,4 @@
-name: Step Town build check
+name: Vitanova build check
 
 on:
   pull_request:

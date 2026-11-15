@@ -7,7 +7,7 @@ Deno.serve(async req=>{
   const db=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{autoRefreshToken:false,persistSession:false}});
   const pub=Deno.env.get("VAPID_PUBLIC_KEY"),priv=Deno.env.get("VAPID_PRIVATE_KEY");
   if(!pub||!priv)return Response.json({error:"VAPID keys missing"},{status:503});
-  webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT")||"mailto:orders@steptown.rw",pub,priv);
+  webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT")||"mailto:orders@your-verified-domain.example",pub,priv);
   const cutoff=new Date(Date.now()-10*60*1000).toISOString();
   const {data:cashierStage,error:a}=await db.from("store_orders").select("id,order_number,items,estimated_total,fulfillment,requested_time").eq("status","new").is("acknowledged_at",null).is("escalated_at",null).lt("created_at",cutoff).limit(100);
   if(a)return Response.json({error:a.message},{status:500});

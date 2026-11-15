@@ -8,8 +8,8 @@
 }
 html:has(dialog[open]), body:has(dialog[open]), body.step-modal-open { overflow: hidden; }
 
-dialog.step-town-action-dialog,
-dialog.step-town-popup,
+dialog.vitanova-action-dialog,
+dialog.vitanova-popup,
 dialog.staff-gallery-lightbox {
   margin: auto;
   max-width: calc(100vw - 24px);
@@ -23,24 +23,24 @@ dialog.staff-gallery-lightbox {
   -webkit-backdrop-filter: blur(24px) saturate(135%);
   backdrop-filter: blur(24px) saturate(135%);
 }
-dialog.step-town-action-dialog { width: min(560px, calc(100vw - 24px)); padding: 0; }
-dialog.step-town-popup { width: min(560px, calc(100vw - 24px)); }
+dialog.vitanova-action-dialog { width: min(560px, calc(100vw - 24px)); padding: 0; }
+dialog.vitanova-popup { width: min(560px, calc(100vw - 24px)); }
 dialog.staff-gallery-lightbox { width: min(1080px, calc(100vw - 24px)); }
-dialog.step-town-action-dialog::backdrop,
-dialog.step-town-popup::backdrop,
+dialog.vitanova-action-dialog::backdrop,
+dialog.vitanova-popup::backdrop,
 dialog.staff-gallery-lightbox::backdrop {
   background: rgba(10, 8, 8, .72);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
-.step-town-action-card { padding: clamp(22px, 4vw, 34px); }
-.step-town-action-card h2 { font-size: clamp(23px, 4vw, 30px); }
-.step-town-action-message { font-size: 13px; line-height: 1.65; }
-.step-town-action-field input,
-.step-town-action-field select,
-.step-town-action-field textarea { min-height: 46px; border-radius: 13px; }
-.step-town-action-actions { gap: 10px; }
-.step-town-action-actions button { min-height: 42px; padding-inline: 18px; }
+.vitanova-action-card { padding: clamp(22px, 4vw, 34px); }
+.vitanova-action-card h2 { font-size: clamp(23px, 4vw, 30px); }
+.vitanova-action-message { font-size: 13px; line-height: 1.65; }
+.vitanova-action-field input,
+.vitanova-action-field select,
+.vitanova-action-field textarea { min-height: 46px; border-radius: 13px; }
+.vitanova-action-actions { gap: 10px; }
+.vitanova-action-actions button { min-height: 42px; padding-inline: 18px; }
 
 .staff-modal {
   position: fixed;
@@ -73,7 +73,7 @@ dialog.staff-gallery-lightbox::backdrop {
 .staff-modal .staff-panel-head { position: sticky; top: 0; z-index: 2; }
 
 .staff-action-menu-pop,
-[role="menu"].step-town-popup-menu {
+[role="menu"].vitanova-popup-menu {
   min-width: 190px;
   padding: 7px;
   border: 1px solid var(--step-overlay-border);
@@ -87,8 +87,8 @@ dialog.staff-gallery-lightbox::backdrop {
 .staff-action-menu-pop a,
 .staff-action-menu-pop button,
 .staff-action-menu-pop .staff-file-button,
-[role="menu"].step-town-popup-menu a,
-[role="menu"].step-town-popup-menu button {
+[role="menu"].vitanova-popup-menu a,
+[role="menu"].vitanova-popup-menu button {
   min-height: 40px;
   display: flex;
   align-items: center;
@@ -105,8 +105,8 @@ dialog.staff-gallery-lightbox::backdrop {
 .staff-action-menu-pop a:hover,
 .staff-action-menu-pop button:hover,
 .staff-action-menu-pop .staff-file-button:hover,
-[role="menu"].step-town-popup-menu a:hover,
-[role="menu"].step-town-popup-menu button:hover { background: rgba(232, 189, 145, .16); }
+[role="menu"].vitanova-popup-menu a:hover,
+[role="menu"].vitanova-popup-menu button:hover { background: rgba(232, 189, 145, .16); }
 
 /* Native select remains the form control and source of truth. */
 .step-select { position: relative; display: block; width: 100%; min-width: 0; }
@@ -202,12 +202,12 @@ dialog.staff-gallery-lightbox::backdrop {
 }
 .staff-app .step-select-trigger.is-placeholder { color: #c8b7aa; }
 .staff-app .step-select-trigger:hover { background: rgba(255,255,255,.11); border-color: rgba(232,189,145,.55); }
-.step-town-action-field .step-select-trigger,
+.vitanova-action-field .step-select-trigger,
 .staff-gallery-edit-card .step-select-trigger { color: #fff4e9; background: rgba(255,255,255,.07); }
 @media (max-width: 600px) {
   .step-select-list { max-height: min(280px, 42dvh); }
-  dialog.step-town-action-dialog,
-  dialog.step-town-popup,
+  dialog.vitanova-action-dialog,
+  dialog.vitanova-popup,
   dialog.staff-gallery-lightbox { max-height: 88dvh; }
 }
 

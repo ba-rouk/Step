@@ -1,6 +1,6 @@
 -- Anonymous orders are inserted by submit-store-order using the service role.
 -- Direct anon table writes are revoked so callers cannot bypass API/Edge validation.
-drop policy if exists "Guests can place Step Town orders" on public.store_orders;
+drop policy if exists "Guests can place Vitanova orders" on public.store_orders;
 revoke insert on public.store_orders from anon;
 
 create table if not exists public.step_order_rate_limits (

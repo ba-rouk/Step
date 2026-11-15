@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Step Town Staff & Catering",
-  "short_name": "Step Town",
-  "description": "Step Town catering, barbecue and Cake staff workspace.",
+  "name": "Vitanova",
+  "short_name": "Vitanova",
+  "description": "Vitanova catering, barbecue and Cake staff workspace.",
   "start_url": "/staff/dashboard",
   "scope": "/",
   "display": "standalone",

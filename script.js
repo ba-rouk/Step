@@ -153,7 +153,7 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
       if (!form.reportValidity()) return;
 
       if (!supabaseConfigured || !supabase) {
-        if (error) error.textContent = "Enquiry saving is not configured yet. Please contact Step Town directly on WhatsApp or phone.";
+        if (error) error.textContent = "Enquiry saving is not configured yet. Please contact Vitanova directly on WhatsApp or phone.";
         return;
       }
 
@@ -226,24 +226,24 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
       }
 
       if (insertError) {
-        console.error("Step Town enquiry submission failed:", insertError);
+        console.error("Vitanova enquiry submission failed:", insertError);
         const issue = enquiryConstraintIssue(insertError);
         if (issue) {
           showEnquiryIssue(issue[0],issue[2]);
         } else if (insertError?.code === "42501") {
-          if (error) error.textContent = "We couldn't save your enquiry. Issue: submission permission — refresh the page and try again. If it continues, contact Step Town on WhatsApp.";
+          if (error) error.textContent = "We couldn't save your enquiry. Issue: submission permission — refresh the page and try again. If it continues, contact Vitanova on WhatsApp.";
         } else if (insertError?.code === "22023") {
           if (error) error.textContent = "We couldn't save your enquiry. Issue: one of the date or number fields has an invalid value. Check Event date and Approx. guests.";
           const guestField = form.elements.guests;
           if (guestField) { guestField.setAttribute("aria-invalid","true"); guestField.focus(); }
         } else if (error) {
-          error.textContent = "We couldn't save your enquiry. Issue: " + (insertError?.message || "the enquiry service could not accept the request") + ". Check the highlighted details or contact Step Town on WhatsApp.";
+          error.textContent = "We couldn't save your enquiry. Issue: " + (insertError?.message || "the enquiry service could not accept the request") + ". Check the highlighted details or contact Vitanova on WhatsApp.";
         }
         return;
       }
 
       const lines = [
-        "Hello Step Town, I have just submitted an enquiry on your website.",
+        "Hello Vitanova, I have just submitted an enquiry on your website.",
         "",
         "Name: " + name,
         "My phone: " + phone,
@@ -256,14 +256,14 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
         "Please let me know the next steps. Thank you."
       ].filter(Boolean);
 
-      const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(lines.join("\n"));
+      const whatsappUrl = "https://wa.me/250793607387?text=" + encodeURIComponent(lines.join("\n"));
       form.reset();
       if (error) {
         error.textContent = "Thank you — your enquiry has been saved successfully.";
         error.style.color = "#55704b";
       }
       if (privacyNote) {
-        privacyNote.textContent = "Your enquiry has been saved securely. You can also send the details to Step Town on WhatsApp.";
+        privacyNote.textContent = "Your enquiry has been saved securely. You can also send the details to Vitanova on WhatsApp.";
       }
 
       const whatsappLink = document.createElement("a");
