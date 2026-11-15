@@ -44,7 +44,7 @@ Deno.serve(async req=>{
   const orderPath="/staff/orders/"+encodeURIComponent(order.id);
   const orderUrl=getSiteUrl()+orderPath;
   const payload=JSON.stringify({title:"New order "+order.order_number,body,url:orderPath,tag:"order-"+order.id});
-  const pub=Deno.env.get("VAPID_PUBLIC_KEY"),priv=Deno.env.get("VAPID_PRIVATE_KEY"),subject=Deno.env.get("VAPID_SUBJECT")||"mailto:orders@vitanova.rw";
+  const pub=Deno.env.get("VAPID_PUBLIC_KEY"),priv=Deno.env.get("VAPID_PRIVATE_KEY"),subject=Deno.env.get("VAPID_SUBJECT")||"mailto:orders@your-verified-domain.example";
   const outcomes:boolean[]=[];
   if(pub&&priv){
     webpush.setVapidDetails(subject,pub,priv);
