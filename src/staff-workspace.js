@@ -1037,11 +1037,12 @@ async function galleryPage() {
     '<section class="staff-panel"><div class="staff-panel-head"><h2>Gallery library</h2><span class="staff-muted">' + items.length + " images</span></div>" +
       (items.length ? '<div class="staff-gallery staff-gallery-manage">' + items.map((item, index) =>
         '<article class="staff-gallery-card"><div class="staff-gallery-image-wrap"><button class="staff-gallery-preview" type="button" data-gallery-preview="' + index + '" aria-label="View ' + esc(item.title || "gallery image") + '"><img src="' + esc(item.image_url) + '" alt="' + esc(item.alt_text || item.title || "") + '" loading="lazy"></button>' +
-          '<details class="staff-action-menu staff-gallery-menu"><summary aria-label="Gallery image actions">•••</summary><div class="staff-action-menu-pop"><button type="button" data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button type="button" data-gallery-delete="' + item.id + '">Delete</button><button type="button" data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + '>Move up</button><button type="button" data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + '>Move down</button></div></details></div>' +
+          '<details class="staff-action-menu staff-gallery-menu"><summary aria-label="Gallery image actions">•••</summary><div class="staff-action-menu-pop"><button type="button" data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button type="button" data-gallery-delete="' + item.id + '">Delete photo</button><button type="button" data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + '>Move up</button><button type="button" data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + '>Move down</button></div></details></div>' +
           '<b>' + esc(item.title || "Gallery image") + "</b><small>" + esc(statusLabel(item.category)) + " · " + (item.is_published ? "Published" : "Hidden") + "</small>" +
           '<label class="staff-gallery-caption">Caption<input data-gallery-caption="' + item.id + '" value="' + esc(item.caption || "") + '" maxlength="500"></label></article>'
       ).join("") + "</div>" : '<p class="staff-empty">No gallery images yet.</p>') + "</section>" +
-    '<dialog id="staff-gallery-lightbox" class="staff-gallery-lightbox"><button type="button" class="staff-gallery-lightbox-close" aria-label="Close image viewer">×</button><button type="button" class="staff-gallery-lightbox-prev" aria-label="Previous image">‹</button><img id="staff-gallery-lightbox-image" alt=""><button type="button" class="staff-gallery-lightbox-next" aria-label="Next image">›</button><p id="staff-gallery-lightbox-count"></p></dialog>');
+    '<dialog id="staff-gallery-lightbox" class="staff-gallery-lightbox"><button type="button" class="staff-gallery-lightbox-close" aria-label="Close image viewer">×</button><button type="button" class="staff-gallery-lightbox-prev" aria-label="Previous image">‹</button><img id="staff-gallery-lightbox-image" alt=""><button type="button" class="staff-gallery-lightbox-next" aria-label="Next image">›</button><p id="staff-gallery-lightbox-count"></p></dialog>' +
+    '<dialog id="staff-gallery-delete-dialog" class="step-town-popup staff-gallery-delete-dialog" aria-labelledby="staff-gallery-delete-title"><div class="staff-gallery-delete-card"><p class="staff-eyebrow">GALLERY LIBRARY</p><h3 id="staff-gallery-delete-title">Delete this photo?</h3><p>This removes the photo from the public gallery and deletes its stored image. This action cannot be undone.</p><div class="staff-gallery-delete-actions"><button type="button" class="staff-gallery-delete-cancel" id="staff-gallery-delete-cancel">Cancel</button><button type="button" class="staff-gallery-delete-confirm" id="staff-gallery-delete-confirm">Delete photo</button></div></div></dialog>');
   const lightbox = $("#staff-gallery-lightbox");
   let lightboxIndex = 0;
   const showGalleryImage = index => {
@@ -1144,18 +1145,47 @@ async function galleryPage() {
       await galleryPage();
     } catch (error) { notify(error.message, "error"); }
   }));
-  $$("[data-gallery-delete]").forEach(button => button.addEventListener("click", async () => {
-    if (!confirm("Delete this gallery item?")) return;
-    const id = button.dataset.galleryDelete;
+  const deleteDialog = $("#staff-gallery-delete-dialog");
+  const deleteConfirm = $("#staff-gallery-delete-confirm");
+  let pendingDeleteId = null;
+  $("[data-gallery-delete]").forEach(button => button.addEventListener("click", () => {
+    pendingDeleteId = button.dataset.galleryDelete;
+    button.closest("details")?.removeAttribute("open");
+    if (deleteDialog?.showModal) deleteDialog.showModal();
+    else notify("This browser cannot open the delete confirmation. Please use an up-to-date browser.", "warning");
+  }));
+  $("#staff-gallery-delete-cancel")?.addEventListener("click", () => {
+    pendingDeleteId = null;
+    deleteDialog?.close();
+  });
+  deleteDialog?.addEventListener("click", event => {
+    if (event.target === deleteDialog) {
+      pendingDeleteId = null;
+      deleteDialog.close();
+    }
+  });
+  deleteConfirm?.addEventListener("click", async () => {
+    const id = pendingDeleteId;
+    if (!id || deleteConfirm.disabled) return;
     const item = items.find(row => row.id === id);
-    const { error } = await supabase.from("gallery_items").delete().eq("id", id);
-    if (error) notify(error.message, "error");
-    else {
+    deleteConfirm.disabled = true;
+    deleteConfirm.textContent = "Deleting…";
+    try {
+      const { error } = await supabase.from("gallery_items").delete().eq("id", id);
+      if (error) throw error;
       if (item?.image_url) await removeGalleryStorageObject(item.image_url);
       await writeAudit("gallery_image_deleted", "gallery_item", id, {});
+      pendingDeleteId = null;
+      deleteDialog?.close();
+      notify("Photo deleted from the gallery.");
       await galleryPage();
+    } catch (error) {
+      notify(error.message || "The gallery photo could not be deleted.", "error");
+    } finally {
+      deleteConfirm.disabled = false;
+      deleteConfirm.textContent = "Delete photo";
     }
-  }));
+  });
 }
 function enquiryTable(data) {
   return data.length ? '<div class="staff-table-wrap"><table><thead><tr><th>Customer</th><th>Service</th><th>Event date</th><th>Guests</th><th>Status</th><th></th></tr></thead><tbody>' +
