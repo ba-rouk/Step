@@ -89,7 +89,7 @@ export function renderProductCard(product, options = {}) {
           ' decoding="async" draggable="false">';
       }).join("")
     : '<div class="product-image-placeholder" role="img" aria-label="' +
-      escapeHtml(product.name) + ' image unavailable">STEP TOWN</div>';
+      escapeHtml(product.name) + ' image unavailable">VITANOVA</div>';
 
   const dots = images.length > 1
     ? '<div class="product-dots" role="group" aria-label="Choose product photo">' +
@@ -114,8 +114,8 @@ export function renderProductCard(product, options = {}) {
   const unit = product.price_unit || "unit";
   const unitLabel = product.price_unit_label || unit;
   const price = formatPrice(product.price) + (product.price == null ? "" : " per " + unitLabel);
-  const title = escapeHtml(product.name || "Step Town menu item");
-  const description = escapeHtml(product.description || "Prepared with care by Step Town.");
+  const title = escapeHtml(product.name || "Vitanova menu item");
+  const description = escapeHtml(product.description || "Prepared with care by Vitanova.");
 
   return '<article class="product-card' +
     (detail ? " product-card-detail" : "") + extraClass + '"' +
