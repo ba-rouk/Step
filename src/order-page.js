@@ -1,5 +1,6 @@
 import "./cart-page.css";
 import { apiFetch } from "./api.js";
+import { readOrderConfirmation, readOrderMessage, saveOrderSession } from "./order-session.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const params = new URLSearchParams(window.location.search);
@@ -199,12 +200,11 @@ async function startOrder() {
         ? (selectedProduct.price == null ? null : Number(selectedProduct.price) * quantity)
         : Number(resultOrder.estimated_total);
       const message = confirmationMessage(resultOrder,selectedProduct,orderFields);
-      sessionStorage.setItem("step-town-last-order-message",message);
-      sessionStorage.setItem("step-town-order-confirmation",JSON.stringify({
+      saveOrderSession({
         order_number:resultOrder.order_number || "",
         estimated_total:estimated,
         items:[{name:selectedProduct.name,quantity,line_total:selectedProduct.price == null ? null : Number(selectedProduct.price)*quantity}]
-      }));
+      }, message);
       window.location.assign("/order/confirmation?order=" + encodeURIComponent(resultOrder.order_number || ""));
     } catch (error) {
       if (status) status.textContent = error.message || "Connection problem. Please try again.";
@@ -217,7 +217,7 @@ async function startOrder() {
 
 function renderConfirmation() {
   document.body.classList.add("route-confirmation");
-  const data = (() => { try { return JSON.parse(sessionStorage.getItem("step-town-order-confirmation")||"{}"); } catch { return {}; } })();
+  const data = readOrderConfirmation();
   const number = document.querySelector("#confirmed-order-number");
   if (number) number.textContent = params.get("order") || data.order_number || "";
   const details = document.querySelector("#confirmation-details");
@@ -231,7 +231,7 @@ function renderConfirmation() {
     ).join("") + (data.estimated_total == null ? "" : '<div class="confirmation-order-total"><span>Estimated total</span><strong>' + money(data.estimated_total) + '</strong></div>');
   }
   const whatsapp = document.querySelector("#confirmation-whatsapp");
-  const message = sessionStorage.getItem("step-town-last-order-message") || "";
+  const message = readOrderMessage();
   if (whatsapp && message) {
     whatsapp.href = "https://wa.me/250793607387?text=" + encodeURIComponent(message);
     whatsapp.hidden = false;
