@@ -1,13 +1,13 @@
 # Vitanova — Catering, Barbecue & Cake
 
-Responsive Vite website for Vitanova Catering and Cake in Rwanda.
+Responsive Vite and Node website for Vitanova in Rwanda.
 
 ## Stack
 - Vite 7
 - Vanilla JavaScript and CSS
 - Supabase JavaScript client
 - Supabase Postgres for customer enquiries
-- Netlify continuous deployment
+- Render Web Service deployment
 
 ## Local development
 Requires Node.js 22.12+.
@@ -18,7 +18,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Fill in `.env` with the Step Supabase project URL and publishable key. Never use a Supabase secret or service-role key in browser code.
+Fill in `.env` with the Vitanova Supabase project URL and publishable key. Never use a Supabase secret or service-role key in browser code.
 
 ## Production build
 ```bash
@@ -27,22 +27,22 @@ npm run preview
 ```
 The production site is generated in `dist/`.
 
-## Netlify
-- Repository: `ba-rouk/Step`
+## Render
+- Repository: `ba-rouk/Vitanova-`
 - Production branch: `main`
-- Base directory: `.` (repository root)
-- Build command: `npm run build`
-- Publish directory: `dist`
-- Functions directory: leave blank (no Netlify Functions are required for the current site)
+- Runtime: Node.js 22.12+
+- Build command: `npm install && npm run build`
+- Start command: `npm start`
+- Live URL: `https://vitanova-1hfh.onrender.com`
 
-The root `netlify.toml` contains the build and publish settings. Configure these site environment variables in Netlify:
+Set these browser-safe values in the Render Web Service environment:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 Vite exposes variables prefixed with `VITE_` to browser code. The publishable key is intended for client use; never place a Supabase secret/service-role key in these variables.
 
 ## Supabase
-Project: `Step` (`tyuousqmpexrwmnmvxtd`).
+Project: `Vitanova` (`tyuousqmpexrwmnmvxtd`).
 
 Migrations `create_vitanova_enquiries` and `allow_public_enquiry_insert` create `public.enquiries`, enable RLS, and allow anonymous inserts only when the new enquiry has the `new` status. There is no public read, update or delete policy, so visitors cannot list or manage stored enquiries.
 
@@ -140,12 +140,12 @@ Enable **Phone** in Supabase Authentication providers and configure an SMS provi
 
 The public gallery reads published records from `public.gallery_items`, with category filters for Catering, Staff, Barbecue and Cakes. Accountants and Managers upload product/gallery images to the public `step-town-media` Supabase Storage bucket; JPEG, PNG, WebP and AVIF images up to 10 MB are accepted. Cashiers cannot upload. Products can store multiple image URLs; the public menu presents them as horizontally swipeable photo strips with local favourites.
 
-The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. The Vitanova logo image supplied by the owner is used in the header, phone contact block and map card.
+The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. Vins logo artwork has not yet been supplied; the old artwork remains in place until the Vins logo and icon files are added.
 
 
 #### Supabase Auth URL Configuration
 
-In **Authentication → URL Configuration**, set **Site URL** to `https://vitanova-1hfh.onrender.com` and add `https://vitanova-1hfh.onrender.com/**` to the allowed redirect URLs. Remove malformed entries such as `https://vitanova-1hfh.onrender.com`. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
+In **Authentication → URL Configuration**, set **Site URL** to `https://vitanova-1hfh.onrender.com` and add `https://vitanova-1hfh.onrender.com/auth/callback` (and the local development callback if needed) to the allowed redirect URLs. Remove obsolete Step Town site URLs. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
 
 
 ## Guest cart, quick orders and email login
@@ -155,7 +155,7 @@ The storefront uses two separate cart flows:
 - The product-card cart icon adds one item in place and updates the Cart badge. It does not navigate.
 - The product image and product text open `/cart?product=<slug>`. This quick-order form submits only that selected item and does not change the saved cart.
 - The Cart tab displays the editable saved cart. Guest carts are stored in `localStorage`; signed-in carts are persisted to `customer_cart_items`. A guest cart is merged into the account cart after sign-in.
-- `src/cart-config.js` contains the single `REQUIRE_LOGIN_FOR_CART_LIST` switch. It defaults to `false`; set it to `true` only if guests should be redirected to sign-in before seeing the saved-cart list. Quick order remains guest-accessible.
+- `src/cart-config.js` contains the single `REQUIRE_LOGIN_FOR_CART_LIST` switch. It defaults to `true`; guests are redirected to sign-in before seeing their saved-cart list. Quick order remains guest-accessible.
 
 ### Email login and verification
 
