@@ -1162,7 +1162,7 @@ async function galleryPage() {
   const deleteDialog = $("#staff-gallery-delete-dialog");
   const deleteConfirm = $("#staff-gallery-delete-confirm");
   let pendingDeleteId = null;
-  $("[data-gallery-delete]").forEach(button => button.addEventListener("click", () => {
+  $$("[data-gallery-delete]").forEach(button => button.addEventListener("click", () => {
     pendingDeleteId = button.dataset.galleryDelete;
     button.closest("details")?.removeAttribute("open");
     if (deleteDialog?.showModal) deleteDialog.showModal();

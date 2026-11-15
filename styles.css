@@ -1606,7 +1606,7 @@ body.route-cart {
 }
 body.route-cart main {
   min-height: 0;
-  display: none;
+  display: block !important;
 }
 body.route-cart .cart-backdrop { display: none !important; }
 body.route-cart .cart-drawer,
