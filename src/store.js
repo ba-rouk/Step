@@ -5,7 +5,7 @@ import { renderProductPage } from "./product-page.js";
 import { normalizeCategoryLabel } from "./catalog-config.js";
 import { bindProductGallery, showProductToast, flashCartButton } from "./product-gallery.js";
 import { GUEST_CART_STORAGE_KEY, LEGACY_GUEST_CART_STORAGE_KEYS } from "./cart-config.js";
-import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCartItem, setCartQuantity, writeCartStorage } from "./cart-state.js";
+import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartStorage } from "./cart-state.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -16,7 +16,6 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
   const categoryFilterRow = document.querySelector("#category-filter-row");
   const searchInput = document.querySelector("#menu-search");
   const mobileCartOpen = document.querySelector(".mobile-dock-cart");
-  const cartItems = null;
   const cartCount = document.querySelector("#mobile-cart-count");
 
   if (!categoryShowcase || !productGrid) return;
@@ -198,32 +197,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
     if (mobileCartOpen) {
       mobileCartOpen.setAttribute("aria-label", itemCount ? "Cart, " + itemCount + " items" : "Cart");
     }
-    if (!cartItems) return;
-
-    if (!cart.length) {
-      cartItems.innerHTML = '<div class="cart-empty"><span aria-hidden="true">✳</span><strong>Your cart is empty.</strong><p>Browse the menu and add something you love.</p><a href="/categories" class="text-link dark-link" id="cart-browse-menu">Explore the menu</a></div>';
-      cartTotal.textContent = "RWF —";
-      cartPricingNote.textContent = "Your total will appear here when you add menu items.";
-      return;
-    }
-
-    const allPriced = cart.every((item) => item.price != null && Number.isFinite(item.price));
-    const subtotal = allPriced ? cart.reduce((sum, item) => sum + item.price * item.quantity, 0) : null;
-    cartTotal.textContent = subtotal == null ? "Quote required" : money(subtotal);
-    cartPricingNote.textContent = allPriced
-      ? "This is an estimate. Step Town will confirm the final price and availability."
-      : "At least one item needs a custom quote. Step Town will confirm the final price.";
-    cartItems.innerHTML = cart.map((item) => {
-      const image = safeImageUrl(item.image_url);
-      const unitText = item.price_unit_label || item.price_unit || "unit";
-      const linePrice = item.price == null ? "Quote required" : money(item.price) + " per " + unitText + " · " + money(item.price * item.quantity) + " estimated";
-      return '<article class="cart-item">' +
-        '<div class="cart-item-image">' + (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : '<span>ST</span>') + '</div>' +
-        '<div class="cart-item-copy"><span>' + escapeHtml(item.category_name) + '</span><strong>' + escapeHtml(item.name) + '</strong><small>' + escapeHtml(linePrice) + '</small>' +
-        '<div class="cart-quantity"><button type="button" data-cart-action="decrease" data-product-id="' + escapeHtml(item.product_id) + '" aria-label="Decrease quantity">−</button><span>' + item.quantity + '</span><button type="button" data-cart-action="increase" data-product-id="' + escapeHtml(item.product_id) + '" aria-label="Increase quantity">+</button><button class="cart-remove" type="button" data-cart-action="remove" data-product-id="' + escapeHtml(item.product_id) + '">Remove</button></div></div></article>';
-    }).join("");
   }
-
   function addProduct(productId) {
     const product = products.find((item) => String(item.id) === String(productId));
     if (!product?.id) {
