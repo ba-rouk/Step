@@ -693,10 +693,10 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
           }
           const payload=JSON.stringify({product,reference:productReference,embeddedAt:Date.now()})
             .replace(/</g,"\\u003c")
-            .replace(/\\u2028/g,"\\u2028")
-            .replace(/\\u2029/g,"\\u2029");
+            .replace(/\u2028/g,"\\u2028")
+            .replace(/\u2029/g,"\\u2029");
           const initial='<script id="step-order-product-data" type="application/json">'+payload+'</script>';
-          html=html.replace(/<\\/head>/i,initial+'</head>');
+          html=html.replace(/<\/head>/i,initial+'</head>');
           const host='<div id="order-product-summary" class="order-product-summary cart-product-summary" aria-live="polite"><p class="saved-cart-empty">Loading the selected menu item…</p></div>';
           const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
           let markup="";
@@ -718,10 +718,10 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
           const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category});
           const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
             .replace(/</g,"\\u003c")
-            .replace(/\\u2028/g,"\\u2028")
-            .replace(/\\u2029/g,"\\u2029");
+            .replace(/\u2028/g,"\\u2028")
+            .replace(/\u2029/g,"\\u2029");
           const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
-          html=html.replace(/<\\/head>/i,initial+'</head>');
+          html=html.replace(/<\/head>/i,initial+'</head>');
         }
       }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
     }
