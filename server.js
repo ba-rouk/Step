@@ -140,6 +140,7 @@ async function fetchPublicMenu(options={}) {
   const offset=Math.max(0,Number(options.offset)||0);
   const categorySlug=String(options.category||"").trim().slice(0,80);
   const productSlug=String(options.slug||"").trim().slice(0,160);
+  const productSlugSuffix=String(options.slugSuffix||"").trim().slice(0,8);
   const productId=String(options.productId||"").trim().slice(0,80);
   const search=String(options.search||"").trim().slice(0,80).replace(/[\\%_*(),]/g," ");
   const categoriesPromise=sb("/rest/v1/store_categories?select=id,name,slug,description,cover_image_url,sort_order,is_active&is_active=eq.true&order=sort_order.asc");
@@ -149,6 +150,7 @@ async function fetchPublicMenu(options={}) {
   params.set("is_visible","eq.true");
   if(categorySlug)params.set("category.slug","eq."+categorySlug);
   if(productSlug)params.set("slug","eq."+productSlug);
+  else if(/^[0-9a-f]{8}$/i.test(productSlugSuffix))params.set("slug","ilike.*-"+productSlugSuffix);
   if(productId)params.set("id","eq."+productId);
   if(search){
     if(search.toLowerCase()===CAKE_CATEGORY_LABEL.toLowerCase())params.set("category.slug","eq.cake");
@@ -180,6 +182,7 @@ async function getPublicMenu(options={}) {
     offset:Math.max(0,Number(options.offset)||0),
     category:String(options.category||""),
     slug:String(options.slug||""),
+    slugSuffix:String(options.slugSuffix||""),
     productId:String(options.productId||""),
     search:String(options.search||"").trim().slice(0,80)
   };
@@ -606,6 +609,35 @@ async function api(req,res,url) {
   }
   return sendJson(res,404,{error:"API endpoint not found."});
 }
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  })[character]);
+}
+function money(value) {
+  return new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(value));
+}
+function renderQuickOrderProduct(product) {
+  const first=Array.isArray(product.images)?product.images[0]:null;
+  const image=(typeof first==="string"?first:first?.url)||
+    (Array.isArray(product.image_urls)?product.image_urls[0]:"")||product.image_url||"";
+  const unit=String(product.price_unit_label||product.price_unit||"unit");
+  const price=product.price==null||product.price===""?"Price to be confirmed":money(product.price)+" per "+escapeHtml(unit);
+  const line=product.price==null||product.price===""?"Quote required":money(Number(product.price));
+  return '<p class="eyebrow">ORDER THIS ITEM</p><article class="cart-selected-item" data-cart-product="'+escapeHtml(product.id)+'" data-cart-kind="quick">'+
+    '<div class="cart-selected-image">'+(image?'<img src="'+escapeHtml(image)+'" alt="'+escapeHtml(product.name)+'" loading="eager">':'<div class="product-image-placeholder">STEP TOWN</div>')+'</div>'+
+    '<div class="cart-selected-copy"><div class="cart-selected-head"><span class="cart-selected-category">'+escapeHtml(product.category_name||product.category?.name||"Menu")+'</span></div>'+
+    '<h2>'+escapeHtml(product.name)+'</h2>'+(product.description?'<p class="cart-summary-description">'+escapeHtml(product.description)+'</p>':'')+
+    '<div class="cart-unit-price"><span>'+price+'</span><strong>'+line+'</strong></div>'+
+    '<div class="cart-item-footer"><div class="order-quantity"><button type="button" data-action="decrease" aria-label="Decrease quantity">−</button><output>1</output><button type="button" data-action="increase" aria-label="Increase quantity">+</button></div>'+
+    '<div class="cart-line-total"><span>Line total</span><strong>'+line+'</strong></div></div></div></article>';
+}
+function renderProductNotFound(reference) {
+  return '<div class="cart-product-not-found"><p class="eyebrow">STEP TOWN MENU</p><h2>Product not found</h2>'+
+    '<p>We could not find “'+escapeHtml(reference)+'”. The item may have been renamed or is no longer available.</p>'+
+    '<a class="button button-dark" href="/categories">Browse the menu</a></div>';
+}
+
 function pageTitle(pathname){
   const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
   if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
@@ -645,15 +677,53 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
         const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
         const productReference=decoded==="/cart"?String(url.searchParams.get("product")||""):"";
         const isProductId=/^[0-9a-f-]{36}$/i.test(productReference);
-        const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category,slug:isProductId?"":productReference,productId:isProductId?productReference:""});
+        let menu=await getPublicMenu({
+          limit:PUBLIC_MENU_PAGE_SIZE,
+          offset:0,
+          category:category==="wedding-cakes"?"cake":category,
+          slug:isProductId?"":productReference,
+          productId:isProductId?productReference:""
+        });
+        let quickProduct=decoded==="/cart"&&productReference?menu.products?.[0]||null:null;
+        const legacySuffix=productReference.match(/-([0-9a-f]{8})$/i)?.[1]||"";
+        if(decoded==="/cart"&&productReference&&!quickProduct&&legacySuffix){
+          menu=await getPublicMenu({limit:1,offset:0,slugSuffix:legacySuffix});
+          quickProduct=menu.products?.[0]||null;
+        }
         const payload=JSON.stringify({...menu,embeddedAt:Date.now()})
           .replace(/</g,"\\u003c")
           .replace(/\u2028/g,"\\u2028")
           .replace(/\u2029/g,"\\u2029");
         const initial='<script id="step-menu-initial-data" type="application/json">'+payload+'</script>';
-        // Inject before </head> so this works with Vite's hashed production bundle
-        // as well as the development /src/main.js entry.
         html=html.replace(/<\/head>/i,initial+'</head>');
+
+        if(decoded==="/cart"){
+          html=html.replace(/<body([^>]*)>/i,(match,attrs)=>{
+            const clean=attrs.replace(/\sclass=(["']).*?\1/i,"");
+            return '<body'+clean+' class="route-cart" data-server-rendered-cart="true">';
+          });
+          html=html.replace('<section id="cart-page" class="cart-page" hidden','<section id="cart-page" class="cart-page"');
+          const quickMarkup=productReference
+            ? (quickProduct?renderQuickOrderProduct(quickProduct):renderProductNotFound(productReference))
+            : '<p class="cart-empty">Your saved cart will appear here once the page loads.</p>';
+          html=html.replace(
+            '<div id="quick-order-summary" class="cart-product-summary" aria-live="polite" hidden></div>',
+            '<div id="quick-order-summary" class="cart-product-summary" aria-live="polite">'+quickMarkup+'</div>'
+          );
+          if(productReference){
+            html=html.replace(
+              '<div id="cart-product-summary" class="cart-product-summary" aria-live="polite"></div>',
+              '<div id="cart-product-summary" class="cart-product-summary" aria-live="polite" hidden></div>'
+            );
+            if(!quickProduct)html=html.replace('<form id="product-order-form" class="product-order-form" novalidate>','<form id="product-order-form" class="product-order-form" novalidate hidden>');
+          }
+          if(!productReference){
+            html=html.replace(
+              '<div id="cart-product-summary" class="cart-product-summary" aria-live="polite"></div>',
+              '<div id="cart-product-summary" class="cart-product-summary" aria-live="polite"><p class="cart-empty">Your saved cart is loading from this device…</p></div>'
+            );
+          }
+        }
       }catch(error){console.warn("Initial menu embedding was skipped:",error.message);}
     }
     data=Buffer.from(html);
@@ -663,8 +733,8 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     "X-Content-Type-Options":"nosniff",
     "Referrer-Policy":"strict-origin-when-cross-origin",
     "X-Frame-Options":"SAMEORIGIN",
-    "Cache-Control":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
-    ...(menuPage&&ext===".html"?{"CDN-Cache-Control":"public, s-maxage=30, stale-while-revalidate=240"}:{})
+    "Cache-Control":decoded==="/cart"&&ext===".html"?"no-store":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
+    ...(decoded==="/cart"&&ext===".html"?{"CDN-Cache-Control":"no-store"}:menuPage&&ext===".html"?{"CDN-Cache-Control":"public, s-maxage=30, stale-while-revalidate=240"}:{})
   };
   res.writeHead(200,headers);res.end(data);
 }
