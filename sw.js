@@ -5,8 +5,8 @@ self.addEventListener("push", event => {
   const title = payload.title || "Vitanova";
   const options = {
     body: payload.body || "You have a new order or staff update.",
-    icon: "https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg",
-    badge: "https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg",
+    icon: "/vitanova-mark.svg",
+    badge: "/vitanova-mark.svg",
     data: { url: payload.url || "/staff/orders" },
     tag: payload.tag || "vitanova-update",
     renotify: true
