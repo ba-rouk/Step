@@ -9,7 +9,7 @@
   function labelFor(select) {
     const explicit = select.getAttribute("aria-label");
     if (explicit) return explicit;
-    const labels = Array.from(select.labels || []).map(label => label.textContent.replace(/\\s+/g, " ").trim());
+    const labels = Array.from(select.labels || []).map(label => label.textContent.trim());
     return labels.find(Boolean) || "Choose an option";
   }
 
