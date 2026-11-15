@@ -1,6 +1,6 @@
 import "./cart-page.css";
 import { apiFetch } from "./api.js";
-import { REQUIRE_LOGIN_FOR_CART_LIST, GUEST_CART_STORAGE_KEY } from "./cart-config.js";
+import * as CartState from "./cart-state.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const params = new URLSearchParams(window.location.search);
@@ -36,21 +36,20 @@ function normalize(item) {
     image_url:String(item.image_url||imageFor(item)||""),quantity};
 }
 function readGuestCart() {
-  try {const rows=JSON.parse(localStorage.getItem(GUEST_CART_STORAGE_KEY)||"[]");return Array.isArray(rows)?rows.map(normalize).filter(Boolean).slice(0,50):[];}
-  catch{return [];}
+  return CartState.readCart();
 }
 function writeGuestCart() {
-  try {localStorage.setItem(GUEST_CART_STORAGE_KEY,JSON.stringify(savedItems));return true;}
-  catch{return false;}
+  try {
+    CartState.writeCart(savedItems.map(item => ({
+      product_id:item.product_id,
+      slug:item.slug,
+      quantity:item.quantity
+    })));
+    return true;
+  } catch { return false; }
 }
 function merge(primary,secondary) {
-  const map=new Map();
-  for(const raw of [...primary,...secondary]){
-    const item=normalize(raw);if(!item)continue;
-    const old=map.get(item.product_id);
-    map.set(item.product_id,old?{...old,...item,quantity:Math.max(old.quantity,item.quantity)}:item);
-  }
-  return [...map.values()].slice(0,50);
+  return CartState.mergeCarts(primary,secondary);
 }
 async function request(url,options={}) {
   const response=await fetch(url,{credentials:"same-origin",...options});
@@ -68,16 +67,24 @@ async function loadAccountCart() {
   if(!response.ok)throw new Error(data.error||"Your saved cart could not be loaded.");
   return Array.isArray(data.items)?data.items.map(normalize).filter(Boolean):[];
 }
-async function saveAccountCart() {
+async function saveAccountCart(items=savedItems) {
   if(!isSignedIn)return;
-  const response=await apiFetch("/api/profile/cart",{method:"PUT",body:{items:savedItems.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
+  const response=await apiFetch("/api/profile/cart",{method:"PUT",body:{items:items.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.error||"Your saved cart could not be updated.");
 }
 async function loadProduct(reference) {
   if(!reference)return null;
   const embedded=document.querySelector("#step-menu-initial-data");
-  if(embedded){try{const data=JSON.parse(embedded.textContent||"{}");const item=(data.products||[]).find(p=>String(p.slug||"")===reference||String(p.id)===reference);if(item)return normalize({...item,quantity:1});}catch{}}
+  if(embedded){
+    try {
+      const data=JSON.parse(embedded.textContent||"{}");
+      const item=(data.products||[]).find(p=>String(p.slug||"")===reference||String(p.id)===reference);
+      if(item)return normalize({...item,quantity:1});
+    } catch(error) {
+      console.warn("Embedded menu data could not be parsed:",error.message);
+    }
+  }
   const isId=/^[0-9a-f-]{36}$/i.test(reference);
   const {response,data}=await request("/api/catalog?limit=1&"+(isId?"product_id=":"slug=")+encodeURIComponent(reference));
   if(!response.ok)throw new Error(data.error||"The selected menu item could not be loaded.");
@@ -160,33 +167,69 @@ async function startCart() {
   const status=document.querySelector("#product-order-error");
   const date=form.elements.requested_date;
   if(date)date.min=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
-  savedItems=readGuestCart();
+
   const reference=params.get("product");
-  try{
-    const signed=await loadAccount();
-    if(signed){
-      const accountCart=await loadAccountCart();
-      savedItems=merge(accountCart,savedItems);
-      await saveAccountCart();
-      try{localStorage.removeItem(GUEST_CART_STORAGE_KEY);}catch{}
-    }else if(REQUIRE_LOGIN_FOR_CART_LIST&&!reference){
-      window.location.assign("/login?next="+encodeURIComponent("/cart"));return;
-    }else writeGuestCart();
-  }catch(error){if(status)status.textContent=error.message||"Your cart could not be loaded.";}
-  if(reference){
-    try{quickItem=await loadProduct(reference);if(!quickItem)throw new Error("This product is no longer available. Please return to the menu.");}
-    catch(error){if(status)status.textContent=error.message;}
+  try {
+    await CartState.migrateLegacyCart(loadProduct);
+  } catch(error) {
+    if(status)status.textContent=error.message||"Your saved cart could not be recovered yet.";
   }
+
+  let guestItems=readGuestCart();
+  try {
+    const signed=await loadAccount();
+    if(signed) {
+      const accountCart=await loadAccountCart();
+      const merged=merge(accountCart,guestItems);
+      CartState.writeCart(merged);
+      await saveAccountCart(merged);
+      guestItems=merged;
+    } else if(REQUIRE_LOGIN_FOR_CART_LIST&&!reference) {
+      window.location.assign("/login?next="+encodeURIComponent("/cart"));return;
+    }
+  } catch(error) {
+    if(status)status.textContent=error.message||"Your cart could not be loaded.";
+  }
+
+  if(reference) {
+    try {
+      quickItem=await loadProduct(reference);
+      if(!quickItem)throw new Error("This product was not found. Browse the menu to choose another item.");
+    } catch(error) {
+      if(status)status.textContent=error.message;
+      const form=document.querySelector("#product-order-form");
+      if(form)form.hidden=true;
+      const quickHost=document.querySelector("#quick-order-summary");
+      if(quickHost){
+        quickHost.hidden=false;
+        quickHost.innerHTML='<div class="cart-product-not-found"><p class="eyebrow">STEP TOWN MENU</p><h2>Product not found</h2><p>This item may have been renamed or is no longer available.</p><a class="button button-dark" href="/categories">Browse the menu</a></div>';
+      }
+    }
+  }
+
+  const resolvedSaved=[];
+  for(const item of guestItems) {
+    try {
+      const product=await loadProduct(item.product_id)|| (item.slug?await loadProduct(item.slug):null);
+      if(product)resolvedSaved.push(normalize({...product,quantity:item.quantity}));
+    } catch(error) {
+      console.warn("Cart product resolution deferred:",error.message);
+    }
+  }
+  savedItems=resolvedSaved.filter(Boolean);
+  CartState.writeCart(savedItems.map(item=>({product_id:item.product_id,slug:item.slug,quantity:item.quantity})));
+
   prefillForm(form);
   render();
   updateDeliveryField();
   document.querySelector("#order-fulfillment")?.addEventListener("change",updateDeliveryField);
-  document.querySelector("#cart-page-close")?.addEventListener("click",()=>window.location.assign("/categories"));
-  document.querySelector("#cart-close")?.addEventListener("click",()=>window.location.assign("/categories"));
-  document.querySelector("#cart-product-summary")?.addEventListener("click",event=>handleItemAction(event));
-  document.querySelector("#quick-order-summary")?.addEventListener("click",event=>handleItemAction(event));
-  document.querySelector("#saved-cart-summary")?.addEventListener("click",event=>handleItemAction(event));
-  async function handleItemAction(event){
+  const actionRoots=["#cart-product-summary","#quick-order-summary","#saved-cart-summary"];
+  for(const selector of actionRoots) {
+    const root=document.querySelector(selector);
+    root?.addEventListener("click",event=>handleItemAction(event));
+  }
+
+  async function handleItemAction(event) {
     const button=event.target.closest("[data-action]");if(!button)return;
     const row=button.closest("[data-cart-product]");if(!row)return;
     const item=row.dataset.cartKind==="quick"?quickItem:savedItems.find(x=>x.product_id===row.dataset.cartProduct);
@@ -194,12 +237,13 @@ async function startCart() {
     if(button.dataset.action==="increase")item.quantity=Math.min(20,item.quantity+1);
     if(button.dataset.action==="decrease")item.quantity=Math.max(1,item.quantity-1);
     if(button.dataset.action==="remove")savedItems=savedItems.filter(x=>x.product_id!==item.product_id);
-    if(row.dataset.cartKind==="saved"){
+    if(row.dataset.cartKind==="saved") {
+      CartState.writeCart(savedItems.map(value=>({product_id:value.product_id,slug:value.slug,quantity:value.quantity})));
       if(isSignedIn){try{await saveAccountCart();}catch(error){if(status)status.textContent=error.message;}}
-      else writeGuestCart();
     }
     render();
   }
+
   form.addEventListener("submit",async event=>{
     event.preventDefault();if(sending)return;
     if(status)status.textContent="";
@@ -222,14 +266,21 @@ async function startCart() {
       items
     };
     sending=true;render();
-    try{
+    try {
       const response=await apiFetch("/api/orders",{method:"POST",body:order});
       const data=await response.json().catch(()=>({}));
       if(!response.ok){if(status)status.textContent=data.error||"We could not save your order. Please check the details and try again.";return;}
-      if(!quickItem){savedItems=[];if(isSignedIn){try{await saveAccountCart();}catch(clearError){console.warn("Order saved; cart cleanup will retry on the next visit:",clearError.message);}}else writeGuestCart();}
+      if(!quickItem) {
+        savedItems=[];
+        CartState.clearCart();
+        if(isSignedIn){try{await saveAccountCart([]);}catch(clearError){console.warn("Order saved; cart cleanup will retry on the next visit:",clearError.message);}}
+      }
       showConfirmation(data.order||{});
-    }catch(error){if(status)status.textContent=error.message||"Connection problem. Please try again.";}
-    finally{sending=false;render();}
+    } catch(error) {
+      if(status)status.textContent=error.message||"Connection problem. Please try again.";
+    } finally {
+      sending=false;render();
+    }
   });
 }
 function renderConfirmation() {
