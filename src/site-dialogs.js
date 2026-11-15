@@ -1,10 +1,10 @@
 function ensureDialog() {
-  let dialog = document.querySelector("#step-town-action-dialog");
+  let dialog = document.querySelector("#vitanova-action-dialog");
   if (dialog) return dialog;
   dialog = document.createElement("dialog");
-  dialog.id = "step-town-action-dialog";
-  dialog.className = "step-town-action-dialog";
-  dialog.innerHTML = '<form class="step-town-action-card" method="dialog"><p class="step-town-action-eyebrow">STEP TOWN</p><h2 data-dialog-title></h2><p class="step-town-action-message" data-dialog-message></p><label class="step-town-action-field" data-dialog-field hidden><span data-dialog-label></span><span data-dialog-control></span></label><div class="step-town-action-actions"><button type="button" class="step-town-action-cancel" data-dialog-cancel>Cancel</button><button type="submit" class="step-town-action-confirm" data-dialog-confirm>OK</button></div></form>';
+  dialog.id = "vitanova-action-dialog";
+  dialog.className = "vitanova-action-dialog";
+  dialog.innerHTML = '<form class="vitanova-action-card" method="dialog"><p class="vitanova-action-eyebrow">VITANOVA</p><h2 data-dialog-title></h2><p class="vitanova-action-message" data-dialog-message></p><label class="vitanova-action-field" data-dialog-field hidden><span data-dialog-label></span><span data-dialog-control></span></label><div class="vitanova-action-actions"><button type="button" class="vitanova-action-cancel" data-dialog-cancel>Cancel</button><button type="submit" class="vitanova-action-confirm" data-dialog-confirm>OK</button></div></form>';
   document.body.append(dialog);
   dialog.addEventListener("click",event=>{
     if (event.target === dialog) dialog.close("cancel");
@@ -12,7 +12,7 @@ function ensureDialog() {
   return dialog;
 }
 
-function openStepTownDialog({title="Please confirm",message="",confirmText="OK",cancelText="Cancel",danger=false,fieldLabel="",value="",placeholder="",inputType="text",options=null,min=null,step=null,required=false}={}) {
+function openVitanovaDialog({title="Please confirm",message="",confirmText="OK",cancelText="Cancel",danger=false,fieldLabel="",value="",placeholder="",inputType="text",options=null,min=null,step=null,required=false}={}) {
   return new Promise(resolve=>{
     const dialog = ensureDialog();
     const form = dialog.querySelector("form");
@@ -84,10 +84,10 @@ function openStepTownDialog({title="Please confirm",message="",confirmText="OK",
   });
 }
 
-export function confirmStepTown(message,{title="Please confirm",confirmText="OK",cancelText="Cancel",danger=false}={}) {
-  return openStepTownDialog({title,message,confirmText,cancelText,danger});
+export function confirmVitanova(message,{title="Please confirm",confirmText="OK",cancelText="Cancel",danger=false}={}) {
+  return openVitanovaDialog({title,message,confirmText,cancelText,danger});
 }
 
-export function promptStepTown(message,{title="Enter details",fieldLabel="Value",value="",placeholder="",inputType="text",options=null,min=null,step=null,required=false,confirmText="OK",cancelText="Cancel"}={}) {
-  return openStepTownDialog({title,message,fieldLabel,value,placeholder,inputType,options,min,step,required,confirmText,cancelText});
+export function promptVitanova(message,{title="Enter details",fieldLabel="Value",value="",placeholder="",inputType="text",options=null,min=null,step=null,required=false,confirmText="OK",cancelText="Cancel"}={}) {
+  return openVitanovaDialog({title,message,fieldLabel,value,placeholder,inputType,options,min,step,required,confirmText,cancelText});
 }
