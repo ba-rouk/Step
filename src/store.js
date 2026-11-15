@@ -90,7 +90,9 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
       if (!response.ok) return;
       cart = mergeCartItems(data.items, cart);
       saveCart();
-      await apiFetch("/api/profile/cart", {method:"PUT",body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
+      // Serialize the initial sync with Add to Cart writes to avoid racing
+      // overlapping full-cart snapshots against the server.
+      await persistAccountCartOnly();
       renderCart();
     } catch (error) { console.warn("Cart account sync deferred:",error.message); }
   }

@@ -259,30 +259,50 @@ async function startCart() {
   if (!host) return;
   const guestItems = readGuestCart();
 
+  let accountItems = [];
+  let cartLoadWarning = "";
   try {
     const {response,data} = await request("/api/profile");
     if (response.status === 401 && REQUIRE_LOGIN_FOR_CART_LIST) {
       window.location.replace("/login?next=" + encodeURIComponent("/cart"));
       return;
     }
-    if (!response.ok) throw new Error(data.error || "Please sign in to view your saved cart.");
+    if (!response.ok) throw new Error(data.error || "Your account cart could not be loaded.");
+    accountItems = await loadAccountCart();
+  } catch (error) {
+    if (!guestItems.length) {
+      host.setAttribute("aria-busy","false");
+      host.innerHTML = '<div class="cart-empty"><strong>Your cart could not be loaded.</strong><p>' + html(error.message || "Please sign in and try again.") + '</p><a class="button button-dark" href="/login?next=%2Fcart">Sign in</a></div>';
+      setCartFormAvailability();
+      return;
+    }
+    // Keep locally saved products visible while the account API recovers.
+    cartLoadWarning = "Your cart is shown from this device, but account sync is temporarily unavailable.";
+  }
 
-    let accountItems = await loadAccountCart();
-    if (guestItems.length) {
-      const merged = mergeCartItems(accountItems, guestItems);
-      await saveAccountCart(merged);
+  savedItems = mergeCartItems(accountItems, guestItems);
+  render();
+
+  if (guestItems.length && !cartLoadWarning) {
+    try {
+      await saveAccountCart(savedItems);
       for (const key of [GUEST_CART_STORAGE_KEY, ...LEGACY_GUEST_CART_STORAGE_KEYS]) {
         try { localStorage.removeItem(key); } catch {}
       }
       accountItems = await loadAccountCart();
+      savedItems = mergeCartItems(accountItems);
+      render();
+    } catch (error) {
+      // A failed migration must not turn a non-empty cart into an empty one.
+      // Keep the device copy so the customer can still review and edit it.
+      cartLoadWarning = "Your cart is visible, but some items could not be synced to your account yet. " +
+        (error.message || "Please try again shortly.");
     }
-    savedItems = mergeCartItems(accountItems);
-    render();
-  } catch (error) {
-    host.setAttribute("aria-busy","false");
-    host.innerHTML = '<div class="cart-empty"><strong>Your cart could not be loaded.</strong><p>' + html(error.message || "Please sign in and try again.") + '</p><a class="button button-dark" href="/login?next=%2Fcart">Sign in</a></div>';
-    setCartFormAvailability();
-    return;
+  }
+
+  if (cartLoadWarning) {
+    const status = document.querySelector("#cart-page-error");
+    if (status) status.textContent = cartLoadWarning;
   }
 
   if (form) {
