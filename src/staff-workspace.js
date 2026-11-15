@@ -1050,13 +1050,15 @@ async function galleryPage() {
     "</form></section>" +
     '<section class="staff-panel"><div class="staff-panel-head"><h2>Gallery library</h2><span class="staff-muted">' + items.length + " images</span></div>" +
       (items.length ? '<div class="staff-gallery staff-gallery-manage">' + items.map((item, index) =>
-        '<article class="staff-gallery-card"><div class="staff-gallery-image-wrap"><button class="staff-gallery-preview" type="button" data-gallery-preview="' + index + '" aria-label="View ' + esc(item.title || "gallery image") + '"><img src="' + esc(item.image_url) + '" alt="' + esc(item.alt_text || item.title || "") + '" loading="lazy"></button>' +
-          '<details class="staff-action-menu staff-gallery-menu"><summary aria-label="Gallery image actions">•••</summary><div class="staff-action-menu-pop"><button type="button" data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button type="button" data-gallery-delete="' + item.id + '">Delete photo</button><button type="button" data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + '>Move up</button><button type="button" data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + '>Move down</button></div></details></div>' +
+        '<article class="staff-gallery-card"><div class="staff-gallery-card-toolbar">' +
+          '<details class="staff-action-menu staff-gallery-menu"><summary aria-label="Gallery image actions">•••</summary><div class="staff-action-menu-pop"><button type="button" data-gallery-edit="' + item.id + '">Edit</button><button type="button" data-gallery-publish="' + item.id + '">' + (item.is_published ? "Unpublish" : "Publish") + '</button><label class="staff-file-button">Replace<input type="file" data-gallery-replace="' + item.id + '" accept="image/jpeg,image/png,image/webp,image/avif"></label><button type="button" data-gallery-delete="' + item.id + '">Delete</button><button type="button" data-gallery-up="' + item.id + '" ' + (index === 0 ? "disabled" : "") + '>Move up</button><button type="button" data-gallery-down="' + item.id + '" ' + (index === items.length - 1 ? "disabled" : "") + '>Move down</button></div></details>' +
+          '</div><div class="staff-gallery-image-wrap"><button class="staff-gallery-preview" type="button" data-gallery-preview="' + index + '" aria-label="View ' + esc(item.title || "gallery image") + '"><img src="' + esc(item.image_url) + '" alt="' + esc(item.alt_text || item.title || "") + '" loading="lazy"></button></div>' +
           '<b>' + esc(item.title || "Gallery image") + "</b><small>" + esc(statusLabel(item.category)) + " · " + (item.is_published ? "Published" : "Hidden") + "</small>" +
           '<label class="staff-gallery-caption">Caption<input data-gallery-caption="' + item.id + '" value="' + esc(item.caption || "") + '" maxlength="500"></label></article>'
       ).join("") + "</div>" : '<p class="staff-empty">No gallery images yet.</p>') + "</section>" +
     '<dialog id="staff-gallery-lightbox" class="staff-gallery-lightbox"><button type="button" class="staff-gallery-lightbox-close" aria-label="Close image viewer">×</button><button type="button" class="staff-gallery-lightbox-prev" aria-label="Previous image">‹</button><img id="staff-gallery-lightbox-image" alt=""><button type="button" class="staff-gallery-lightbox-next" aria-label="Next image">›</button><p id="staff-gallery-lightbox-count"></p></dialog>' +
-    '<dialog id="staff-gallery-delete-dialog" class="step-town-popup staff-gallery-delete-dialog" aria-labelledby="staff-gallery-delete-title"><div class="staff-gallery-delete-card"><p class="staff-eyebrow">GALLERY LIBRARY</p><h3 id="staff-gallery-delete-title">Delete this photo?</h3><p>This removes the photo from the public gallery and deletes its stored image. This action cannot be undone.</p><div class="staff-gallery-delete-actions"><button type="button" class="staff-gallery-delete-cancel" id="staff-gallery-delete-cancel">Cancel</button><button type="button" class="staff-gallery-delete-confirm" id="staff-gallery-delete-confirm">Delete photo</button></div></div></dialog>');
+    '<dialog id="staff-gallery-delete-dialog" class="step-town-popup staff-gallery-delete-dialog" aria-labelledby="staff-gallery-delete-title"><div class="staff-gallery-delete-card"><p class="staff-eyebrow">GALLERY LIBRARY</p><h3 id="staff-gallery-delete-title">Delete this photo?</h3><p>This removes the photo from the public gallery and deletes its stored image. This action cannot be undone.</p><div class="staff-gallery-delete-actions"><button type="button" class="staff-gallery-delete-cancel" id="staff-gallery-delete-cancel">Cancel</button><button type="button" class="staff-gallery-delete-confirm" id="staff-gallery-delete-confirm">Delete photo</button></div></div></dialog>' +
+    '<dialog id="staff-gallery-edit-dialog" class="step-town-popup staff-gallery-edit-dialog" aria-labelledby="staff-gallery-edit-title"><form id="staff-gallery-edit-form" class="staff-gallery-edit-card"><p class="staff-eyebrow">GALLERY LIBRARY</p><h3 id="staff-gallery-edit-title">Edit gallery photo</h3><label>Title<input name="title" maxlength="120" autocomplete="off"></label><label>Category<select name="category" required><option value="catering">Catering</option><option value="barbecue">Barbecue</option><option value="cakes">Cakes</option><option value="staff">Staff</option></select></label><label>Caption<textarea name="caption" rows="3" maxlength="500"></textarea></label><label>Alt text<input name="alt_text" maxlength="240" autocomplete="off"></label><p id="staff-gallery-edit-error" class="staff-error" role="alert"></p><div class="staff-gallery-edit-actions"><button type="button" id="staff-gallery-edit-cancel">Cancel</button><button type="submit" id="staff-gallery-edit-save">Save changes</button></div></form></dialog>');
   const lightbox = $("#staff-gallery-lightbox");
   let lightboxIndex = 0;
   const showGalleryImage = index => {
@@ -1077,6 +1079,72 @@ async function galleryPage() {
     if (event.key === "ArrowLeft") showGalleryImage(lightboxIndex - 1);
     if (event.key === "ArrowRight") showGalleryImage(lightboxIndex + 1);
   });
+  const editDialog = $("#staff-gallery-edit-dialog");
+  const editForm = $("#staff-gallery-edit-form");
+  const editError = $("#staff-gallery-edit-error");
+  const editSave = $("#staff-gallery-edit-save");
+  let pendingEditId = null;
+  Array.from(document.querySelectorAll("[data-gallery-edit]")).forEach(button => button.addEventListener("click", () => {
+    const item = items.find(row => row.id === button.dataset.galleryEdit);
+    if (!item || !editDialog || !editForm) return;
+    pendingEditId = item.id;
+    const fields = editForm.elements;
+    fields.namedItem("title").value = item.title || "";
+    fields.namedItem("category").value = item.category || "catering";
+    fields.namedItem("caption").value = item.caption || "";
+    fields.namedItem("alt_text").value = item.alt_text || "";
+    if (editError) editError.textContent = "";
+    button.closest("details")?.removeAttribute("open");
+    if (editDialog.showModal) editDialog.showModal();
+    else notify("This browser cannot open the edit form. Please use an up-to-date browser.", "warning");
+  }));
+  $("#staff-gallery-edit-cancel")?.addEventListener("click", () => {
+    pendingEditId = null;
+    editDialog?.close();
+  });
+  editDialog?.addEventListener("click", event => {
+    if (event.target === editDialog) {
+      pendingEditId = null;
+      editDialog.close();
+    }
+  });
+  editForm?.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!pendingEditId || editSave?.disabled) return;
+    const fields = new FormData(editForm);
+    const category = String(fields.get("category") || "");
+    if (!["catering", "barbecue", "cakes", "staff"].includes(category)) {
+      if (editError) editError.textContent = "Choose a valid gallery category.";
+      return;
+    }
+    if (editSave) { editSave.disabled = true; editSave.textContent = "Saving…"; }
+    if (editError) editError.textContent = "";
+    try {
+      const update = {
+        title: String(fields.get("title") || "").trim().slice(0, 120) || null,
+        category,
+        caption: String(fields.get("caption") || "").trim().slice(0, 500) || null,
+        alt_text: String(fields.get("alt_text") || "").trim().slice(0, 240) || null,
+        updated_at: new Date().toISOString()
+      };
+      const { error } = await supabase.from("gallery_items").update(update).eq("id", pendingEditId);
+      if (error) throw error;
+      await writeAudit("gallery_item_edited", "gallery_item", pendingEditId, { category });
+      pendingEditId = null;
+      editDialog?.close();
+      notify("Gallery photo updated.");
+      await galleryPage();
+    } catch (error) {
+      if (editError) editError.textContent = error.message || "The gallery photo could not be updated.";
+      else notify(error.message || "The gallery photo could not be updated.", "error");
+    } finally {
+      if (editSave?.isConnected) { editSave.disabled = false; editSave.textContent = "Save changes"; }
+    }
+  });
+  Array.from(document.querySelectorAll(".staff-gallery-menu")).forEach(menu => menu.addEventListener("toggle", () => {
+    if (!menu.open) return;
+    Array.from(document.querySelectorAll(".staff-gallery-menu[open]")).forEach(other => { if (other !== menu) other.open = false; });
+  }));
   $("#gallery-form").addEventListener("submit", async event => {
     event.preventDefault();
     const form = event.currentTarget;
