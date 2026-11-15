@@ -97,7 +97,7 @@ function render() {
     const price = item.price == null ? "Price to be confirmed" : money(item.price) + " per " + html(item.price_unit_label || item.price_unit || "unit");
     const line = item.price == null ? "Quote required" : money(Number(item.price) * item.quantity);
     return '<article class="cart-selected-item" data-saved-product="' + html(item.product_id) + '">' +
-      '<div class="cart-selected-image">' + (image ? '<img src="' + html(image) + '" alt="' + html(item.name) + '" loading="lazy">' : '<div class="product-image-placeholder">STEP TOWN</div>') + '</div>' +
+      '<div class="cart-selected-image">' + (image ? '<img src="' + html(image) + '" alt="' + html(item.name) + '" loading="lazy">' : '<div class="product-image-placeholder">VITANOVA</div>') + '</div>' +
       '<div class="cart-selected-copy"><div class="cart-selected-head"><span class="cart-selected-category">' + html(item.category_name || item.category?.name || "Menu") + '</span><button type="button" class="cart-item-remove" data-action="remove">Remove</button></div>' +
       '<h2>' + html(item.name || "Menu item") + '</h2>' + (item.description ? '<p class="cart-summary-description">' + html(item.description) + '</p>' : '') +
       '<div class="cart-unit-price"><span>' + price + '</span><strong>' + line + '</strong></div>' +
@@ -107,7 +107,7 @@ function render() {
   const summary = cartTotal(savedItems);
   if (totalHost) {
     totalHost.hidden = false;
-    totalHost.innerHTML = '<div><span>Estimated order total</span><strong>' + (summary.allPriced ? money(summary.amount) : (summary.hasKnown ? money(summary.amount) + " + quote required" : "Quote required")) + '</strong></div><p>Based on the current menu prices and quantities shown above. Step Town confirms final availability and pricing before accepting the order.</p>';
+    totalHost.innerHTML = '<div><span>Estimated order total</span><strong>' + (summary.allPriced ? money(summary.amount) : (summary.hasKnown ? money(summary.amount) + " + quote required" : "Quote required")) + '</strong></div><p>Based on the current menu prices and quantities shown above. Vitanova confirms final availability and pricing before accepting the order.</p>';
   }
   if (error) error.textContent = "";
   setCartFormAvailability();
@@ -164,7 +164,7 @@ function cartOrderMessage(order, fields, items) {
     return item.name + " × " + item.quantity + " — " + price;
   });
   return [
-    "Hello Step Town, I have sent an order request from the website.",
+    "Hello Vitanova, I would like to place an order.",
     "Order: " + (order?.order_number || "New order"),
     "Name: " + fields.customer_name,
     "Email: " + fields.customer_email,
