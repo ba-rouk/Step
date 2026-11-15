@@ -646,7 +646,7 @@ async function api(req,res,url) {
   return sendJson(res,404,{error:"API endpoint not found."});
 }
 function pageTitle(pathname){
-  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
+  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Your cart","/order":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
   if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
   if(pathname.startsWith("/categories/")){
     const slug=pathname.split("/").filter(Boolean).at(-1);
@@ -697,7 +697,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
             .replace(/\u2029/g,"\\u2029");
           const initial='<script id="step-order-product-data" type="application/json">'+payload+'</script>';
           html=html.replace(/<\/head>/i,initial+'</head>');
-          const host='<div id="order-product-summary" class="order-product-summary cart-product-summary" aria-live="polite"><p class="saved-cart-empty">Loading the selected menu item…</p></div>';
+          const hostPattern=/<div id="order-product-summary" class="order-product-summary cart-product-summary" aria-live="polite">[\s\S]*?<\/div>/;
           const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
           let markup="";
           if(product){
@@ -712,7 +712,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
           }else{
             markup='<div class="cart-empty"><strong>'+(productReference?"We could not load this menu item.":"Choose a menu item to start an order.")+'</strong><p>'+(productReference?"Please return to the menu and select an available item.":"Open the item you want from the menu to see its details and price here.")+'</p><a class="button button-dark" href="/categories">Browse the menu</a></div>';
           }
-          html=html.replace(host,'<div id="order-product-summary" class="order-product-summary cart-product-summary" aria-live="polite">'+markup+'</div>');
+          html=html.replace(hostPattern,'<div id="order-product-summary" class="order-product-summary cart-product-summary" aria-live="polite">'+markup+'</div>');
         }else{
           const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
           const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category});
