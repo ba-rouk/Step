@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import { resolve } from "node:path";
 import { CAKE_CATEGORY_LABEL } from "./src/catalog-config.js";
 
-const renderHosts = ["vitanova.onrender.com", ".onrender.com"];
+const renderHosts = [".onrender.com"];
 
 export default defineConfig({
   plugins: [{
