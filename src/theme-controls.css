@@ -1,0 +1,74 @@
+/* Shared Step Town styling for native dropdowns, popup menus and dialogs. */
+select,
+.staff-app select {
+  color:#fff5ec;
+  background-color:rgba(35,29,26,.94);
+  background-image:
+    linear-gradient(45deg,transparent 50%,#e8bd91 50%),
+    linear-gradient(135deg,#e8bd91 50%,transparent 50%);
+  background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;
+  background-size:5px 5px,5px 5px;
+  background-repeat:no-repeat;
+  appearance:none;
+  -webkit-appearance:none;
+  padding-right:34px;
+  color-scheme:dark;
+}
+select option,
+select optgroup,
+.staff-app select option,
+.staff-app select optgroup {
+  color:#fff2e6 !important;
+  background:#302722 !important;
+}
+select option:checked,
+.staff-app select option:checked {
+  color:#241a16 !important;
+  background:#e7bd90 !important;
+}
+select:focus-visible,
+.staff-app select:focus-visible {
+  outline:2px solid rgba(232,189,145,.72);
+  outline-offset:2px;
+}
+.staff-action-menu-pop,
+[role="menu"].step-town-popup-menu {
+  padding:6px;
+  border:1px solid rgba(235,202,171,.2);
+  border-radius:12px;
+  background:#302722;
+  color:#fff2e6;
+  box-shadow:0 14px 34px rgba(0,0,0,.38);
+}
+.staff-action-menu-pop a,
+.staff-action-menu-pop button,
+.staff-action-menu-pop .staff-file-button,
+[role="menu"].step-town-popup-menu button,
+[role="menu"].step-town-popup-menu a {
+  color:#f8ece1;
+  background:transparent;
+  border-radius:8px;
+}
+.staff-action-menu-pop a:hover,
+.staff-action-menu-pop button:hover,
+.staff-action-menu-pop .staff-file-button:hover,
+[role="menu"].step-town-popup-menu button:hover,
+[role="menu"].step-town-popup-menu a:hover {
+  color:#fff8ef;
+  background:rgba(232,189,145,.13);
+}
+.step-town-popup::backdrop {
+  background:rgba(10,8,8,.72);
+  -webkit-backdrop-filter:blur(7px);
+  backdrop-filter:blur(7px);
+}
+.step-town-popup {
+  width:min(440px,calc(100vw - 32px));
+  max-width:none;
+  padding:0;
+  border:1px solid rgba(235,202,171,.22);
+  border-radius:19px;
+  color:#fff2e6;
+  background:#2d2521;
+  box-shadow:0 25px 80px rgba(0,0,0,.48);
+}

@@ -602,3 +602,53 @@ body.staff-page-body {
   font-size:10px;
   line-height:1.5;
 }
+
+/* Gallery action control: compact and blended into the photo tile. */
+.staff-gallery-menu{top:7px;right:7px}
+.staff-gallery-menu > summary{
+  width:28px;
+  min-width:28px;
+  height:28px;
+  padding:0;
+  border:1px solid rgba(235,202,171,.15);
+  border-radius:8px;
+  color:#e9d8c7;
+  background:rgba(38,31,27,.9);
+  box-shadow:0 2px 8px rgba(0,0,0,.16);
+  font:650 13px/1 var(--font-sans);
+  letter-spacing:1px;
+}
+.staff-gallery-menu[open] > summary{background:#3a302a;color:#fff2e6}
+.staff-gallery-menu .staff-action-menu-pop{
+  top:34px;
+  min-width:152px;
+  border:1px solid rgba(235,202,171,.18);
+  border-radius:11px;
+  background:#302722;
+  box-shadow:0 12px 28px rgba(0,0,0,.35);
+}
+.staff-gallery-menu .staff-action-menu-pop button,
+.staff-gallery-menu .staff-action-menu-pop a,
+.staff-gallery-menu .staff-action-menu-pop .staff-file-button{
+  padding:8px 9px;
+  min-height:32px;
+  color:#f8ece1;
+  background:transparent;
+  font-size:11px;
+  font-weight:600;
+}
+.staff-gallery-menu .staff-action-menu-pop button:hover,
+.staff-gallery-menu .staff-action-menu-pop a:hover,
+.staff-gallery-menu .staff-action-menu-pop .staff-file-button:hover{background:rgba(232,189,145,.13)}
+.staff-gallery-menu .staff-action-menu-pop button[data-gallery-delete]{color:#ffc0ad}
+.staff-gallery-delete-dialog::backdrop{background:rgba(9,7,7,.74);backdrop-filter:blur(7px)}
+.staff-gallery-delete-dialog{width:min(420px,calc(100vw - 32px));max-width:none;padding:0;border:1px solid rgba(235,202,171,.22);border-radius:18px;background:#2d2521;color:#fff2e6;box-shadow:0 24px 70px rgba(0,0,0,.48)}
+.staff-gallery-delete-card{padding:22px}
+.staff-gallery-delete-card .staff-eyebrow{margin:0 0 8px;color:#dcae83}
+.staff-gallery-delete-card h3{margin:0 0 8px;color:#fff3e8;font:600 23px var(--font-serif)}
+.staff-gallery-delete-card p{margin:0;color:#d6c5b8;font-size:12px;line-height:1.6}
+.staff-gallery-delete-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:20px}
+.staff-gallery-delete-actions button{min-height:36px;padding:8px 13px;border-radius:999px;font-size:11px;font-weight:750;cursor:pointer}
+.staff-gallery-delete-cancel{border:1px solid rgba(255,255,255,.17);color:#f6e7da;background:rgba(255,255,255,.06)}
+.staff-gallery-delete-confirm{border:1px solid rgba(224,119,99,.32);color:#fff0e8;background:#8e4538}
+.staff-gallery-delete-confirm:disabled{opacity:.55;cursor:wait}

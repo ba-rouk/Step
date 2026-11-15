@@ -93,3 +93,31 @@ body.route-cart #cart-page,body.route-confirmation #order-confirmation-page{disp
 .confirmation-order-item,.confirmation-order-total{display:flex;justify-content:space-between;gap:12px;color:rgba(255,239,228,.76);font-size:12px;line-height:1.5}
 .confirmation-order-item strong,.confirmation-order-total strong{color:#ffbd8d;text-align:right}
 .confirmation-order-total{padding-top:10px;border-top:1px solid rgba(255,255,255,.13);font-weight:800}
+
+/* Separate single-product order route and account-only saved cart. */
+.order-page{width:min(980px,calc(100% - 32px));margin:0 auto;padding:42px 0 90px;color:#fff4eb}
+.order-page[hidden]{display:none!important}
+.order-page .cart-page-heading{padding:4px 0 0}
+body.route-order main>section:not(#order-page){display:none!important}
+body.route-order #order-page{display:block!important}
+body.route-cart .cart-page-heading{padding-inline:0}
+body.route-cart #saved-cart-list[aria-busy=true]{min-height:100px}
+#saved-cart-total[hidden]{display:none!important}
+#saved-cart-total{margin-top:18px}
+.cart-order-link{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 12px;border:1px solid rgba(255,189,141,.35);border-radius:999px;color:#ffcfaa;font-size:11px;font-weight:750;text-decoration:none;white-space:nowrap}
+.cart-order-link:hover{background:rgba(255,189,141,.12)}
+.order-selected-item .cart-selected-copy h2{margin:5px 0 0}
+.order-price-note{margin:0 4px;color:rgba(255,239,228,.62);font-size:10px;line-height:1.5}
+.order-page .cart-product-summary{gap:12px}
+.order-page .product-order-form{margin-top:18px}
+body.route-order .order-page{width:min(900px,calc(100% - 28px));padding-top:30px}
+body.route-order .cart-page-heading{padding:0 0 22px}
+body.route-order .product-order-form{margin-top:18px}
+body.route-cart .cart-page{padding-top:36px}
+body.route-cart .cart-selected-item{grid-template-columns:112px minmax(0,1fr)}
+@media(max-width:640px){
+ .order-page{width:calc(100% - 28px);padding-top:25px}
+ .order-page .cart-page-heading{padding:0 0 20px}
+ body.route-cart .cart-page{padding-top:25px}
+ body.route-cart .cart-selected-item{grid-template-columns:88px minmax(0,1fr)}
+}

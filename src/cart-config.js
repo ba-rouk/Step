@@ -1,4 +1,4 @@
-// Guests can view and edit carts. Versioned storage lets older saved carts migrate once.
-export const REQUIRE_LOGIN_FOR_CART_LIST = false;
+// Guests must sign in to view their saved cart. Guest additions migrate into the account after sign-in.
+export const REQUIRE_LOGIN_FOR_CART_LIST = true;
 export const GUEST_CART_STORAGE_KEY = "step-town-cart-v2";
 export const LEGACY_GUEST_CART_STORAGE_KEYS = ["step-town-cart-v1"];

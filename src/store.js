@@ -5,7 +5,7 @@ import { renderProductPage } from "./product-page.js";
 import { normalizeCategoryLabel } from "./catalog-config.js";
 import { bindProductGallery, showProductToast, flashCartButton } from "./product-gallery.js";
 import { GUEST_CART_STORAGE_KEY, LEGACY_GUEST_CART_STORAGE_KEYS } from "./cart-config.js";
-import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCartItem, setCartQuantity, writeCartStorage } from "./cart-state.js";
+import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartStorage } from "./cart-state.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -15,42 +15,25 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
   const productHeading = document.querySelector("#product-heading");
   const categoryFilterRow = document.querySelector("#category-filter-row");
   const searchInput = document.querySelector("#menu-search");
-  const cartOpen = null;
   const mobileCartOpen = document.querySelector(".mobile-dock-cart");
-  const cartClose = document.querySelector("#cart-close");
-  const cartBackdrop = document.querySelector("#cart-backdrop");
-  const cartDrawer = document.querySelector("#cart-drawer");
-  const cartItems = document.querySelector("#cart-items");
   const cartCount = document.querySelector("#mobile-cart-count");
-  const cartTotal = document.querySelector("#cart-total");
-  const cartPricingNote = document.querySelector("#cart-pricing-note");
-  const checkoutForm = document.querySelector("#checkout-form");
-  const checkoutStatus = document.querySelector("#checkout-status");
-  const checkoutSubmit = document.querySelector("#checkout-submit");
-  const fulfillmentInput = document.querySelector("#checkout-fulfillment");
-  const locationInput = document.querySelector("#checkout-location");
-  const checkoutDate = document.querySelector("#checkout-date");
-  const cartHandoffKey = "step-town-cart-handoff-v1";
 
-  if (!categoryShowcase || !productGrid || !cartDrawer || !checkoutForm) return;
+  if (!categoryShowcase || !productGrid) return;
 
   let categories = [];
   let products = [];
   const pathname = decodeURIComponent(window.location.pathname.replace(/\/+$/, "") || "/");
   const categoryRoute = pathname === "/categories" || pathname.startsWith("/categories/");
   const galleryRoute = pathname === "/gallery";
-  const cartRoute = pathname === "/cart";
   const categorySlug = categoryRoute && pathname.startsWith("/categories/") ? pathname.split("/").filter(Boolean).at(-1) : "";
-  if (pathname === "/cart" || pathname === "/order/confirmation") return;
+  if (pathname === "/cart" || pathname === "/order" || pathname === "/order/confirmation") return;
   let selectedCategory = "all";
   if (categoryRoute) document.body.classList.add("route-categories");
   if (galleryRoute) document.body.classList.add("route-gallery");
-  if (cartRoute) document.body.classList.add("route-cart");
   const routeSearchMount = document.querySelector(".route-search-mount");
   const routeSearch = document.querySelector(".storefront-hero .menu-search");
   if (categoryRoute && routeSearchMount && routeSearch) routeSearchMount.append(routeSearch);
   let cart = loadCart();
-  let lastCartTrigger = mobileCartOpen || cartOpen;
 
   function escapeHtml(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, (character) => ({
@@ -214,51 +197,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
     if (mobileCartOpen) {
       mobileCartOpen.setAttribute("aria-label", itemCount ? "Cart, " + itemCount + " items" : "Cart");
     }
-    if (!cartItems) return;
-
-    if (!cart.length) {
-      cartItems.innerHTML = '<div class="cart-empty"><span aria-hidden="true">✳</span><strong>Your cart is empty.</strong><p>Browse the menu and add something you love.</p><a href="/categories" class="text-link dark-link" id="cart-browse-menu">Explore the menu</a></div>';
-      cartTotal.textContent = "RWF —";
-      cartPricingNote.textContent = "Your total will appear here when you add menu items.";
-      return;
-    }
-
-    const allPriced = cart.every((item) => item.price != null && Number.isFinite(item.price));
-    const subtotal = allPriced ? cart.reduce((sum, item) => sum + item.price * item.quantity, 0) : null;
-    cartTotal.textContent = subtotal == null ? "Quote required" : money(subtotal);
-    cartPricingNote.textContent = allPriced
-      ? "This is an estimate. Step Town will confirm the final price and availability."
-      : "At least one item needs a custom quote. Step Town will confirm the final price.";
-    cartItems.innerHTML = cart.map((item) => {
-      const image = safeImageUrl(item.image_url);
-      const unitText = item.price_unit_label || item.price_unit || "unit";
-      const linePrice = item.price == null ? "Quote required" : money(item.price) + " per " + unitText + " · " + money(item.price * item.quantity) + " estimated";
-      return '<article class="cart-item">' +
-        '<div class="cart-item-image">' + (image ? '<img src="' + escapeHtml(image) + '" alt="" loading="lazy">' : '<span>ST</span>') + '</div>' +
-        '<div class="cart-item-copy"><span>' + escapeHtml(item.category_name) + '</span><strong>' + escapeHtml(item.name) + '</strong><small>' + escapeHtml(linePrice) + '</small>' +
-        '<div class="cart-quantity"><button type="button" data-cart-action="decrease" data-product-id="' + escapeHtml(item.product_id) + '" aria-label="Decrease quantity">−</button><span>' + item.quantity + '</span><button type="button" data-cart-action="increase" data-product-id="' + escapeHtml(item.product_id) + '" aria-label="Increase quantity">+</button><button class="cart-remove" type="button" data-cart-action="remove" data-product-id="' + escapeHtml(item.product_id) + '">Remove</button></div></div></article>';
-    }).join("");
   }
-
-  function openCart() {
-    cartDrawer.hidden = false;
-    cartDrawer.setAttribute("aria-hidden", "false");
-    cartDrawer.setAttribute("aria-modal", cartRoute ? "false" : "true");
-    cartDrawer.setAttribute("role", cartRoute ? "region" : "dialog");
-    cartBackdrop.hidden = cartRoute;
-    if (!cartRoute) document.body.classList.add("cart-open");
-    if (cartClose) cartClose.focus();
-  }
-
-  function closeCart() {
-    if (cartRoute) { window.location.assign("/categories"); return; }
-    cartDrawer.hidden = true;
-    cartDrawer.setAttribute("aria-hidden", "true");
-    cartBackdrop.hidden = true;
-    document.body.classList.remove("cart-open");
-    if (lastCartTrigger?.isConnected) lastCartTrigger.focus();
-  }
-
   function addProduct(productId) {
     const product = products.find((item) => String(item.id) === String(productId));
     if (!product?.id) {
@@ -492,121 +431,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
     link.addEventListener("focus", warmMenu, { once:true });
     link.addEventListener("touchstart", warmMenu, { once:true, passive:true });
   });
-  // The Cart tab opens the public /cart page; login is required only when submitting an order.
-    if (cartClose) cartClose.addEventListener("click", closeCart);
-  if (cartBackdrop) cartBackdrop.addEventListener("click", closeCart);
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !cartDrawer.hidden) closeCart();
-  });
-
-  cartItems.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-cart-action]");
-    if (!button) return;
-    const item = cart.find((entry) => entry.product_id === button.dataset.productId);
-    if (!item) return;
-    if (button.dataset.cartAction === "increase") cart = setCartQuantity(cart, item.product_id, item.quantity + 1);
-    if (button.dataset.cartAction === "decrease") {
-      if (item.quantity <= 1) cart = removeCartItem(cart, item.product_id);
-      else cart = setCartQuantity(cart, item.product_id, item.quantity - 1);
-    }
-    if (button.dataset.cartAction === "remove") cart = removeCartItem(cart, item.product_id);
-    saveCart();
-    renderCart();
-  });
-
-  if (fulfillmentInput && locationInput) {
-    const updateLocationRequirement = () => {
-      locationInput.required = fulfillmentInput.value !== "pickup";
-      locationInput.placeholder = fulfillmentInput.value === "pickup" ? "Optional collection notes" : "Area, venue or address";
-    };
-    fulfillmentInput.addEventListener("change", updateLocationRequirement);
-    updateLocationRequirement();
-  }
-
-  if (checkoutDate) {
-    const today = new Date();
-    checkoutDate.min = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  }
-
-  checkoutForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (checkoutStatus) checkoutStatus.textContent = "";
-
-    if (!cart.length) {
-      checkoutStatus.textContent = "Add at least one menu item before sending your order request.";
-      return;
-    }
-    if (!checkoutForm.reportValidity()) return;
-
-    const formData = new FormData(checkoutForm);
-    const order = {
-      customer_name: String(formData.get("customer_name") || "").trim(),
-      customer_phone: String(formData.get("customer_phone") || "").trim(),
-      customer_email: String(formData.get("customer_email") || "").trim(),
-      fulfillment: String(formData.get("fulfillment") || "pickup"),
-      requested_date: String(formData.get("requested_date") || "") || null,
-      delivery_location: String(formData.get("delivery_location") || "").trim() || null,
-      notes: String(formData.get("notes") || "").trim() || null,
-      items: cart.map((item) => ({
-        product_id: item.product_id,
-        quantity: item.quantity
-      }))
-    };
-
-    const originalText = checkoutSubmit.innerHTML;
-    checkoutSubmit.disabled = true;
-    checkoutSubmit.textContent = "Saving your request…";
-
-    try {
-      const response = await apiFetch("/api/orders", { method: "POST", body: order });
-      const payload = await response.json().catch(() => ({}));
-
-      if (response.status === 401) {
-        window.location.assign("/login?next=" + encodeURIComponent("/cart"));
-        return;
-      }
-      if (!response.ok) {
-        checkoutStatus.textContent = [payload.error || "We couldn't save your request.", payload.suggestion ? "How to fix it: " + payload.suggestion : ""].filter(Boolean).join(" ");
-        return;
-      }
-
-      const savedOrder = payload.order || {};
-      const finalTotal = savedOrder.estimated_total == null ? null : Number(savedOrder.estimated_total);
-      const messageLines = [
-        "Hello Step Town, I have submitted an order request on your website.",
-        "",
-        "Order: " + (savedOrder.order_number || "New order request"),
-        "Name: " + order.customer_name,
-        "Phone: " + order.customer_phone,
-        "Email: " + order.customer_email,
-        "Fulfilment: " + order.fulfillment,
-        order.requested_date ? "Requested date: " + order.requested_date : "",
-        order.delivery_location ? "Location: " + order.delivery_location : "",
-        "",
-        "Order items:",
-        ...cart.map((item) => "- " + item.name + " × " + item.quantity),
-        finalTotal == null ? "Total: To be confirmed by Step Town" : "Estimated total: " + money(finalTotal),
-        order.notes ? "Notes: " + order.notes : ""
-      ].filter(Boolean);
-      const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(messageLines.join("\n"));
-
-      cart = [];
-      saveCart();
-      renderCart();
-      checkoutForm.reset();
-      if (fulfillmentInput && locationInput) locationInput.required = false;
-      checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>';
-    } catch (error) {
-      console.error("Step Town order request failed:", error);
-      checkoutStatus.textContent = "Connection problem: " + (error.message || "The order service could not be reached.") + " Try again after checking your internet connection. If it continues, contact Step Town on WhatsApp.";
-    } finally {
-      checkoutSubmit.disabled = false;
-      checkoutSubmit.innerHTML = originalText;
-    }
-  });
-
   renderCart();
   void syncAccountCart();
   loadCatalog();
-  if (cartRoute) openCart();
 })();

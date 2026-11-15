@@ -646,7 +646,7 @@ async function api(req,res,url) {
   return sendJson(res,404,{error:"API endpoint not found."});
 }
 function pageTitle(pathname){
-  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
+  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Your cart","/order":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
   if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
   if(pathname.startsWith("/categories/")){
     const slug=pathname.split("/").filter(Boolean).at(-1);
@@ -672,7 +672,7 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   try{data=await fs.readFile(file);}
   catch{return sendJson(res,staffRoute?503:404,{error:staffRoute?"The staff workspace is building. Refresh shortly.":"Static asset not found."});}
   const ext=path.extname(file).toLowerCase();
-  const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/")||decoded==="/cart");
+  const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/")||decoded==="/cart"||decoded==="/order");
   if(ext===".html"&&path.basename(file)==="index.html"){
     let html=data.toString("utf8");
     const lowerHtml=html.toLowerCase();
@@ -683,33 +683,36 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
       try{
         if(decoded==="/cart"){
           html=html.replace("<body>",'<body class="route-cart">');
+        }else if(decoded==="/order"){
+          html=html.replace("<body>",'<body class="route-order">');
           const productReference=String(url.searchParams.get("product")||"").trim().slice(0,160);
           let product=null;
           if(productReference){
             try{product=await fetchPublicProduct(productReference);}
-            catch(error){console.warn("Initial quick-order product lookup failed:",error.message);}
+            catch(error){console.warn("Initial order product lookup failed:",error.message);}
           }
           const payload=JSON.stringify({product,reference:productReference,embeddedAt:Date.now()})
             .replace(/</g,"\\u003c")
             .replace(/\u2028/g,"\\u2028")
             .replace(/\u2029/g,"\\u2029");
-          const initial='<script id="step-cart-product-data" type="application/json">'+payload+'</script>';
+          const initial='<script id="step-order-product-data" type="application/json">'+payload+'</script>';
           html=html.replace(/<\/head>/i,initial+'</head>');
-          const host='<div id="quick-order-summary" class="cart-product-summary" aria-live="polite" hidden></div>';
-          let quickMarkup="";
+          const hostPattern=/<div id="order-product-summary" class="order-product-summary cart-product-summary" aria-live="polite">[\s\S]*?<\/div>/;
+          const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+          let markup="";
           if(product){
-            const escape=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-            const imageValue=product.images?.[0];
-            const image=(typeof imageValue==="string"?imageValue:imageValue?.url)||product.image_urls?.[0]||product.image_url||"";
-            let safeImage="";
-            try{const parsed=new URL(String(image));if(parsed.protocol==="https:"||parsed.protocol==="http:")safeImage=parsed.href;}catch{}
-            const price=product.price==null||product.price===""?"Price to be confirmed":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(product.price))+" per "+escape(product.price_unit_label||product.price_unit||"unit");
-            const line=product.price==null?"Quote required":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(product.price));
-            quickMarkup='<div id="quick-order-summary" class="cart-product-summary" aria-live="polite"><p class="eyebrow">ORDER THIS ITEM</p><article class="cart-selected-item" data-cart-product="'+escape(product.id)+'" data-cart-kind="quick"><div class="cart-selected-image">'+(safeImage?'<img src="'+escape(safeImage)+'" alt="'+escape(product.name)+'">':'<div class="product-image-placeholder">STEP TOWN</div>')+'</div><div class="cart-selected-copy"><div class="cart-selected-head"><span class="cart-selected-category">'+escape(product.category_name||product.category?.name||"Menu")+'</span></div><h2>'+escape(product.name)+'</h2>'+(product.description?'<p class="cart-summary-description">'+escape(product.description)+'</p>':'')+'<div class="cart-unit-price"><span>'+price+'</span><strong>'+line+'</strong></div><div class="cart-item-footer"><div class="order-quantity"><button type="button" disabled aria-label="Decrease quantity">−</button><output>1</output><button type="button" disabled aria-label="Increase quantity">+</button></div><div class="cart-line-total"><span>Line total</span><strong>'+line+'</strong></div></div></div></article></div>';
-          }else if(productReference){
-            quickMarkup='<div id="quick-order-summary" class="cart-product-summary" aria-live="polite"><div class="cart-empty"><strong>We could not load this menu item.</strong><p>Please check the menu item and try again.</p><a class="button button-dark" href="/categories">Browse the menu</a></div></div>';
+            const first=Array.isArray(product.images)?product.images[0]:null;
+            const candidate=(typeof first==="string"?first:first?.url)||product.image_urls?.[0]||product.image_url||"";
+            let image="";
+            try{const parsed=new URL(String(candidate));if(parsed.protocol==="https:"||parsed.protocol==="http:")image=parsed.href;}catch{}
+            const numericPrice=product.price==null||product.price===""?null:Number(product.price);
+            const unitPrice=numericPrice==null?"Price to be confirmed":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(numericPrice)+" per "+esc(product.price_unit_label||product.price_unit||"unit");
+            const line=numericPrice==null?"Quote required":new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(numericPrice);
+            markup='<p class="eyebrow">THE ITEM YOU SELECTED</p><article class="cart-selected-item order-selected-item"><div class="cart-selected-image">'+(image?'<img src="'+esc(image)+'" alt="'+esc(product.name)+'">':'<div class="product-image-placeholder">STEP TOWN</div>')+'</div><div class="cart-selected-copy"><span class="cart-selected-category">'+esc(product.category_name||product.category?.name||"Menu")+'</span><h2>'+esc(product.name)+'</h2>'+(product.description?'<p class="cart-summary-description">'+esc(product.description)+'</p>':'')+'<div class="cart-unit-price"><span>Unit price</span><strong>'+unitPrice+'</strong></div><div class="cart-item-footer"><div class="order-quantity"><button type="button" data-order-quantity="decrease" disabled aria-label="Decrease quantity">−</button><output id="order-quantity-value">1</output><button type="button" data-order-quantity="increase" aria-label="Increase quantity">+</button></div><div class="cart-line-total"><span>Calculated price</span><strong id="order-line-total">'+line+'</strong></div></div></div></article><p class="order-price-note">Calculated from the current menu price. Step Town confirms final availability and pricing before accepting the order.</p>';
+          }else{
+            markup='<div class="cart-empty"><strong>'+(productReference?"We could not load this menu item.":"Choose a menu item to start an order.")+'</strong><p>'+(productReference?"Please return to the menu and select an available item.":"Open the item you want from the menu to see its details and price here.")+'</p><a class="button button-dark" href="/categories">Browse the menu</a></div>';
           }
-          html=html.replace(host,quickMarkup||host);
+          html=html.replace(hostPattern,'<div id="order-product-summary" class="order-product-summary cart-product-summary" aria-live="polite">'+markup+'</div>');
         }else{
           const category=decoded.startsWith("/categories/")?decoded.split("/").filter(Boolean).at(-1):"";
           const menu=await getPublicMenu({limit:PUBLIC_MENU_PAGE_SIZE,offset:0,category:category==="wedding-cakes"?"cake":category});
@@ -729,8 +732,8 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     "X-Content-Type-Options":"nosniff",
     "Referrer-Policy":"strict-origin-when-cross-origin",
     "X-Frame-Options":"SAMEORIGIN",
-    "Cache-Control":decoded==="/cart"&&ext===".html"?"no-store":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
-    ...(menuPage&&decoded!=="/cart"&&ext===".html"?{"CDN-Cache-Control":"public, s-maxage=30, stale-while-revalidate=240"}:{})
+    "Cache-Control":(decoded==="/cart"||decoded==="/order")&&ext===".html"?"no-store":menuPage&&ext===".html"?"public, max-age=15, stale-while-revalidate=180":ext===".html"?"no-store":"public, max-age=3600",
+    ...(menuPage&&decoded!=="/cart"&&decoded!=="/order"&&ext===".html"?{"CDN-Cache-Control":"public, s-maxage=30, stale-while-revalidate=240"}:{})
   };
   res.writeHead(200,headers);res.end(data);
 }
@@ -741,17 +744,25 @@ async function handle(req,res){
   if(req.method==="GET"&&route==="/categories/wedding-cakes"){
     res.writeHead(301,{Location:"/categories/cake","Cache-Control":"public, max-age=31536000, immutable"}).end();return;
   }
+  if(req.method==="GET"&&route==="/cart"&&url.searchParams.get("product")){
+    res.writeHead(302,{Location:"/order?product="+encodeURIComponent(url.searchParams.get("product")),"Cache-Control":"no-store"}).end();return;
+  }
   if(req.method==="GET"&&route.startsWith("/product/")){
     const slug=route.split("/").filter(Boolean).at(-1);
-    res.writeHead(301,{Location:"/cart?product="+encodeURIComponent(slug),"Cache-Control":"public, max-age=31536000, immutable"}).end();return;
+    res.writeHead(301,{Location:"/order?product="+encodeURIComponent(slug),"Cache-Control":"public, max-age=31536000, immutable"}).end();return;
   }
   if(route.startsWith("/api/")){
     try{return await api(req,res,url);}
     catch(e){console.error("API:",e);return sendJson(res,e.status||500,{error:e.status===413?e.message:"The request could not be completed."});}
   }
-  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders")){
+  if(req.method==="GET"&&(route==="/profile"||route==="/profile/orders"||route==="/cart")){
     const current=await currentUser(req,res);
-    if(!current){appendCookie(res,clearCookie(SESSION_COOKIE,req,true));res.writeHead(303,{Location:"/login?next="+encodeURIComponent(route+url.search),"Cache-Control":"no-store"});return res.end();}
+    if(!current){
+      appendCookie(res,clearCookie(SESSION_COOKIE,req,true));
+      const next=route==="/cart"?"/cart":route+url.search;
+      res.writeHead(303,{Location:"/login?next="+encodeURIComponent(next),"Cache-Control":"no-store"});
+      return res.end();
+    }
   }
   if(req.method==="GET"&&(route==="/login"||route==="/register")){
     const current=await currentUser(req,res);
