@@ -8,7 +8,7 @@ self.addEventListener("push", event => {
     icon: "/step-town-logo.png",
     badge: "/step-town-logo.png",
     data: { url: payload.url || payload.data?.url || "/staff/orders" },
-    tag: payload.tag || payload.order_id || "step-town-update",
+    tag: payload.tag || payload.order_id || "vitanova-update",
     renotify: true,
     requireInteraction: true,
     vibrate: [180, 90, 180]
