@@ -9,7 +9,8 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, "dist");
 const PORT = Number(process.env.PORT || 10000);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").replace(/\/+$/, "");
-const APP_URL = String(process.env.APP_URL || "https://steptown.onrender.com").replace(/\/+$/, "");
+const SITE_URL = String(process.env.SITE_URL || process.env.APP_URL || "https://vitanova-1hfh.onrender.com").replace(/\/+$/, "");
+const APP_URL = SITE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
 const KEY = SESSION_SECRET ? createHash("sha256").update(SESSION_SECRET).digest() : null;
@@ -81,8 +82,8 @@ function isSameOrigin(req) {
 function safeNext(v) {
   if(typeof v!=="string"||!v.startsWith("/")||v.startsWith("//")||v.includes("\\")||/[\u0000-\u001f]/.test(v)) return "/profile";
   try {
-    const u=new URL(v,"https://step-town.invalid");
-    if(u.origin!=="https://step-town.invalid"||u.pathname.startsWith("/staff")) return "/profile";
+    const u=new URL(v,"https://vitanova.invalid");
+    if(u.origin!=="https://vitanova.invalid"||u.pathname.startsWith("/staff")) return "/profile";
     return u.pathname+u.search+u.hash;
   } catch { return "/profile"; }
 }
@@ -299,7 +300,7 @@ async function authRoutes(req,res,url) {
     if(!rateLimit(req,"register",5))return sendJson(res,429,{error:"Too many registration attempts. Try again in 15 minutes."});
     const b=await body(req),name=String(b.name||"").trim(),phone=phoneNumber(b.phone),password=String(b.password||"");
     if(name.length<2||name.length>120)return sendJson(res,400,{error:"Enter your full name (2–120 characters)."});
-    if(!phone)return sendJson(res,400,{error:"Enter a valid phone number with country code, for example +250780382589."});
+    if(!phone)return sendJson(res,400,{error:"Enter a valid phone number with country code, for example +250 793 607 387."});
     if(password.length<10||password.length>128)return sendJson(res,400,{error:"Use a password between 10 and 128 characters."});
     try{
       const result=await sb("/auth/v1/signup",{method:"POST",body:{phone,password,data:{full_name:name,name,phone}}});
@@ -660,7 +661,7 @@ async function api(req,res,url) {
   return sendJson(res,404,{error:"API endpoint not found."});
 }
 function pageTitle(pathname){
-  const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Your cart","/order":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
+  const titles={"/":"Vitanova","/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Your cart","/order":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
   if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
   if(pathname.startsWith("/categories/")){
     const slug=pathname.split("/").filter(Boolean).at(-1);
@@ -668,7 +669,7 @@ function pageTitle(pathname){
     return "Menu category";
   }
   if(pathname.startsWith("/staff"))return "Staff workspace";
-  return titles[pathname]||"Food · Celebrations · Cakes";
+  return titles[pathname]||"Menu category";
 }
 async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   const decoded=decodeURIComponent(pathname);
@@ -687,12 +688,17 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
   catch{return sendJson(res,staffRoute?503:404,{error:staffRoute?"The staff workspace is building. Refresh shortly.":"Static asset not found."});}
   const ext=path.extname(file).toLowerCase();
   const menuPage=!staffRoute&&(decoded==="/"||decoded==="/categories"||decoded.startsWith("/categories/")||decoded==="/cart"||decoded==="/order");
-  if(ext===".html"&&path.basename(file)==="index.html"){
+  if(ext===".html"&&(path.basename(file)==="index.html"||path.basename(file)==="staff.html")){
     let html=data.toString("utf8");
     const lowerHtml=html.toLowerCase();
     const titleStart=lowerHtml.indexOf("<title>");
     const titleEnd=lowerHtml.indexOf("</title>",titleStart);
-    if(titleStart>=0&&titleEnd>titleStart)html=html.slice(0,titleStart)+"<title>Step Town | "+pageTitle(pathname)+"</title>"+html.slice(titleEnd+8);
+    if(titleStart>=0&&titleEnd>titleStart){
+      const title=pathname==="/"?"Vitanova":pageTitle(pathname)+" | Vitanova";
+      html=html.slice(0,titleStart)+"<title>"+title+"</title>"+html.slice(titleEnd+8);
+    }
+    const canonicalUrl=SITE_URL+(pathname==="/"?"":pathname);
+    html=html.replaceAll("__SITE_URL__",canonicalUrl);
     if(menuPage){
       try{
         if(decoded==="/cart"){
@@ -753,6 +759,9 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
 }
 async function handle(req,res){
   const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname).replace(/\/+$/,"")||"/";
+  if(req.method==="GET"&&route==="/favicon.ico"){
+    res.writeHead(302,{Location:"/favicon.svg","Cache-Control":"public, max-age=86400"}).end();return;
+  }
   if(req.method==="GET"&&route==="/api/auth/google")return oauthStart(req,res,url);
   if(req.method==="GET"&&route==="/auth/callback")return oauthCallback(req,res,url);
   if(req.method==="GET"&&route==="/categories/wedding-cakes"){
@@ -787,5 +796,5 @@ async function handle(req,res){
 }
 if(PROD&&!KEY)console.warn("SESSION_SECRET is missing: customer login remains disabled until configured.");
 const server=http.createServer((req,res)=>{res.setHeader("X-Content-Type-Options","nosniff");res.setHeader("Referrer-Policy","strict-origin-when-cross-origin");res.setHeader("X-Frame-Options","SAMEORIGIN");void handle(req,res).catch(e=>{console.error("Unhandled request:",e);if(!res.headersSent)sendJson(res,500,{error:"Unexpected server error."});else res.end();});});
-server.listen(PORT,"0.0.0.0",()=>console.log("Step Town server listening on "+PORT));
+server.listen(PORT,"0.0.0.0",()=>console.log("Vitanova server listening on "+PORT));
 setInterval(()=>{const now=Date.now();for(const [key,b] of limits)if(b.reset<=now)limits.delete(key);},60000).unref();
