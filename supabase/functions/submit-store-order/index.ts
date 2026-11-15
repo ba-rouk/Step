@@ -1,3 +1,4 @@
+import { getSiteUrl } from "../_shared/site.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 const cors = {
@@ -154,12 +155,12 @@ Deno.serve(async req => {
     .single();
   if (insertError || !saved) {
     console.error("Order save failed:", insertError);
-    return json({ error: "We could not save your order just now. Please retry or contact Step Town on WhatsApp." }, 502);
+    return json({ error: "We could not save your order just now. Please retry or contact Vitanova on WhatsApp." }, 502);
   }
 
   // Email delivery is durable: queue it independently so an email outage never
   // rolls back the successfully saved order.
-  const trackingUrl = (Deno.env.get("APP_URL") || "https://steptown.onrender.com").replace(/\/+$/, "") + "/order/" + saved.tracking_token;
+  const trackingUrl = (Deno.env.get("APP_URL") || "https://vitanova.onrender.com").replace(/\/+$/, "") + "/order/" + saved.tracking_token;
   const emailJob = await db.from("email_outbox").insert({
     recipient: email,
     template_key: "order_confirmation",
