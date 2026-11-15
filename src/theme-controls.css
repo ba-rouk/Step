@@ -72,3 +72,111 @@ select:focus-visible,
   background:#2d2521;
   box-shadow:0 25px 80px rgba(0,0,0,.48);
 }
+
+
+/* Consistent Step Town treatment for dropdowns across storefront and staff pages. */
+select,
+.staff-app select,
+.enquiry-form select,
+.product-order-form select,
+.customer-page select {
+  min-height:44px;
+  padding:11px 38px 11px 13px;
+  border:1px solid rgba(211,177,145,.32);
+  border-radius:12px;
+  color:#fff4e9;
+  background-color:#302722;
+  font:500 13px/1.35 var(--font-sans,Inter,sans-serif);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+  transition:border-color .18s ease,background-color .18s ease,box-shadow .18s ease;
+}
+select:hover,
+.staff-app select:hover,
+.enquiry-form select:hover,
+.product-order-form select:hover {
+  border-color:rgba(232,189,145,.62);
+  background-color:#382e28;
+}
+select:focus-visible,
+.staff-app select:focus-visible,
+.enquiry-form select:focus-visible,
+.product-order-form select:focus-visible {
+  border-color:#e8bd91;
+  outline:2px solid rgba(232,189,145,.35);
+  outline-offset:2px;
+  box-shadow:0 0 0 4px rgba(232,189,145,.08);
+}
+select:disabled,
+.staff-app select:disabled {opacity:.55;cursor:not-allowed}
+select option,
+select optgroup,
+.staff-app select option,
+.staff-app select optgroup {
+  color:#fff2e6 !important;
+  background:#302722 !important;
+  font:500 13px var(--font-sans,Inter,sans-serif);
+}
+select option:checked,
+.staff-app select option:checked {
+  color:#241a16 !important;
+  background:#e7bd90 !important;
+}
+
+/* Branded replacement for native confirm()/prompt() popups in staff actions. */
+.step-town-action-dialog::backdrop {
+  background:rgba(9,7,7,.76);
+  -webkit-backdrop-filter:blur(8px);
+  backdrop-filter:blur(8px);
+}
+.step-town-action-dialog {
+  width:min(440px,calc(100vw - 30px));
+  max-width:none;
+  max-height:min(84dvh,700px);
+  margin:auto;
+  padding:0;
+  overflow:auto;
+  border:1px solid rgba(235,202,171,.23);
+  border-radius:20px;
+  color:#fff2e6;
+  background:#2d2521;
+  box-shadow:0 25px 80px rgba(0,0,0,.5);
+}
+.step-town-action-card{padding:22px}
+.step-town-action-eyebrow{margin:0 0 8px;color:#dcae83;font-size:9px;font-weight:800;letter-spacing:.16em}
+.step-town-action-card h2{margin:0 0 8px;color:#fff3e8;font:600 24px/1.14 var(--font-serif,"Source Serif 4",Georgia,serif)}
+.step-town-action-message{margin:0;color:#d8c8bc;font-size:12px;line-height:1.65;white-space:pre-line}
+.step-town-action-field{display:grid;gap:7px;margin-top:17px;color:#f5e4d6;font-size:11px;font-weight:700}
+.step-town-action-field input,
+.step-town-action-field select,
+.step-town-action-field textarea{
+  width:100%;
+  min-height:44px;
+  box-sizing:border-box;
+  padding:11px 12px;
+  border:1px solid rgba(235,202,171,.28);
+  border-radius:11px;
+  color:#fff4e9;
+  background:#211b18;
+  font:500 13px var(--font-sans,Inter,sans-serif);
+}
+.step-town-action-field input:focus,
+.step-town-action-field select:focus,
+.step-town-action-field textarea:focus{outline:2px solid rgba(232,189,145,.55);outline-offset:2px}
+.step-town-action-field select option{color:#fff2e6;background:#302722}
+.step-town-action-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:21px}
+.step-town-action-actions button{
+  min-width:82px;
+  min-height:38px;
+  padding:9px 15px;
+  border:1px solid transparent;
+  border-radius:999px;
+  font:750 11px var(--font-sans,Inter,sans-serif);
+  cursor:pointer;
+}
+.step-town-action-cancel{border-color:rgba(255,255,255,.18)!important;color:#f6e7da;background:rgba(255,255,255,.07)}
+.step-town-action-confirm{color:#241a16;background:#e8bd91}
+.step-town-action-confirm:hover{background:#f1cda7}
+.step-town-action-confirm.danger{color:#fff0e8;background:#8e4538}
+.step-town-action-confirm.danger:hover{background:#a85445}
+.step-town-action-actions button:focus-visible{outline:2px solid #e8bd91;outline-offset:3px}
+@media(max-width:420px){.step-town-action-card{padding:19px}.step-town-action-actions button{flex:1}}
