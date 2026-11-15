@@ -19,10 +19,10 @@ export function normalizeCartItems(rows) {
     if (!PRODUCT_ID_PATTERN.test(id)) continue;
     const item = {...raw, id, product_id:id, quantity:quantityOf(raw.quantity)};
     const previous = normalized.get(id);
+    if (!previous && normalized.size >= MAX_ITEMS) continue;
     normalized.set(id, previous
       ? {...previous, ...item, quantity:Math.max(previous.quantity, item.quantity)}
       : item);
-    if (normalized.size >= MAX_ITEMS) break;
   }
   return [...normalized.values()];
 }
