@@ -218,6 +218,13 @@ if (isAuthRoute) {
       "MY STEP TOWN PROFILE"
     );
     const favouritesGrid = app.querySelector(".customer-favourites-grid");
+    const cartReady = CartState.migrateLegacyCart(async reference => {
+      const byId = /^[0-9a-f-]{36}$/i.test(String(reference || ""));
+      const response = await fetch("/api/catalog?limit=1&" + (byId ? "product_id=" : "slug=") + encodeURIComponent(reference), {credentials:"same-origin"});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Cart products could not be resolved.");
+      return data.products?.find(product => String(product.id) === String(reference) || String(product.slug || "") === String(reference)) || null;
+    });
     bindProductGallery(favouritesGrid);
     favouritesGrid?.addEventListener("click", async (event) => {
       const remove = event.target.closest("[data-favourite]");
@@ -246,6 +253,7 @@ if (isAuthRoute) {
       if (!product) return;
       let cart;
       try {
+        await cartReady;
         cart = CartState.addItem(product);
       } catch (error) {
         showProductToast(error.message || "Your cart could not be saved.");
