@@ -136,7 +136,7 @@ function shell(title, body, subtitle = "") {
   app.innerHTML =
     '<header class="staff-top">' +
       '<a class="staff-brand" href="/" aria-label="Vitanova home">' +
-        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova logo">' +
+        '<img class="staff-logo" src="/vitanova-mark.svg" alt="Vitanova brand icon">' +
         '<span><b>VITANOVA</b><small>STAFF WORKSPACE</small></span>' +
       "</a>" +
       '<div class="staff-top-meta"><span>' + name + "</span><small>" + role + "</small></div>" +
@@ -324,7 +324,7 @@ async function getProfile() {
 function loginView(message = "") {
   app.innerHTML =
     '<div class="staff-login-wrap">' +
-      '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Vitanova home"><img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova logo"><span><b>VITANOVA</b><small>STAFF ACCESS</small></span></a>' +
+      '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Vitanova home"><img class="staff-logo" src="/vitanova-mark.svg" alt="Vitanova brand icon"><span><b>VITANOVA</b><small>STAFF ACCESS</small></span></a>' +
       '<section class="staff-login-card">' +
         '<p class="staff-eyebrow">PRIVATE TEAM PORTAL</p><h1>Welcome back.</h1>' +
         '<p class="staff-muted">Sign in with the account created by your Manager.</p>' +
@@ -1558,7 +1558,7 @@ function changePasswordPage() {
   app.innerHTML =
     '<div class="staff-login-wrap">' +
       '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Return to Vitanova home">' +
-        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova logo">' +
+        '<img class="staff-logo" src="/vitanova-mark.svg" alt="Vitanova brand icon">' +
         '<span><b>VITANOVA</b><small>STAFF ACCESS</small></span>' +
       '</a>' +
       '<section class="staff-login-card staff-password">' +
