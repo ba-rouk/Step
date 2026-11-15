@@ -2,11 +2,11 @@ import { defineConfig } from "vite";
 import { resolve } from "node:path";
 import { CAKE_CATEGORY_LABEL } from "./src/catalog-config.js";
 
-const renderHosts = ["steptown.onrender.com", ".onrender.com"];
+const renderHosts = ["vitanova.onrender.com", ".onrender.com"];
 
 export default defineConfig({
   plugins: [{
-    name: "step-town-category-label",
+    name: "vitanova-category-label",
     transformIndexHtml(html) {
       return html.replaceAll("__CAKE_CATEGORY_LABEL__", CAKE_CATEGORY_LABEL);
     }
