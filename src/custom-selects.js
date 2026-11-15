@@ -44,7 +44,7 @@
     select.setAttribute("aria-hidden", "true");
     select.tabIndex = -1;
 
-    const state = { root, trigger, list, options: [], activeIndex: -1, typeBuffer: "", reposition: null };
+    const state = { root, trigger, list, options: [], activeIndex: -1, typeBuffer: "", reposition: null, close: null };
     roots.set(select, state);
 
     function enabledIndices() {
@@ -55,7 +55,7 @@
       trigger.disabled = select.disabled;
       trigger.setAttribute("aria-required", String(select.required));
       trigger.setAttribute("aria-invalid", String(select.getAttribute("aria-invalid") === "true"));
-      root.classList.toggle("is-disabled", select.disabled);
+      root.classList.toggle("is-disabled", select.disabled);\n      if (select.disabled && state.close) state.close();
     }
 
     function syncSelected() {
@@ -220,7 +220,7 @@
       }
     });
 
-    select.addEventListener("change", () => {
+    state.close = close;\n\n    select.addEventListener("change", () => {
       syncSelected();
       trigger.classList.remove("is-invalid");
     });
@@ -277,7 +277,7 @@
     document.querySelectorAll(".step-select.is-open").forEach(root => {
       const select = root.previousElementSibling;
       const state = select && roots.get(select);
-      if (state) state.trigger.click();
+      if (state) state.close?.();
     });
   });
   document.addEventListener("keydown", event => {
