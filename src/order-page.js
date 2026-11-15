@@ -36,7 +36,7 @@ function renderProduct() {
   const submit = document.querySelector("#product-order-submit");
   if (!host) return;
   if (!selectedProduct) {
-    host.innerHTML = '<div class="cart-empty"><strong>Choose a menu item to order.</strong><p>Open the item you want from the Step Town menu to see its details and price here.</p><a class="button button-dark" href="/categories">Browse the menu</a></div>';
+    host.innerHTML = '<div class="cart-empty"><strong>Choose a menu item to order.</strong><p>Open the item you want from the Vitanova menu to see its details and price here.</p><a class="button button-dark" href="/categories">Browse the menu</a></div>';
     if (submit) submit.disabled = true;
     return;
   }
@@ -45,14 +45,14 @@ function renderProduct() {
   const line = price == null ? "Quote required" : money(price * quantity);
   const unitPrice = formatProductPrice(selectedProduct);
   host.innerHTML = '<p class="eyebrow">THE ITEM YOU SELECTED</p><article class="cart-selected-item order-selected-item"><div class="cart-selected-image">' +
-    (image ? '<img src="' + escapeHtml(image) + '" alt="' + escapeHtml(selectedProduct.name) + '">' : '<div class="product-image-placeholder">STEP TOWN</div>') +
+    (image ? '<img src="' + escapeHtml(image) + '" alt="' + escapeHtml(selectedProduct.name) + '">' : '<div class="product-image-placeholder">VITANOVA</div>') +
     '</div><div class="cart-selected-copy"><span class="cart-selected-category">' + escapeHtml(selectedProduct.category_name || selectedProduct.category?.name || "Menu") + '</span>' +
     '<h2>' + escapeHtml(selectedProduct.name) + '</h2>' +
     (selectedProduct.description ? '<p class="cart-summary-description">' + escapeHtml(selectedProduct.description) + '</p>' : '') +
     '<div class="cart-unit-price"><span>Unit price</span><strong>' + escapeHtml(unitPrice) + '</strong></div>' +
     '<div class="cart-item-footer"><div class="order-quantity"><button type="button" data-order-quantity="decrease" aria-label="Decrease quantity" ' + (quantity <= 1 ? "disabled" : "") + '>−</button><output id="order-quantity-value">' + quantity + '</output><button type="button" data-order-quantity="increase" aria-label="Increase quantity" ' + (quantity >= 20 ? "disabled" : "") + '>+</button></div>' +
     '<div class="cart-line-total"><span>Calculated price</span><strong id="order-line-total">' + line + '</strong></div></div></div></article>' +
-    '<p class="order-price-note">Calculated from the current menu price. Step Town confirms final availability and pricing before accepting the order.</p>';
+    '<p class="order-price-note">Calculated from the current menu price. Vitanova confirms final availability and pricing before accepting the order.</p>';
   if (submit) submit.disabled = false;
 }
 
@@ -107,7 +107,7 @@ async function prefillSignedInCustomer(form) {
 
 function confirmationMessage(order,product,orderFields) {
   return [
-    "Hello Step Town, I have sent an order request from the website.",
+    "Hello Vitanova, I would like to place an order.",
     "Order: " + (order?.order_number || "New order"),
     "Name: " + orderFields.customer_name,
     "Email: " + orderFields.customer_email,
@@ -221,7 +221,7 @@ function renderConfirmation() {
   const number = document.querySelector("#confirmed-order-number");
   if (number) number.textContent = params.get("order") || data.order_number || "";
   const details = document.querySelector("#confirmation-details");
-  if (details) details.textContent = "Your order request has been saved. Step Town will contact you to confirm the details and final pricing.";
+  if (details) details.textContent = "Your order request has been saved. Vitanova will contact you to confirm the details and final pricing.";
   const summary = document.querySelector("#confirmation-order-summary");
   if (summary) {
     const rows = Array.isArray(data.items) ? data.items : [];
@@ -233,7 +233,7 @@ function renderConfirmation() {
   const whatsapp = document.querySelector("#confirmation-whatsapp");
   const message = sessionStorage.getItem("step-town-last-order-message") || "";
   if (whatsapp && message) {
-    whatsapp.href = "https://wa.me/250780382589?text=" + encodeURIComponent(message);
+    whatsapp.href = "https://wa.me/250793607387?text=" + encodeURIComponent(message);
     whatsapp.hidden = false;
   }
 }
