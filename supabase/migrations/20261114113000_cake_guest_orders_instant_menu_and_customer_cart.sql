@@ -1,4 +1,4 @@
--- Step Town category, public menu and guest order support.
+-- Vitanova category, public menu and guest order support.
 -- Preserve the existing category UUID so every existing product remains attached.
 update public.store_categories
 set name = 'Cake', slug = 'cake'
@@ -32,8 +32,8 @@ alter table public.store_orders
   check (order_description is null or char_length(order_description) <= 5000);
 
 -- Guest requests use the same ST-#### sequence, events and staff workflow.
-drop policy if exists "Guests can place Step Town orders" on public.store_orders;
-create policy "Guests can place Step Town orders"
+drop policy if exists "Guests can place Vitanova orders" on public.store_orders;
+create policy "Guests can place Vitanova orders"
 on public.store_orders for insert to anon
 with check (
   customer_id is null and status = 'new'
