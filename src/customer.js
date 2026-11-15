@@ -4,6 +4,7 @@ import { renderProductCard } from "./product-card.js";
 import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
 import { GUEST_CART_STORAGE_KEY, LEGACY_GUEST_CART_STORAGE_KEYS } from "./cart-config.js";
 import { addCartItem, cartItemCount, readCartStorage, writeCartStorage } from "./cart-state.js";
+import { readFavouriteIds, writeFavouriteIds } from "./favourites-storage.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const isAuthRoute = ["/login","/register","/profile","/profile/orders","/profile/cart-history"].includes(route);
@@ -223,9 +224,8 @@ if (isAuthRoute) {
     favouritesGrid?.addEventListener("click", async (event) => {
       const remove = event.target.closest("[data-favourite]");
       if (remove) {
-        const ids = JSON.parse(localStorage.getItem("step-town-favourites-v1") || "[]")
-          .filter((id) => id !== remove.dataset.favourite);
-        localStorage.setItem("step-town-favourites-v1", JSON.stringify(ids));
+        const ids = readFavouriteIds().filter((id) => id !== remove.dataset.favourite);
+        writeFavouriteIds(ids);
         remove.classList.remove("is-saved");
         remove.setAttribute("aria-pressed", "false");
         remove.closest("[data-product-card]")?.remove();
@@ -382,11 +382,11 @@ if (isAuthRoute) {
         const savedPayload = savedResponse.ok ? await savedResponse.json() : { product_ids:[] };
         const productPayload = productResponse.ok ? await productResponse.json() : { products:[] };
         let localIds = [];
-        try { localIds = JSON.parse(localStorage.getItem("step-town-favourites-v1") || "[]"); } catch {}
+        localIds = readFavouriteIds();
         const mergedIds = [...new Set([...(savedPayload.product_ids || []), ...(Array.isArray(localIds) ? localIds : [])])];
         if (mergedIds.length) {
           await apiFetch("/api/profile/favourites", { method:"PUT", body:{ product_ids:mergedIds } });
-          localStorage.setItem("step-town-favourites-v1", JSON.stringify(mergedIds));
+          writeFavouriteIds(mergedIds);
         }
         const favouriteProducts = (productPayload.products || []).filter(product => mergedIds.includes(product.id));
         renderProfile(payload, favouriteProducts);
