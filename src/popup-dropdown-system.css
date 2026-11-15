@@ -210,3 +210,28 @@ dialog.staff-gallery-lightbox::backdrop {
   dialog.step-town-popup,
   dialog.staff-gallery-lightbox { max-height: 88dvh; }
 }
+
+/* Public enquiry and order forms use dark glass inputs. Keep their custom
+   select triggers visually consistent instead of the shared cream default. */
+.enquiry-form .step-select-trigger,
+.product-order-form .step-select-trigger {
+  border-color: rgba(255, 255, 255, .21);
+  color: #fff7f0;
+  background: rgba(20, 15, 17, .40);
+  box-shadow: none;
+}
+.enquiry-form .step-select-trigger:hover,
+.product-order-form .step-select-trigger:hover {
+  border-color: rgba(255, 171, 117, .72);
+  background: rgba(31, 23, 24, .58);
+}
+.enquiry-form .step-select-trigger.is-placeholder {
+  color: rgba(255, 239, 228, .52);
+}
+.enquiry-form .step-select-trigger:focus-visible,
+.product-order-form .step-select-trigger:focus-visible {
+  border-color: #ffab75;
+  outline: 2px solid rgba(255, 150, 93, .35);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(255, 150, 93, .16);
+}
