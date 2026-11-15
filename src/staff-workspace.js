@@ -1558,7 +1558,7 @@ function changePasswordPage() {
   app.innerHTML =
     '<div class="staff-login-wrap">' +
       '<a class="staff-brand staff-login-brand" href="' + PUBLIC_HOME_URL + '" aria-label="Return to Vitanova home">' +
-        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova">' +
+        '<img class="staff-logo" src="https://d2ol7oe51mr4n9.cloudfront.net/user_3JPd9e1eRECK2nSPsNLigKlzn1d/9a5d19f1-c3c6-42d6-a9e9-a35ddaaeae13.jpg" alt="Vitanova logo">' +
         '<span><b>VITANOVA</b><small>STAFF ACCESS</small></span>' +
       '</a>' +
       '<section class="staff-login-card staff-password">' +
