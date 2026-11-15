@@ -16,7 +16,7 @@ test("the dedicated cart route keeps its main content visible", () => {
 
 test("gallery delete actions bind all matching cards with the collection selector", () => {
   assert.match(staff, /\$\$\("\[data-gallery-delete\]"\)\.forEach/);
-  assert.doesNotMatch(staff, /\$\("\[data-gallery-delete\]"\)\.forEach/);
+  assert.doesNotMatch(staff, /(^|[^$])\$\("\[data-gallery-delete\]"\)\.forEach/);
 });
 
 
