@@ -1,4 +1,4 @@
--- Complete Step Town product gallery enforcement.
+-- Complete Vitanova product gallery enforcement.
 -- The base product_images/customer_favourites tables already exist in this project.
 alter table public.product_images add column if not exists public_id text;
 alter table public.product_images add column if not exists alt_text text;
