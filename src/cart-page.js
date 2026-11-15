@@ -232,8 +232,7 @@ async function submitCartOrder(form) {
     const totals = cartTotal(items);
     const estimated = resultOrder.estimated_total == null ? (totals.allPriced ? totals.amount : null) : Number(resultOrder.estimated_total);
     const message = cartOrderMessage(resultOrder,orderFields,items);
-    sessionStorage.setItem("step-town-last-order-message",message);
-    sessionStorage.setItem("step-town-order-confirmation",JSON.stringify({
+    saveOrderSession({
       order_number:resultOrder.order_number || "",
       estimated_total:estimated,
       items:items.map(item=>({
@@ -241,7 +240,7 @@ async function submitCartOrder(form) {
         quantity:item.quantity,
         line_total:item.price == null ? null : Number(item.price)*item.quantity
       }))
-    }));
+    }, message);
     window.location.assign("/order/confirmation?order=" + encodeURIComponent(resultOrder.order_number || ""));
   } catch (error) {
     if (status) status.textContent = error.message || "Connection problem. Please try again.";
