@@ -51,7 +51,7 @@ if (isAuthRoute) {
     });
   }
 
-  function shell(content, kicker = "STEP TOWN ACCOUNT") {
+  function shell(content, kicker = "VITANOVA ACCOUNT") {
     app.innerHTML = '<section class="customer-auth"><div class="customer-auth-card"><p class="customer-kicker">' + kicker + '</p>' + content + '</div></section>';
     app.focus({ preventScroll: true });
   }
@@ -60,11 +60,11 @@ if (isAuthRoute) {
     const registering = mode === "register";
     const fields =
       (registering ? '<label class="customer-field"><span>Full name</span><input name="name" type="text" autocomplete="name" minlength="2" maxlength="120" required placeholder="Your full name"></label>' : "") +
-      '<label class="customer-field"><span>' + (registering ? "Phone number" : "Phone number or email") + '</span><input name="phone" type="' + (registering ? "tel" : "text") + '" autocomplete="' + (registering ? "tel" : "username") + '" ' + (registering ? 'inputmode="tel" placeholder="+250 780 382 589"' : 'placeholder="+250 780 382 589 or you@example.com"') + ' required></label>' +
+      '<label class="customer-field"><span>' + (registering ? "Phone number" : "Phone number or email") + '</span><input name="phone" type="' + (registering ? "tel" : "text") + '" autocomplete="' + (registering ? "tel" : "username") + '" ' + (registering ? 'inputmode="tel" placeholder="+250 793 607 387"' : 'placeholder="+250 793 607 387 or you@example.com"') + ' required></label>' +
       passwordField("Password", registering ? "new-password" : "current-password", registering ? 10 : 8);
     shell(
       '<h1>' + (registering ? "Create your account." : "Welcome back.") + '</h1>' +
-      '<p class="customer-intro">' + (registering ? "Create a Step Town account to keep your orders and details together." : "Sign in to view your profile and order history, or send an order request.") + '</p>' +
+      '<p class="customer-intro">' + (registering ? "Create a Vitanova account to keep your orders and details together." : "Sign in to view your profile and order history, or send an order request.") + '</p>' +
       '<form id="email-code-request" novalidate>' +
       (registering ? '<label class="customer-field"><span>Full name</span><input name="name" type="text" autocomplete="name" minlength="2" maxlength="120" required placeholder="Your full name"></label>' : '') +
       '<label class="customer-field"><span>Email address</span><input name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com"></label>' +
@@ -75,9 +75,9 @@ if (isAuthRoute) {
       '<button class="customer-submit" type="submit">' + (registering ? "Create account" : "Sign in") + '</button></form>' +
       '<div class="customer-divider"><span>OR</span></div>' +
       '<a class="customer-google" href="/api/auth/google?next=' + encodeURIComponent(safeNext) + '"><svg class="customer-google-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.3 30.4 0 24 0 14.6 0 6.5 5.4 2.5 13.3l7.9 6.1C12.3 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M47.5 24.5c0-1.6-.2-3.2-.5-4.7H24v9h13.2c-.6 2.9-2.2 5.3-4.6 6.9l7.5 5.8c4.6-4.2 7.4-10.2 7.4-17z"/><path fill="#FBBC05" d="M10.4 28.6A14.5 14.5 0 0 1 9.6 24c0-1.6.3-3.1.8-4.6l-7.9-6.1A23.7 23.7 0 0 0 0 24c0 3.8.9 7.5 2.5 10.7z"/><path fill="#34A853" d="M24 48c6.4 0 11.8-2.1 15.7-5.8l-7.5-5.8c-2.1 1.4-4.8 2.2-8.2 2.2-6.3 0-11.7-4.1-13.6-9.9l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg> Continue with Google</a>' +
-      '<p class="customer-note">' + (registering ? 'Already have an account? <a href="/login?next=' + encodeURIComponent(safeNext) + '">Sign in</a>.' : 'New to Step Town? <a href="/register?next=' + encodeURIComponent(safeNext) + '">Create an account</a>.') + '</p>' +
+      '<p class="customer-note">' + (registering ? 'Already have an account? <a href="/login?next=' + encodeURIComponent(safeNext) + '">Sign in</a>.' : 'New to Vitanova? <a href="/register?next=' + encodeURIComponent(safeNext) + '">Create an account</a>.') + '</p>' +
       '<p class="customer-note">Staff use the separate <a href="/staff/login">staff sign-in</a>.</p>',
-      registering ? "JOIN THE STEP TOWN TABLE" : "YOUR STEP TOWN ACCOUNT"
+      registering ? "JOIN THE VITANOVA TABLE" : "YOUR VITANOVA ACCOUNT"
     );
     const codeRequest = app.querySelector("#email-code-request");
     codeRequest?.addEventListener("submit", async event => {
@@ -162,7 +162,7 @@ if (isAuthRoute) {
 
   function verificationForm(phone, name) {
     shell(
-      '<h1>Verify your phone.</h1><p class="customer-intro">We sent a one-time code to <strong>' + escapeHtml(phone) + '</strong>. Enter it to finish creating your Step Town account.</p>' +
+      '<h1>Verify your phone.</h1><p class="customer-intro">We sent a one-time code to <strong>' + escapeHtml(phone) + '</strong>. Enter it to finish creating your Vitanova account.</p>' +
       '<form id="customer-verify-form"><label class="customer-field"><span>Verification code</span><input name="token" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" minlength="6" maxlength="8" required placeholder="6-digit code"></label>' +
       '<p class="customer-error" role="alert" aria-live="polite"></p><button class="customer-submit" type="submit">Verify and continue</button></form>' +
       '<p class="customer-note"><a href="/register?next=' + encodeURIComponent(safeNext) + '">Back to registration</a></p>',
@@ -200,7 +200,7 @@ if (isAuthRoute) {
   function renderProfile(payload, favouriteProducts = []) {
     const profile = payload.profile || {};
     const user = payload.user || {};
-    const name = profile.full_name || user.user_metadata?.full_name || user.user_metadata?.name || "Step Town customer";
+    const name = profile.full_name || user.user_metadata?.full_name || user.user_metadata?.name || "Vitanova customer";
     const phone = profile.phone || user.phone || "Not provided";
     const favouritesMarkup = favouriteProducts.length
       ? favouriteProducts.map((product,index) => renderProductCard(product, {
@@ -211,12 +211,12 @@ if (isAuthRoute) {
         })).join("")
       : '<p class="customer-empty-favourites">You have not saved any menu items yet. Tap the heart on a product to add it here.</p>';
     shell(
-      '<h1>Your profile.</h1><p class="customer-intro">Your Step Town account and order details.</p>' +
+      '<h1>Your profile.</h1><p class="customer-intro">Your Vitanova account and order details.</p>' +
       '<div class="customer-profile-details"><div><small>FULL NAME</small><strong>' + escapeHtml(name) + '</strong></div><div><small>PHONE NUMBER</small><strong>' + escapeHtml(phone) + '</strong></div></div>' +
       '<section class="customer-favourites"><h2>Your favourites</h2><div class="product-grid customer-favourites-grid" data-product-list="shared" data-product-view="favourites">' + favouritesMarkup + '</div></section>' +
       '<div class="customer-profile-actions"><a class="customer-submit" href="/profile/orders">View order history</a><a class="customer-secondary" href="/categories">Browse menu</a><button id="customer-signout" class="customer-secondary" type="button">Sign out</button></div>' +
       '<p class="customer-error" id="customer-profile-error" role="alert"></p>',
-      "MY STEP TOWN PROFILE"
+      "MY VITANOVA PROFILE"
     );
     const favouritesGrid = app.querySelector(".customer-favourites-grid");
     bindProductGallery(favouritesGrid);
@@ -337,7 +337,7 @@ if (isAuthRoute) {
         : money(order.estimated_total);
       const detailHref=order.tracking_token?"/order/"+encodeURIComponent(order.tracking_token):"#";
       return '<a class="customer-order-card customer-order-card-link" href="' + detailHref + '"><div class="customer-order-top"><strong>' +
-        escapeHtml(order.order_number || "Step Town order") + '</strong><span>' +
+        escapeHtml(order.order_number || "Vitanova order") + '</strong><span>' +
         escapeHtml(order.status || "new") + '</span></div><small>' +
         escapeHtml(order.created_at ? new Date(order.created_at).toLocaleDateString() : "") +
         ' · ' + escapeHtml(order.fulfillment || "") + '</small>' +
@@ -348,7 +348,7 @@ if (isAuthRoute) {
         '</a>';
     }).join("") : '<div class="customer-empty-orders"><strong>No orders yet.</strong><p>Your submitted order requests will appear here.</p><a href="/categories">Explore the menu</a></div>';
     shell(
-      '<h1>Your orders.</h1><p class="customer-intro">Your submitted Step Town orders, including requests made as a guest using this account email.</p>' +
+      '<h1>Your orders.</h1><p class="customer-intro">Your submitted Vitanova orders, including requests made as a guest using this account email.</p>' +
       '<div class="customer-order-list">' + cards + '</div><p class="customer-note"><a href="/profile">Back to profile</a></p>',
       "ORDER HISTORY"
     );
@@ -356,7 +356,7 @@ if (isAuthRoute) {
 
 
   async function loadProtectedView() {
-    shell('<h1>Loading your account…</h1><p class="customer-intro">Checking your secure Step Town session.</p>', "SECURE ACCOUNT");
+    shell('<h1>Loading your account…</h1><p class="customer-intro">Checking your secure Vitanova session.</p>', "SECURE ACCOUNT");
     try {
       if (route === "/profile/cart-history" || route === "/profile/orders") {
         const response = await apiFetch("/api/profile/orders");
@@ -396,11 +396,11 @@ if (isAuthRoute) {
     }
   }
   if (route === "/login" || route === "/register") {
-    document.title = route === "/register" ? "Step Town | Create an account" : "Step Town | Customer login";
+    document.title = route === "/register" ? "Create an account | Vitanova" : "Customer login | Vitanova";
     if (route === "/login") authForm("login", authError);
     else authForm("register", authError);
   } else {
-    document.title = route === "/profile/orders" ? "Step Town | Order history" : route === "/profile/cart-history" ? "Step Town | Cart history" : "Step Town | Profile";
+    document.title = route === "/profile/orders" ? "Order history | Vitanova" : route === "/profile/cart-history" ? "Cart history | Vitanova" : "Profile | Vitanova";
     loadProtectedView();
   }
 }
