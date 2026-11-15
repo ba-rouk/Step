@@ -31,7 +31,6 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
   let selectedCategory = "all";
   if (categoryRoute) document.body.classList.add("route-categories");
   if (galleryRoute) document.body.classList.add("route-gallery");
-  if (cartRoute) document.body.classList.add("route-cart");
   const routeSearchMount = document.querySelector(".route-search-mount");
   const routeSearch = document.querySelector(".storefront-hero .menu-search");
   if (categoryRoute && routeSearchMount && routeSearch) routeSearchMount.append(routeSearch);
@@ -458,100 +457,6 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCart
     link.addEventListener("focus", warmMenu, { once:true });
     link.addEventListener("touchstart", warmMenu, { once:true, passive:true });
   });
-  renderCart();
-  });
-
-  if (fulfillmentInput && locationInput) {
-    const updateLocationRequirement = () => {
-      locationInput.required = fulfillmentInput.value !== "pickup";
-      locationInput.placeholder = fulfillmentInput.value === "pickup" ? "Optional collection notes" : "Area, venue or address";
-    };
-    fulfillmentInput.addEventListener("change", updateLocationRequirement);
-    updateLocationRequirement();
-  }
-
-  if (checkoutDate) {
-    const today = new Date();
-    checkoutDate.min = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  }
-
-  checkoutForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (checkoutStatus) checkoutStatus.textContent = "";
-
-    if (!cart.length) {
-      checkoutStatus.textContent = "Add at least one menu item before sending your order request.";
-      return;
-    }
-    if (!checkoutForm.reportValidity()) return;
-
-    const formData = new FormData(checkoutForm);
-    const order = {
-      customer_name: String(formData.get("customer_name") || "").trim(),
-      customer_phone: String(formData.get("customer_phone") || "").trim(),
-      customer_email: String(formData.get("customer_email") || "").trim(),
-      fulfillment: String(formData.get("fulfillment") || "pickup"),
-      requested_date: String(formData.get("requested_date") || "") || null,
-      delivery_location: String(formData.get("delivery_location") || "").trim() || null,
-      notes: String(formData.get("notes") || "").trim() || null,
-      items: cart.map((item) => ({
-        product_id: item.product_id,
-        quantity: item.quantity
-      }))
-    };
-
-    const originalText = checkoutSubmit.innerHTML;
-    checkoutSubmit.disabled = true;
-    checkoutSubmit.textContent = "Saving your request…";
-
-    try {
-      const response = await apiFetch("/api/orders", { method: "POST", body: order });
-      const payload = await response.json().catch(() => ({}));
-
-      if (response.status === 401) {
-        window.location.assign("/login?next=" + encodeURIComponent("/cart"));
-        return;
-      }
-      if (!response.ok) {
-        checkoutStatus.textContent = [payload.error || "We couldn't save your request.", payload.suggestion ? "How to fix it: " + payload.suggestion : ""].filter(Boolean).join(" ");
-        return;
-      }
-
-      const savedOrder = payload.order || {};
-      const finalTotal = savedOrder.estimated_total == null ? null : Number(savedOrder.estimated_total);
-      const messageLines = [
-        "Hello Step Town, I have submitted an order request on your website.",
-        "",
-        "Order: " + (savedOrder.order_number || "New order request"),
-        "Name: " + order.customer_name,
-        "Phone: " + order.customer_phone,
-        "Email: " + order.customer_email,
-        "Fulfilment: " + order.fulfillment,
-        order.requested_date ? "Requested date: " + order.requested_date : "",
-        order.delivery_location ? "Location: " + order.delivery_location : "",
-        "",
-        "Order items:",
-        ...cart.map((item) => "- " + item.name + " × " + item.quantity),
-        finalTotal == null ? "Total: To be confirmed by Step Town" : "Estimated total: " + money(finalTotal),
-        order.notes ? "Notes: " + order.notes : ""
-      ].filter(Boolean);
-      const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(messageLines.join("\n"));
-
-      cart = [];
-      saveCart();
-      renderCart();
-      checkoutForm.reset();
-      if (fulfillmentInput && locationInput) locationInput.required = false;
-      checkoutStatus.innerHTML = 'Your order request has been saved. <a href="' + escapeHtml(whatsappUrl) + '" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>';
-    } catch (error) {
-      console.error("Step Town order request failed:", error);
-      checkoutStatus.textContent = "Connection problem: " + (error.message || "The order service could not be reached.") + " Try again after checking your internet connection. If it continues, contact Step Town on WhatsApp.";
-    } finally {
-      checkoutSubmit.disabled = false;
-      checkoutSubmit.innerHTML = originalText;
-    }
-  });
-
   renderCart();
   void syncAccountCart();
   loadCatalog();
