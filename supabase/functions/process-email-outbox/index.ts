@@ -7,7 +7,7 @@ const secret=Deno.env.get("EMAIL_OUTBOX_SECRET")||"";
 const appUrl=getSiteUrl();
 const provider=(Deno.env.get("EMAIL_PROVIDER")||"resend").toLowerCase();
 const apiKey=Deno.env.get("EMAIL_API_KEY")||Deno.env.get("RESEND_API_KEY")||"";
-const from=Deno.env.get("EMAIL_FROM")||"Vitanova <orders@vitanova.rw>";
+const from=Deno.env.get("EMAIL_FROM")||"Vitanova <orders@your-verified-domain.example>";
 const fromName=Deno.env.get("EMAIL_FROM_NAME")||"Vitanova";
 const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
 
