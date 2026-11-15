@@ -4,7 +4,8 @@ import { renderProductCard } from "./product-card.js";
 import { renderProductPage } from "./product-page.js";
 import { normalizeCategoryLabel } from "./catalog-config.js";
 import { bindProductGallery, showProductToast, flashCartButton } from "./product-gallery.js";
-import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
+import { GUEST_CART_STORAGE_KEY, LEGACY_GUEST_CART_STORAGE_KEYS } from "./cart-config.js";
+import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, removeCartItem, setCartQuantity, writeCartStorage } from "./cart-state.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -74,16 +75,13 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
   }
 
   function loadCart() {
-    try {
-      const value = JSON.parse(localStorage.getItem(GUEST_CART_STORAGE_KEY) || "[]");
-      return Array.isArray(value) ? value.filter(item => item && item.product_id)
-        .map(item => ({...item, quantity:Math.max(1,Math.min(20,Math.floor(Number(item.quantity)||1)))})).slice(0,50) : [];
-    } catch { return []; }
+    return readCartStorage(localStorage, GUEST_CART_STORAGE_KEY, LEGACY_GUEST_CART_STORAGE_KEYS);
   }
 
   function saveCart() {
-    try { localStorage.setItem(GUEST_CART_STORAGE_KEY, JSON.stringify(cart)); return true; }
-    catch (error) { console.warn("Guest cart could not be saved:", error); return false; }
+    const saved = writeCartStorage(localStorage, GUEST_CART_STORAGE_KEY, cart);
+    if (!saved) console.warn("Guest cart could not be saved: browser storage is unavailable.");
+    return saved;
   }
 
   let accountCartWrite = Promise.resolve();
@@ -107,15 +105,7 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
       const response = await fetch("/api/profile/cart", {credentials:"same-origin"});
       const data = await response.json().catch(() => ({}));
       if (!response.ok) return;
-      const merged = new Map();
-      for (const item of [...(Array.isArray(data.items) ? data.items : []), ...cart]) {
-        const id = String(item.product_id || item.id || "");
-        if (!id) continue;
-        const previous = merged.get(id);
-        merged.set(id, {...(previous || item), ...item, product_id:id,
-          quantity:Math.max(1,Math.min(20,Math.max(Number(previous?.quantity)||0,Number(item.quantity)||1)))});
-      }
-      cart = [...merged.values()].slice(0,50);
+      cart = mergeCartItems(data.items, cart);
       saveCart();
       await apiFetch("/api/profile/cart", {method:"PUT",body:{items:cart.map(item=>({product_id:item.product_id,quantity:item.quantity}))}});
       renderCart();
@@ -216,7 +206,7 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
     } catch (error) { console.warn("Favourite sync deferred:", error.message); }
   }
   function renderCart() {
-    const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const itemCount = cartItemCount(cart);
     if (cartCount) {
       cartCount.textContent = itemCount > 99 ? "99+" : String(itemCount);
       cartCount.hidden = itemCount <= 0;
@@ -297,10 +287,12 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
       quantity: 1
     };
 
-    const existing = cart.find(entry => entry.product_id === item.product_id);
-    if (existing) existing.quantity = Math.min(20, existing.quantity + 1);
-    else if (cart.length < 50) cart.push(item);
-    else { showProductToast("Your cart can contain up to 50 different products."); return; }
+    const existing = cart.some(entry => entry.product_id === item.product_id);
+    if (!existing && cart.length >= 50) {
+      showProductToast("Your cart can contain up to 50 different products.");
+      return;
+    }
+    cart = addCartItem(cart, item);
     if (!saveCart()) { showProductToast("Your cart could not be saved. Check your browser storage."); return; }
     renderCart();
     void persistAccountCartOnly();
@@ -512,11 +504,12 @@ import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
     if (!button) return;
     const item = cart.find((entry) => entry.product_id === button.dataset.productId);
     if (!item) return;
-    if (button.dataset.cartAction === "increase") item.quantity = Math.min(20, item.quantity + 1);
-    if (button.dataset.cartAction === "decrease") item.quantity -= 1;
-    if (button.dataset.cartAction === "remove" || item.quantity <= 0) {
-      cart = cart.filter((entry) => entry.product_id !== button.dataset.productId);
+    if (button.dataset.cartAction === "increase") cart = setCartQuantity(cart, item.product_id, item.quantity + 1);
+    if (button.dataset.cartAction === "decrease") {
+      if (item.quantity <= 1) cart = removeCartItem(cart, item.product_id);
+      else cart = setCartQuantity(cart, item.product_id, item.quantity - 1);
     }
+    if (button.dataset.cartAction === "remove") cart = removeCartItem(cart, item.product_id);
     saveCart();
     renderCart();
   });

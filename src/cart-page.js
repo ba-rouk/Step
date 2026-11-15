@@ -1,6 +1,7 @@
 import "./cart-page.css";
 import { apiFetch } from "./api.js";
-import { REQUIRE_LOGIN_FOR_CART_LIST, GUEST_CART_STORAGE_KEY } from "./cart-config.js";
+import { REQUIRE_LOGIN_FOR_CART_LIST, GUEST_CART_STORAGE_KEY, LEGACY_GUEST_CART_STORAGE_KEYS } from "./cart-config.js";
+import { cartItemCount, mergeCartItems, readCartStorage, removeCartItem, resolveCartProducts, setCartQuantity, writeCartStorage } from "./cart-state.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const params = new URLSearchParams(window.location.search);
@@ -11,6 +12,8 @@ let savedItems = [];
 let account = null;
 let isSignedIn = false;
 let sending = false;
+let quickLoading = false;
+let quickError = "";
 
 function setPage(page) {
   document.body.classList.toggle("route-cart",page==="cart");
@@ -36,21 +39,33 @@ function normalize(item) {
     image_url:String(item.image_url||imageFor(item)||""),quantity};
 }
 function readGuestCart() {
-  try {const rows=JSON.parse(localStorage.getItem(GUEST_CART_STORAGE_KEY)||"[]");return Array.isArray(rows)?rows.map(normalize).filter(Boolean).slice(0,50):[];}
-  catch{return [];}
+  return readCartStorage(localStorage,GUEST_CART_STORAGE_KEY,LEGACY_GUEST_CART_STORAGE_KEYS).map(normalize).filter(Boolean);
 }
 function writeGuestCart() {
-  try {localStorage.setItem(GUEST_CART_STORAGE_KEY,JSON.stringify(savedItems));return true;}
-  catch{return false;}
+  return writeCartStorage(localStorage,GUEST_CART_STORAGE_KEY,savedItems);
 }
 function merge(primary,secondary) {
-  const map=new Map();
-  for(const raw of [...primary,...secondary]){
-    const item=normalize(raw);if(!item)continue;
-    const old=map.get(item.product_id);
-    map.set(item.product_id,old?{...old,...item,quantity:Math.max(old.quantity,item.quantity)}:item);
+  return mergeCartItems(primary,secondary).map(normalize).filter(Boolean);
+}
+function embeddedProduct(reference) {
+  const embedded=document.querySelector("#step-cart-product-data");
+  if(embedded){
+    try{
+      const data=JSON.parse(embedded.textContent||"{}");
+      const item=data.product;
+      if(item&&(String(item.slug||"")===reference||String(item.id||"")===reference))
+        return normalize({...item,quantity:1});
+    }catch(error){console.warn("Embedded cart product data was invalid:",error);}
   }
-  return [...map.values()].slice(0,50);
+  const legacy=document.querySelector("#step-menu-initial-data");
+  if(legacy){
+    try{
+      const data=JSON.parse(legacy.textContent||"{}");
+      const item=(data.products||[]).find(p=>String(p.slug||"")===reference||String(p.id||"")===reference);
+      if(item)return normalize({...item,quantity:1});
+    }catch(error){console.warn("Legacy embedded menu data was invalid:",error);}
+  }
+  return null;
 }
 async function request(url,options={}) {
   const response=await fetch(url,{credentials:"same-origin",...options});
@@ -76,13 +91,23 @@ async function saveAccountCart() {
 }
 async function loadProduct(reference) {
   if(!reference)return null;
-  const embedded=document.querySelector("#step-menu-initial-data");
-  if(embedded){try{const data=JSON.parse(embedded.textContent||"{}");const item=(data.products||[]).find(p=>String(p.slug||"")===reference||String(p.id)===reference);if(item)return normalize({...item,quantity:1});}catch{}}
+  const {response,data}=await request("/api/catalog/product?reference="+encodeURIComponent(reference));
+  if(response.ok&&data.product)return normalize({...data.product,quantity:1});
+  if(response.status!==404)throw new Error(data.error||"The selected menu item could not be loaded.");
   const isId=/^[0-9a-f-]{36}$/i.test(reference);
-  const {response,data}=await request("/api/catalog?limit=1&"+(isId?"product_id=":"slug=")+encodeURIComponent(reference));
-  if(!response.ok)throw new Error(data.error||"The selected menu item could not be loaded.");
-  const item=(data.products||[]).find(p=>String(p.id)===reference||String(p.slug||"")===reference);
+  const fallback=await request("/api/catalog?limit=1&"+(isId?"product_id=":"slug=")+encodeURIComponent(reference));
+  if(!fallback.response.ok)throw new Error(fallback.data.error||"The selected menu item could not be loaded.");
+  const item=(fallback.data.products||[]).find(p=>String(p.id)===reference||String(p.slug||"")===reference);
   return item?normalize({...item,quantity:1}):null;
+}
+async function refreshSavedCartFromCatalog() {
+  if(!savedItems.length)return;
+  const ids=savedItems.map(item=>item.product_id);
+  const {response,data}=await request("/api/catalog?limit=50&product_ids="+encodeURIComponent(ids.join(",")));
+  if(!response.ok)throw new Error(data.error||"The latest cart prices could not be loaded.");
+  savedItems=resolveCartProducts(savedItems,data.products||[]).map(normalize).filter(Boolean);
+  if(isSignedIn)await saveAccountCart();
+  else writeGuestCart();
 }
 function itemMarkup(item,kind) {
   const price=item.price==null?"Price to be confirmed":money(item.price)+" per "+html(item.price_unit_label||item.price_unit||"unit");
@@ -102,7 +127,7 @@ function total(items) {
   return {subtotal,allPriced:items.length>0&&known.length===items.length,known:known.length};
 }
 function updateCartBadge() {
-  const count=savedItems.reduce((n,item)=>n+item.quantity,0);
+  const count=cartItemCount(savedItems);
   const badge=document.querySelector("#mobile-cart-count");
   if(badge){badge.textContent=count>99?"99+":String(count);badge.hidden=count===0;}
 }
@@ -112,8 +137,10 @@ function render() {
   const savedHost=document.querySelector("#saved-cart-summary");
   const submit=document.querySelector("#product-order-submit");
   if(quickHost){
-    quickHost.hidden=!quickItem;
-    quickHost.innerHTML=quickItem?'<p class="eyebrow">ORDER THIS ITEM</p>'+itemMarkup(quickItem,"quick"):"";
+    quickHost.hidden=!quickItem&&!quickLoading&&!quickError;
+    quickHost.innerHTML=quickItem?'<p class="eyebrow">ORDER THIS ITEM</p>'+itemMarkup(quickItem,"quick"):
+      quickLoading?'<p class="eyebrow">ORDER THIS ITEM</p><p class="saved-cart-empty">Loading the selected menu item…</p>':
+      quickError?'<div class="cart-empty"><strong>This menu item could not be loaded.</strong><p>'+html(quickError)+'</p><a class="button button-dark" href="/categories">Browse the menu</a></div>':"";
   }
   if(host){
     host.hidden=Boolean(quickItem);
@@ -162,21 +189,38 @@ async function startCart() {
   if(date)date.min=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
   savedItems=readGuestCart();
   const reference=params.get("product");
+  if(reference){
+    quickItem=embeddedProduct(reference);
+    quickLoading=!quickItem;
+    quickError="";
+    render();
+  }
+  const quickTask=reference&&!quickItem
+    ?loadProduct(reference).then(item=>{
+      if(!item)throw new Error("This product is no longer available. Please return to the menu.");
+      quickItem=item;quickLoading=false;quickError="";render();
+    }).catch(error=>{
+      quickLoading=false;quickError=error.message||"The selected menu item could not be loaded.";
+      if(status)status.textContent=quickError;
+      render();
+    })
+    :Promise.resolve();
   try{
     const signed=await loadAccount();
     if(signed){
       const accountCart=await loadAccountCart();
       savedItems=merge(accountCart,savedItems);
+      await refreshSavedCartFromCatalog();
       await saveAccountCart();
-      try{localStorage.removeItem(GUEST_CART_STORAGE_KEY);}catch{}
+      try{for(const key of [GUEST_CART_STORAGE_KEY,...LEGACY_GUEST_CART_STORAGE_KEYS])localStorage.removeItem(key);}catch{}
     }else if(REQUIRE_LOGIN_FOR_CART_LIST&&!reference){
       window.location.assign("/login?next="+encodeURIComponent("/cart"));return;
-    }else writeGuestCart();
+    }else{
+      try{await refreshSavedCartFromCatalog();}catch(error){console.warn("Saved cart product refresh deferred:",error.message);}
+      writeGuestCart();
+    }
   }catch(error){if(status)status.textContent=error.message||"Your cart could not be loaded.";}
-  if(reference){
-    try{quickItem=await loadProduct(reference);if(!quickItem)throw new Error("This product is no longer available. Please return to the menu.");}
-    catch(error){if(status)status.textContent=error.message;}
-  }
+  await quickTask;
   prefillForm(form);
   render();
   updateDeliveryField();
@@ -191,9 +235,17 @@ async function startCart() {
     const row=button.closest("[data-cart-product]");if(!row)return;
     const item=row.dataset.cartKind==="quick"?quickItem:savedItems.find(x=>x.product_id===row.dataset.cartProduct);
     if(!item)return;
-    if(button.dataset.action==="increase")item.quantity=Math.min(20,item.quantity+1);
-    if(button.dataset.action==="decrease")item.quantity=Math.max(1,item.quantity-1);
-    if(button.dataset.action==="remove")savedItems=savedItems.filter(x=>x.product_id!==item.product_id);
+    if(row.dataset.cartKind==="quick"){
+      if(button.dataset.action==="increase")quickItem={...quickItem,quantity:Math.min(20,quickItem.quantity+1)};
+      if(button.dataset.action==="decrease")quickItem={...quickItem,quantity:Math.max(1,quickItem.quantity-1)};
+    }else{
+      if(button.dataset.action==="increase")savedItems=setCartQuantity(savedItems,item.product_id,item.quantity+1).map(normalize).filter(Boolean);
+      if(button.dataset.action==="decrease"){
+        if(item.quantity<=1)savedItems=removeCartItem(savedItems,item.product_id).map(normalize).filter(Boolean);
+        else savedItems=setCartQuantity(savedItems,item.product_id,item.quantity-1).map(normalize).filter(Boolean);
+      }
+      if(button.dataset.action==="remove")savedItems=removeCartItem(savedItems,item.product_id).map(normalize).filter(Boolean);
+    }
     if(row.dataset.cartKind==="saved"){
       if(isSignedIn){try{await saveAccountCart();}catch(error){if(status)status.textContent=error.message;}}
       else writeGuestCart();
