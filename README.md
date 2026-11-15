@@ -1,6 +1,6 @@
-# Step Town — Catering, Barbecue & Cake
+# Vitanova — Catering, Barbecue & Cake
 
-Responsive Vite website for Step Town Catering and Cake in Rwanda.
+Responsive Vite website for Vitanova Catering and Cake in Rwanda.
 
 ## Stack
 - Vite 7
@@ -44,27 +44,27 @@ Vite exposes variables prefixed with `VITE_` to browser code. The publishable ke
 ## Supabase
 Project: `Step` (`tyuousqmpexrwmnmvxtd`).
 
-Migrations `create_step_town_enquiries` and `allow_public_enquiry_insert` create `public.enquiries`, enable RLS, and allow anonymous inserts only when the new enquiry has the `new` status. There is no public read, update or delete policy, so visitors cannot list or manage stored enquiries.
+Migrations `create_vitanova_enquiries` and `allow_public_enquiry_insert` create `public.enquiries`, enable RLS, and allow anonymous inserts only when the new enquiry has the `new` status. There is no public read, update or delete policy, so visitors cannot list or manage stored enquiries.
 
 The enquiry form validates required fields, saves the enquiry to Supabase, then offers an optional WhatsApp continuation. A successful database insert is confirmed before the success message appears.
 
 ## Business details
-- Step Town Catering and Cake
+- Vitanova Catering and Cake
 - Runda, Rwanda
-- +250 780 382 589
-- WhatsApp: https://wa.me/250780382589
+- +250 793 607 387
+- WhatsApp: https://wa.me/250793607387
 
 Confirm the exact street address, opening hours, service radius, and contact details with the business before launch.
 
 ## Photography
-The gallery currently uses illustrative preview photographs, not verified Step Town portfolio images. Replace them with the business's own licensed photographs before promoting the site as a portfolio.
+The gallery currently uses illustrative preview photographs, not verified Vitanova portfolio images. Replace them with the business's own licensed photographs before promoting the site as a portfolio.
 
 
 ## Online menu and orders
 - The storefront reads active categories from `public.store_categories` and available menu items from `public.store_products`.
-- Add and manage real Step Town dishes, packages, cake designs and prices in the Supabase Table Editor. Categories are pre-created: Catering, Barbecue and Cake.
+- Add and manage real Vitanova dishes, packages, cake designs and prices in the Supabase Table Editor. Categories are pre-created: Catering, Barbecue and Cake.
 - The shopping bag is stored in the visitor's browser. Checkout writes order requests to `public.store_orders`; public visitors can submit requests but cannot read, change or delete customer orders.
-- Orders are requests, not online payments or confirmed bookings. Step Town confirms availability and final prices directly, including any items whose price is left blank.
+- Orders are requests, not online payments or confirmed bookings. Vitanova confirms availability and final prices directly, including any items whose price is left blank.
 
 
 ## Staff workspace (in progress)
@@ -85,7 +85,7 @@ The current staff browser session is managed by Supabase JS. This uses Supabase'
 
 ## Photography sources
 Instagram profile supplied by the business: https://www.instagram.com/step_town_supermarket/
-The profile could not be read by the inspection tool. The temporary category backgrounds currently use externally hosted search-discovered images to avoid blank photo areas. They are illustrative references, not Step Town's own portfolio. Replace them with approved originals from the business before public marketing. Third-party image availability and reuse rights must be confirmed by the site owner.
+The profile could not be read by the inspection tool. The temporary category backgrounds currently use externally hosted search-discovered images to avoid blank photo areas. They are illustrative references, not Vitanova's own portfolio. Replace them with approved originals from the business before public marketing. Third-party image availability and reuse rights must be confirmed by the site owner.
 
 
 ### Deploying the staff backend
@@ -132,20 +132,20 @@ Customer routes are served by the Node server in `server.js`, which also provide
 
 Keep these values in the Render Web Service environment (never in browser code):
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (already used by the public catalogue and staff client).
-- `APP_URL=https://steptown.onrender.com`: pins OAuth callbacks to the production website origin.
+- `APP_URL=https://vitanova.onrender.com`: pins OAuth callbacks to the production website origin.
 - `SESSION_SECRET`: a randomly generated secret of at least 32 bytes. Generate one with `openssl rand -hex 48`. Do not commit it or share it with the browser.
 - Optional server aliases: `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The server falls back to the existing `VITE_` values if these are omitted. A Supabase service-role key is not required by the customer API.
 
-Enable **Phone** in Supabase Authentication providers and configure an SMS provider if phone confirmation is enabled. Set the site URL to `https://steptown.onrender.com`. Add `https://steptown.onrender.com/auth/callback` to the allowed Auth redirect URLs for Google OAuth. Phone/password authentication requires a verified phone number when SMS confirmation is enabled; Supabase recommends MFA because phone numbers can be recycled.
+Enable **Phone** in Supabase Authentication providers and configure an SMS provider if phone confirmation is enabled. Set the site URL to `https://vitanova.onrender.com`. Add `https://vitanova.onrender.com/auth/callback` to the allowed Auth redirect URLs for Google OAuth. Phone/password authentication requires a verified phone number when SMS confirmation is enabled; Supabase recommends MFA because phone numbers can be recycled.
 
 The public gallery reads published records from `public.gallery_items`, with category filters for Catering, Staff, Barbecue and Cakes. Accountants and Managers upload product/gallery images to the public `step-town-media` Supabase Storage bucket; JPEG, PNG, WebP and AVIF images up to 10 MB are accepted. Cashiers cannot upload. Products can store multiple image URLs; the public menu presents them as horizontally swipeable photo strips with local favourites.
 
-The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. The Step Town logo image supplied by the owner is used in the header, phone contact block and map card.
+The mobile dock provides Home, Categories, Gallery, Cart and Profile shortcuts. The Vitanova logo image supplied by the owner is used in the header, phone contact block and map card.
 
 
 #### Supabase Auth URL Configuration
 
-In **Authentication → URL Configuration**, set **Site URL** to `https://steptown.onrender.com` and add `https://steptown.onrender.com/auth/callback` to the allowed redirect URLs. Remove malformed entries such as `https://tyuousqmpexrwmnmvxtd.supabase.co/steptown.onrender.com`. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
+In **Authentication → URL Configuration**, set **Site URL** to `https://vitanova.onrender.com` and add `https://vitanova.onrender.com/auth/callback` to the allowed redirect URLs. Remove malformed entries such as `https://tyuousqmpexrwmnmvxtd.supabase.co/vitanova.onrender.com`. Keep the Google OAuth provider's registered callback URI as `https://tyuousqmpexrwmnmvxtd.supabase.co/auth/v1/callback`; that is the provider-to-Supabase callback and is not the app's final redirect URL.
 
 
 ## Guest cart, quick orders and email login
@@ -165,7 +165,7 @@ Password sign-in remains available. An account with an unverified email sees a v
 
 ### HTTPS email delivery (no SMTP)
 
-Render free web services block outbound SMTP ports 25, 465 and 587. Step Town therefore sends email only through the provider's HTTPS API; do not add Nodemailer SMTP transport or SMTP credentials.
+Render free web services block outbound SMTP ports 25, 465 and 587. Vitanova therefore sends email only through the provider's HTTPS API; do not add Nodemailer SMTP transport or SMTP credentials.
 
 Set these values as **Supabase Edge Function secrets** (and the matching server-side values in Render where indicated):
 
@@ -174,8 +174,8 @@ Set these values as **Supabase Edge Function secrets** (and the matching server-
 - `EMAIL_PROVIDER=resend` (supported values: `resend`, `brevo`, `postmark`, `mailgun`, `sendgrid`)
 - `EMAIL_API_KEY` (or `RESEND_API_KEY` for Resend)
 - `EMAIL_FROM` (must use a verified sender/domain)
-- `EMAIL_FROM_NAME=Step Town`
-- `APP_URL=https://steptown.onrender.com`
+- `EMAIL_FROM_NAME=Vitanova`
+- `APP_URL=https://vitanova.onrender.com`
 - `LOGIN_CODE_PEPPER` (random secret, at least 32 bytes)
 - `EMAIL_OUTBOX_SECRET` (different random secret, at least 32 bytes)
 - For Mailgun only: `MAILGUN_DOMAIN`
@@ -196,7 +196,7 @@ Use the provider's sandbox/test mode and its permitted test recipient addresses 
 
 ### Deploying the email and tracking Edge Functions
 
-After applying all migrations to the Step Town Supabase project, deploy:
+After applying all migrations to the Vitanova Supabase project, deploy:
 
 ```bash
 supabase functions deploy submit-store-order
