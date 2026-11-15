@@ -638,6 +638,76 @@ function renderProductNotFound(reference) {
     '<a class="button button-dark" href="/categories">Browse the menu</a></div>';
 }
 
+function cartDebugPage(res) {
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Step Town Cart Diagnostics</title>
+<style>body{margin:0;padding:20px;background:#171416;color:#f4eee8;font:14px/1.5 ui-monospace,monospace}h1{font:600 20px system-ui}pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;border:1px solid #55464a;border-radius:12px;background:#241f21}small{color:#c5b7b2}</style>
+</head>
+<body>
+<h1>Step Town cart diagnostics</h1>
+<small>Personal and secret fields are intentionally omitted.</small>
+<pre id="output">Reading local cart state…</pre>
+<script>
+(async()=>{
+  const tracked=["step-town-cart-v2","step-town-cart-v1","step-town-cart-handoff-v1","cart_version"];
+  const keys=Object.keys(localStorage).filter(key=>tracked.includes(key)||/(cart|bag)/i.test(key));
+  function safeValue(raw){
+    try{
+      const value=JSON.parse(raw);
+      const rows=Array.isArray(value)?value:Array.isArray(value?.items)?value.items:[];
+      return rows.map(item=>({
+        product_id:String(item?.product_id||item?.id||""),
+        slug:String(item?.slug||""),
+        quantity:Math.max(1,Math.min(20,Math.floor(Number(item?.quantity)||1)))
+      }));
+    }catch{return "[invalid JSON; raw contents redacted]";}
+  }
+  const storage=keys.map(key=>({key,value:key==="cart_version"?localStorage.getItem(key):safeValue(localStorage.getItem(key))}));
+  let cart=[];
+  try{cart=JSON.parse(localStorage.getItem("step-town-cart-v2")||"[]");}catch{}
+  if(!Array.isArray(cart))cart=[];
+  const resolved=[];
+  for(const item of cart){
+    const id=String(item?.product_id||"");
+    if(!id)continue;
+    try{
+      const response=await fetch("/api/catalog?limit=1&product_id="+encodeURIComponent(id),{credentials:"same-origin"});
+      if(!response.ok)continue;
+      const data=await response.json();
+      const product=(data.products||[]).find(row=>String(row.id)===id);
+      if(product&&product.is_available!==false&&product.is_visible!==false){
+        resolved.push({product_id:id,slug:product.slug||item.slug||"",name:product.name||"Menu item",unit_price:product.price??null,quantity:Math.max(1,Math.min(20,Number(item.quantity)||1))});
+      }
+    }catch{}
+  }
+  const badge=resolved.reduce((sum,item)=>sum+item.quantity,0);
+  let cacheNames=[];
+  try{cacheNames=await caches.keys();}catch{}
+  let worker=null;
+  try{
+    const registration=await navigator.serviceWorker?.getRegistration();
+    worker=registration?.active?.scriptURL||null;
+  }catch{}
+  const report={
+    storage_keys_and_values:storage,
+    resolved_items:resolved,
+    badge_calculation:{resolved_item_count:resolved.length,quantity_sum:badge},
+    cart_version:localStorage.getItem("cart_version")||"not set",
+    service_worker:{script_url:worker,cache_version:cacheNames.filter(name=>name.startsWith("step-town-"))}
+  };
+  document.querySelector("#output").textContent=JSON.stringify(report,null,2);
+})();
+</script>
+</body>
+</html>`;
+  res.writeHead(200,{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});
+  res.end(html);
+}
+
 function pageTitle(pathname){
   const titles={"/":"Food · Celebrations · "+CAKE_CATEGORY_LABEL,"/categories":"Categories","/categories/cake":CAKE_CATEGORY_LABEL,"/gallery":"Gallery","/cart":"Place an order","/order/confirmation":"Order confirmation","/profile":"Profile","/profile/orders":"Order history","/profile/cart-history":"Order history","/login":"Customer login","/register":"Create an account"};
   if(pathname==="/categories/cake")return CAKE_CATEGORY_LABEL;
@@ -740,6 +810,10 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
 }
 async function handle(req,res){
   const url=new URL(req.url||"/",origin(req)),route=decodeURIComponent(url.pathname).replace(/\/+$/,"")||"/";
+  if(req.method==="GET"&&route==="/cart-debug"){
+    if(process.env.CART_DEBUG_ENABLED!=="true")return sendJson(res,404,{error:"Not found."});
+    return cartDebugPage(res);
+  }
   if(req.method==="GET"&&route==="/api/auth/google")return oauthStart(req,res,url);
   if(req.method==="GET"&&route==="/auth/callback")return oauthCallback(req,res,url);
   if(req.method==="GET"&&route==="/categories/wedding-cakes"){
