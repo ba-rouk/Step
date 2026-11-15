@@ -144,12 +144,12 @@
       list.removeAttribute("style");
     }
 
-    function open() {
+    state.close = close;\n\n    function open() {
       if (select.disabled || root.classList.contains("is-open")) return;
       document.querySelectorAll(".step-select.is-open").forEach(other => {
         const otherSelect = other.previousElementSibling;
         const otherState = otherSelect && roots.get(otherSelect);
-        if (otherState) otherState.root.querySelector(".step-select-trigger")?.click();
+        if (otherState) otherState.close?.();
       });
       root.classList.add("is-open");
       const host = select.closest("dialog") || document.body;
@@ -285,7 +285,7 @@
     document.querySelectorAll(".step-select.is-open").forEach(root => {
       const select = root.previousElementSibling;
       const state = select && roots.get(select);
-      if (state) state.trigger.click();
+      if (state) state.close?.();
     });
   });
 
