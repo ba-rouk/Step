@@ -12,13 +12,14 @@ function parseIds(value) {
 
 export function readFavouriteIds(storage = localStorage) {
   try {
-    const current = storage.getItem(FAVOURITES_STORAGE_KEY);
-    if (current !== null) return parseIds(current);
+    const currentIds = parseIds(storage.getItem(FAVOURITES_STORAGE_KEY));
     const legacyIds = LEGACY_FAVOURITES_STORAGE_KEYS.flatMap(key => parseIds(storage.getItem(key)));
-    const migrated = [...new Set(legacyIds)];
-    if (migrated.length) storage.setItem(FAVOURITES_STORAGE_KEY, JSON.stringify(migrated));
+    const merged = [...new Set([...currentIds, ...legacyIds])];
+    if (legacyIds.length || storage.getItem(FAVOURITES_STORAGE_KEY) === null) {
+      storage.setItem(FAVOURITES_STORAGE_KEY, JSON.stringify(merged));
+    }
     for (const key of LEGACY_FAVOURITES_STORAGE_KEYS) storage.removeItem(key);
-    return migrated;
+    return merged;
   } catch {
     return [];
   }
