@@ -42,7 +42,7 @@ Deno.serve(async req=>{
   const body=[description,order.estimated_total==null?"Price to confirm":"RWF "+Number(order.estimated_total).toLocaleString("en-US"),fulfillmentLabel,requestedSlot].filter(Boolean).join(" · ");
   // Staff detail routes look up records by UUID, not the customer-facing order number.
   const orderPath="/staff/orders/"+encodeURIComponent(order.id);
-  const orderUrl="https://vitanova.onrender.com"+orderPath;
+  const orderUrl=getSiteUrl()+orderPath;
   const payload=JSON.stringify({title:"New order "+order.order_number,body,url:orderPath,tag:"order-"+order.id});
   const pub=Deno.env.get("VAPID_PUBLIC_KEY"),priv=Deno.env.get("VAPID_PRIVATE_KEY"),subject=Deno.env.get("VAPID_SUBJECT")||"mailto:orders@vitanova.rw";
   const outcomes:boolean[]=[];
