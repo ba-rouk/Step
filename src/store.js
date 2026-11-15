@@ -6,6 +6,7 @@ import { normalizeCategoryLabel } from "./catalog-config.js";
 import { bindProductGallery, showProductToast, flashCartButton } from "./product-gallery.js";
 import { GUEST_CART_STORAGE_KEY, LEGACY_GUEST_CART_STORAGE_KEYS } from "./cart-config.js";
 import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartStorage } from "./cart-state.js";
+import { readFavouriteIds, writeFavouriteIds } from "./favourites-storage.js";
 
 (() => {
   const categoryShowcase = document.querySelector("#category-showcase");
@@ -140,7 +141,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
     return String(product.slug || product.name || product.id).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || product.id;
   }
   function savedFavourites() {
-    try { const ids = JSON.parse(localStorage.getItem("step-town-favourites-v1") || "[]"); return Array.isArray(ids) ? ids : []; } catch { return []; }
+    return readFavouriteIds();
   }
   function renderProducts() {
     const productRoute = pathname.startsWith("/product/");
@@ -241,7 +242,7 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
   }
 
   const menuPageSize = 12;
-  const menuCacheKey = "step-town-menu-v2:" + (categorySlug || "all");
+  const menuCacheKey = "vitanova-menu-v2:" + (categorySlug || "all");
   let menuOffset = 0;
   let menuHasMore = false;
   let menuSearch = "";
@@ -387,12 +388,10 @@ import { addCartItem, cartItemCount, mergeCartItems, readCartStorage, writeCartS
   productGrid.addEventListener("click", (event) => {
     const favourite = event.target.closest("[data-favourite]");
     if (favourite) {
-      const key = "step-town-favourites-v1";
-      let saved = [];
-      try { saved = JSON.parse(localStorage.getItem(key) || "[]"); } catch {}
+      let saved = readFavouriteIds();
       const id = favourite.dataset.favourite;
       saved = saved.includes(id) ? saved.filter(value => value !== id) : [...saved, id];
-      localStorage.setItem(key, JSON.stringify(saved));
+      writeFavouriteIds(saved);
       favourite.classList.toggle("is-saved", saved.includes(id));
       favourite.setAttribute("aria-pressed", String(saved.includes(id)));
       favourite.setAttribute("aria-label", (saved.includes(id) ? "Remove from" : "Add to") + " favourites");
