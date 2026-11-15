@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const styles = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+const staffStyles = await readFile(new URL("../staff.css", import.meta.url), "utf8");
 const staff = await readFile(new URL("../src/staff-workspace.js", import.meta.url), "utf8");
 
 test("the dedicated cart route keeps its main content visible", () => {
