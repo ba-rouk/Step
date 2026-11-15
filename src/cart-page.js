@@ -1,6 +1,7 @@
 import "./cart-page.css";
 import { apiFetch } from "./api.js";
 import * as CartState from "./cart-state.js";
+import { REQUIRE_LOGIN_FOR_CART_LIST } from "./cart-config.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const params = new URLSearchParams(window.location.search);
