@@ -1,6 +1,7 @@
 import { normalizeCategoryLabel } from "./catalog-config.js";
 import { supabase, supabaseConfigured } from "./supabase.js";
 import "../staff.css";
+import "./theme-controls.css";
 
 const PATH = location.pathname.replace(/\/+$/, "") || "/";
 const PUBLIC_HOME_URL = "/";
