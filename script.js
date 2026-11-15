@@ -256,7 +256,7 @@ import { supabase, supabaseConfigured } from "./src/supabase.js";
         "Please let me know the next steps. Thank you."
       ].filter(Boolean);
 
-      const whatsappUrl = "https://wa.me/250780382589?text=" + encodeURIComponent(lines.join("\n"));
+      const whatsappUrl = "https://wa.me/250793607387?text=" + encodeURIComponent(lines.join("\n"));
       form.reset();
       if (error) {
         error.textContent = "Thank you — your enquiry has been saved successfully.";
