@@ -2,7 +2,8 @@ import "../customer.css";
 import { apiFetch } from "./api.js";
 import { renderProductCard } from "./product-card.js";
 import { bindProductGallery, flashCartButton, showProductToast } from "./product-gallery.js";
-import { GUEST_CART_STORAGE_KEY } from "./cart-config.js";
+import { GUEST_CART_STORAGE_KEY, LEGACY_GUEST_CART_STORAGE_KEYS } from "./cart-config.js";
+import { addCartItem, cartItemCount, readCartStorage, writeCartStorage } from "./cart-state.js";
 
 const route = window.location.pathname.replace(/\/+$/, "") || "/";
 const isAuthRoute = ["/login","/register","/profile","/profile/orders","/profile/cart-history"].includes(route);
@@ -253,13 +254,13 @@ if (isAuthRoute) {
         description:String(product.description||""),category_name:product.category_name||product.category?.name||"Menu",
         price:Number.isFinite(price)?price:null,price_unit:String(product.price_unit||"unit"),
         price_unit_label:String(product.price_unit_label||product.price_unit||"unit"),image_url:image,quantity:1};
-      let cart=[];
-      try{const rows=JSON.parse(localStorage.getItem(GUEST_CART_STORAGE_KEY)||"[]");cart=Array.isArray(rows)?rows:[];}catch{}
-      const existing=cart.find(row=>String(row.product_id||row.id)===item.product_id);
-      if(existing)existing.quantity=Math.min(20,(Number(existing.quantity)||1)+1);else cart.push(item);
-      try{localStorage.setItem(GUEST_CART_STORAGE_KEY,JSON.stringify(cart.slice(0,50)));}catch{showProductToast("Your cart could not be saved. Check your browser storage.");return;}
+      let cart=readCartStorage(localStorage,GUEST_CART_STORAGE_KEY,LEGACY_GUEST_CART_STORAGE_KEYS);
+      const hasItem=cart.some(row=>row.product_id===item.product_id);
+      if(!hasItem&&cart.length>=50){showProductToast("Your cart can contain up to 50 different products.");return;}
+      cart=addCartItem(cart,item);
+      if(!writeCartStorage(localStorage,GUEST_CART_STORAGE_KEY,cart)){showProductToast("Your cart could not be saved. Check your browser storage.");return;}
       const badge=document.querySelector("#mobile-cart-count");
-      if(badge){const count=cart.reduce((n,row)=>n+(Number(row.quantity)||1),0);badge.textContent=count>99?"99+":String(count);badge.hidden=count===0;}
+      if(badge){const count=cartItemCount(cart);badge.textContent=count>99?"99+":String(count);badge.hidden=count===0;}
       flashCartButton(add);
       let toast=document.querySelector(".store-toast");
       if(!toast){toast=document.createElement("div");toast.className="store-toast";toast.setAttribute("role","status");toast.setAttribute("aria-live","polite");document.body.append(toast);}
