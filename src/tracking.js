@@ -4,7 +4,7 @@ if(path.startsWith("/order/")&&path!=="/order/confirmation"){
   const token=path.split("/").filter(Boolean).at(-1);
   const main=document.querySelector("main");
   if(main){
-    main.innerHTML='<section class="order-tracking-page"><div class="order-tracking-card"><p class="eyebrow">STEP TOWN ORDER</p><h1>Track your order.</h1><p id="tracking-status" role="status">Loading your order details…</p><div id="tracking-details"></div><a class="button button-dark" href="/categories">Browse the menu</a></div></section>';
+    main.innerHTML='<section class="order-tracking-page"><div class="order-tracking-card"><p class="eyebrow">VITANOVA ORDER</p><h1>Track your order.</h1><p id="tracking-status" role="status">Loading your order details…</p><div id="tracking-details"></div><a class="button button-dark" href="/categories">Browse the menu</a></div></section>';
     const status=main.querySelector("#tracking-status"),details=main.querySelector("#tracking-details");
     const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     const money=v=>new Intl.NumberFormat("en-RW",{style:"currency",currency:"RWF",maximumFractionDigits:0}).format(Number(v));
