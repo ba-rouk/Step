@@ -707,10 +707,13 @@ async function staticPage(res,pathname,url=new URL(pathname,APP_URL)){
     const lowerHtml=html.toLowerCase();
     const titleStart=lowerHtml.indexOf("<title>");
     const titleEnd=lowerHtml.indexOf("</title>",titleStart);
+    const title=pathname==="/"?"Vitanova":pageTitle(pathname)+" | Vitanova";
     if(titleStart>=0&&titleEnd>titleStart){
-      const title=pathname==="/"?"Vitanova":pageTitle(pathname)+" | Vitanova";
       html=html.slice(0,titleStart)+"<title>"+title+"</title>"+html.slice(titleEnd+8);
     }
+    const safeTitle=title.replace(/&/g,"&amp;").replace(/"/g,"&quot;");
+    html=html.replace(/(<meta property="og:title" content=")[^"]*(")/i,"$1"+safeTitle+"$2");
+    html=html.replace(/(<meta name="twitter:title" content=")[^"]*(")/i,"$1"+safeTitle+"$2");
     const canonicalUrl=SITE_URL+(pathname==="/"?"":pathname);
     html=html.replaceAll("__SITE_URL__",canonicalUrl);
     if(menuPage){
