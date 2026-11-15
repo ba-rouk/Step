@@ -505,10 +505,24 @@ async function api(req,res,url) {
       normalized.set(id,Math.min(20,(normalized.get(id)||0)+quantity));
     }
     try{
-      await sb("/rest/v1/customer_cart_items?user_id=eq."+encodeURIComponent(current.user.id),{method:"DELETE",access:current.session.access_token,headers:{Prefer:"return=minimal"}});
-      if(normalized.size)await sb("/rest/v1/customer_cart_items",{method:"POST",access:current.session.access_token,body:[...normalized].map(([product_id,quantity])=>({user_id:current.user.id,product_id,quantity})),headers:{Prefer:"return=minimal"}});
+      // Upsert requested rows before pruning removed items. The old
+      // delete-then-insert sequence could empty a customer's cart when the
+      // insert failed or an overlapping update was still in flight.
+      const productIds=[...normalized.keys()];
+      if(productIds.length)await sb("/rest/v1/customer_cart_items?on_conflict=user_id,product_id",{
+        method:"POST",
+        access:current.session.access_token,
+        body:productIds.map(product_id=>({user_id:current.user.id,product_id,quantity:normalized.get(product_id)})),
+        headers:{Prefer:"resolution=merge-duplicates,return=minimal"}
+      });
+      const keepFilter=productIds.length?"&product_id=not.in.("+productIds.join(",")+")":"";
+      await sb("/rest/v1/customer_cart_items?user_id=eq."+encodeURIComponent(current.user.id)+keepFilter,{
+        method:"DELETE",
+        access:current.session.access_token,
+        headers:{Prefer:"return=minimal"}
+      });
       return sendJson(res,200,{ok:true,count:normalized.size});
-    }catch(error){return sendJson(res,error.status||502,{error:"Your saved cart could not be updated."});}
+    }catch(error){return sendJson(res,error.status||502,{error:"Your saved cart could not be updated. Existing saved items have been preserved where possible."});}
   }
   if(req.method==="GET"&&route==="/api/profile/favourites"){
     const current=await currentUser(req,res);
