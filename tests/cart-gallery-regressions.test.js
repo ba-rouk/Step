@@ -41,7 +41,7 @@ test("gallery edit dialog saves title, category, caption and alt text", () => {
 });
 
 test("gallery menu popover can overflow the card and photo frame", () => {
-  assert.match(styles, /\.staff-gallery-card-toolbar\s*\{/);
-  assert.match(styles, /\.staff-gallery-menu \.staff-action-menu-pop\s*\{[^}]*position:absolute !important/s);
-  assert.match(styles, /\.staff-gallery-manage article\.staff-gallery-card:has\(\.staff-gallery-menu\[open\]\)\s*\{[^}]*z-index:40/s);
+  assert.match(staffStyles, /\.staff-gallery-card-toolbar\s*\{/);
+  assert.match(staffStyles, /\.staff-gallery-menu \.staff-action-menu-pop\s*\{[^}]*position:absolute !important/s);
+  assert.match(staffStyles, /\.staff-gallery-manage article\.staff-gallery-card:has\(\.staff-gallery-menu\[open\]\)\s*\{[^}]*z-index:40/s);
 });
